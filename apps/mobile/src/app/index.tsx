@@ -75,6 +75,11 @@ export default function Home() {
           <Text style={styles.tileTitle}>Discreto</Text>
           <Text style={styles.tileSub}>Pantalla negra, sin sonido</Text>
         </Pressable>
+        <Pressable onPress={() => router.push('/report')} role="button" style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
+          <View style={[styles.tileChip, { backgroundColor: 'rgba(62,224,181,0.14)' }]} />
+          <Text style={styles.tileTitle}>Reportar</Text>
+          <Text style={styles.tileSub}>Bache, luz, basura…</Text>
+        </Pressable>
       </View>
 
       <View style={styles.card} accessibilityLiveRegion="polite">

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CANCEL_WINDOW_SECONDS, type CitizenAlert } from '@guardia/shared';
 import { api, errorMessage } from '@/lib/api';
-import { dispatchLine, FINAL, STATUS_TEXT, STATUS_TITLE } from '@/lib/labels';
+import { dispatchLine, FINAL, kindLabel, textFor, titleFor } from '@/lib/labels';
 import { onAlertStatus, onConnection } from '@/lib/realtime';
 import { ErrorText, LinkButton, Screen } from '@/components/ui';
 import { color, font, radius } from '@/theme';
@@ -99,11 +99,11 @@ export default function AlertStatus() {
   return (
     <Screen>
       <View style={[styles.card, tone]}>
-        <Text style={styles.kicker}>SOS · {alert.tenantName ?? 'sin municipio'}</Text>
+        <Text style={styles.kicker}>{kindLabel(alert)} · {alert.tenantName ?? 'sin municipio'}</Text>
         <Text style={styles.title} accessibilityLiveRegion="polite">
-          {STATUS_TITLE[alert.status]}
+          {titleFor(alert)}
         </Text>
-        <Text style={styles.text}>{STATUS_TEXT[alert.status]}</Text>
+        <Text style={styles.text}>{textFor(alert)}</Text>
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
 
@@ -120,7 +120,7 @@ export default function AlertStatus() {
           role="button"
           style={({ pressed }) => [styles.cancel, (pressed || cancelling) && { opacity: 0.7 }]}
         >
-          <Text style={styles.cancelText}>{cancelling ? 'Cancelando…' : `Cancelar alerta · quedan ${cancelLeft} s`}</Text>
+          <Text style={styles.cancelText}>{cancelling ? 'Cancelando…' : `Cancelar ${alert.type === 'CIVIC_REPORT' ? 'reporte' : 'alerta'} · quedan ${cancelLeft} s`}</Text>
         </Pressable>
       ) : alert.status === 'ACKNOWLEDGED' || alert.status === 'DISPATCHED' ? (
         <Text style={styles.note}>La central ya tomó tu caso; no se puede cancelar desde la app.</Text>

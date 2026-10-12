@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CitizenAlert } from '@guardia/shared';
 import { api, errorMessage } from '@/lib/api';
-import { dispatchLine, FINAL, STATUS_TITLE } from '@/lib/labels';
+import { dispatchLine, FINAL, kindLabel, titleFor } from '@/lib/labels';
 import { onAlertStatus } from '@/lib/realtime';
 import { ErrorText, LinkButton, Screen, Title } from '@/components/ui';
 import { color, font, radius } from '@/theme';
@@ -61,18 +61,18 @@ export default function Cases() {
               key={a.id}
               onPress={() => router.push({ pathname: '/alert/[id]', params: { id: a.id } })}
               role="button"
-              accessibilityLabel={`${sos ? 'SOS' : 'Reporte'}: ${STATUS_TITLE[a.status]}`}
+              accessibilityLabel={`${kindLabel(a)}: ${titleFor(a)}`}
               style={({ pressed }) => [styles.item, pressed && { opacity: 0.8 }]}
             >
               <View style={[styles.dot, { backgroundColor: sos ? color.sos : color.accent }]} />
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={styles.itemTitle}>{sos ? 'SOS' : 'Reporte urbano'}</Text>
+                <Text style={styles.itemTitle}>{kindLabel(a)}</Text>
                 <Text style={styles.itemMeta}>
                   {when(a.createdAt)}
                   {unit ? ` · ${unit}` : ''}
                 </Text>
               </View>
-              <Text style={[styles.badge, open ? styles.badgeLive : styles.badgeDone]}>{STATUS_TITLE[a.status]}</Text>
+              <Text style={[styles.badge, open ? styles.badgeLive : styles.badgeDone]}>{titleFor(a)}</Text>
             </Pressable>
           );
         })}

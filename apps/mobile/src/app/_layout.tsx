@@ -63,6 +63,7 @@ export default function RootLayout() {
               <Stack.Screen name="alert/[id]" />
               <Stack.Screen name="cases" />
               <Stack.Screen name="voice" />
+              <Stack.Screen name="report" />
               <Stack.Screen name="discreet" options={{ animation: 'none', gestureEnabled: false }} />
             </Stack.Protected>
           </Stack>

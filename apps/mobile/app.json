@@ -45,7 +45,15 @@
           "recordAudioAndroid": true,
           "enableBackgroundRecording": false
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Guard-IA usa la cámara solo para adjuntar una foto a tu reporte urbano.",
+          "photosPermission": "Guard-IA abre tus fotos solo para que elijas una para tu reporte urbano."
+        }
+      ],
+      "expo-asset"
     ]
   }
 }

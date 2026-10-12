@@ -94,7 +94,18 @@ vista separada para Obras/Aseo). Cursor de la central `(prioridad, created_at µ
 - VPS y dominios: `infra/.env.production.example`.
 - Repositorio: aún sin remoto.
 
-## Siguiente: Fase 3 (apps/mobile, Expo)
+## App del vecino (apps/mobile) — cómo está hecha
+
+`pnpm mobile` (en PowerShell: `pnpm.cmd mobile`; si cambian dependencias o rutas: `--clear`). Rutas en
+`src/app` con `Stack.Protected`: sin sesión → `login`/`verify`; sin `CONSENT_VERSION` vigente →
+`consent`; si no → `index`, `sos`, `voice`, `discreet`, `report`, `alert/[id]`, `cases`. Sesión en
+SecureStore (`lib/session.ts`), cliente con refresh de una vez (`lib/api.ts`), WS `/citizen`
+(`lib/realtime.ts`), envío multipart con `clientRef` y 3 reintentos (`sendAlert`). La URL de la API sale
+de la IP que sirve Metro (o `EXPO_PUBLIC_API_URL`). Usar `npx expo install` para dependencias y revisar
+la doc versionada de Expo (cambia por SDK; ver `apps/mobile/AGENTS.md`). Probar en web: el navegador no
+tiene GPS ni micrófono (simularlos); Expo Go Android no recibe push.
+
+## Fase 3 (referencia: alcance original)
 
 Compuerta: un SOS real desde un teléfono llega a la central y vuelve como push. Alcance: OTP SMS,
 consentimiento versionado (`CONSENT_VERSION` en shared), registro de dispositivo (`PUT /me/devices`),

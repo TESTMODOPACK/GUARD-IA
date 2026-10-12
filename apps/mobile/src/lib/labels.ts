@@ -1,4 +1,4 @@
-import type { AlertStatus, CitizenAlert, DispatchStatus } from '@guardia/shared';
+import type { AlertStatus, CitizenAlert, CivicCategory, DispatchStatus } from '@guardia/shared';
 
 /** Vocabulario del vecino: una palabra por concepto, igual en toda la app. */
 export const STATUS_TITLE: Record<AlertStatus, string> = {
@@ -33,6 +33,48 @@ const DISPATCH: Record<DispatchStatus, string> = {
 export function dispatchLine(a: CitizenAlert): string | null {
   if (!a.activeDispatch) return null;
   return `${a.activeDispatch.unitCode} ${DISPATCH[a.activeDispatch.status]}`;
+}
+
+/** Reportes urbanos: mismo flujo, otras palabras (no hay "unidad en camino" para un bache). */
+const CIVIC_TITLE: Partial<Record<AlertStatus, string>> = {
+  PENDING: 'Reporte recibido',
+  ACKNOWLEDGED: 'El municipio lo está revisando',
+  DISPATCHED: 'Equipo municipal asignado',
+  RESOLVED: 'Reporte resuelto',
+  REJECTED: 'Reporte cerrado por el municipio',
+  CANCELLED: 'Reporte cancelado',
+};
+
+const CIVIC_TEXT: Partial<Record<AlertStatus, string>> = {
+  PENDING: 'Llegó al municipio con tu ubicación. Te avisamos cuando lo atiendan.',
+  ACKNOWLEDGED: 'Un operador revisó tu reporte y lo derivará al equipo que corresponde.',
+  DISPATCHED: 'Un equipo municipal irá a revisar el lugar.',
+  RESOLVED: 'El municipio marcó tu reporte como resuelto. Gracias por avisar.',
+  REJECTED: 'El municipio cerró el reporte (por ejemplo, ya estaba informado).',
+};
+
+export const CIVIC_LABEL: Record<CivicCategory, string> = {
+  BACHE: 'Bache',
+  LUMINARIA: 'Luminaria apagada',
+  BASURA_MICROBASURAL: 'Basura o microbasural',
+  SEMAFORO: 'Semáforo',
+  AREA_VERDE: 'Área verde',
+  ANIMAL: 'Animal',
+  OTRO_URBANO: 'Otro',
+};
+
+export function titleFor(a: CitizenAlert): string {
+  return (a.type === 'CIVIC_REPORT' && CIVIC_TITLE[a.status]) || STATUS_TITLE[a.status];
+}
+
+export function textFor(a: CitizenAlert): string {
+  return (a.type === 'CIVIC_REPORT' && CIVIC_TEXT[a.status]) || STATUS_TEXT[a.status];
+}
+
+/** "SOS" o la categoría del reporte ("Bache"). */
+export function kindLabel(a: CitizenAlert): string {
+  if (a.type === 'EMERGENCY_SOS') return 'SOS';
+  return a.category && a.category in CIVIC_LABEL ? CIVIC_LABEL[a.category as CivicCategory] : 'Reporte urbano';
 }
 
 /** Estados finales: la pantalla deja de consultar. */
