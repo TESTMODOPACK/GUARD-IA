@@ -125,13 +125,18 @@ pnpm --filter @guardia/api test:db     # aislamiento RLS y ruteo por geocerca (r
 ## Variables de entorno
 
 Ver `.env.example` (desarrollo) e `infra/.env.production.example` (VPS). La app valida todas al arrancar
-(`apps/api/src/config/env.ts`) y se niega a correr en producción con `STORAGE_DRIVER=local` u
-`OTP_DEBUG_ENDPOINT=true`.
+(`apps/api/src/config/env.ts`) y se niega a correr en producción con `STORAGE_DRIVER=local`,
+`OTP_DEBUG_ENDPOINT=true`, `SMS_PROVIDER=console` o MinIO interno sin `S3_PUBLIC_ENDPOINT`. Una variable
+vacía (`VAR=`) cuenta como no definida.
+
+Media en el VPS: el navegador de la central no alcanza `minio:9000`. La API sube por la red interna y firma
+las URLs contra `https://MEDIA_DOMAIN`, que Caddy sirve desde MinIO solo para lectura (el bucket es privado:
+sin firma vigente no se lee nada).
 
 ## Despliegue (Fase 4, ya preparado)
 
 ```bash
-cd infra && cp .env.production.example .env   # completar
+cd infra && cp .env.production.example .env   # completar (3 dominios: API, central y media)
 docker compose up -d --build                  # db, redis, minio, migrate, api, command, caddy
 docker compose run --rm api node dist/cli/seed.js --name "Municipalidad de X" --slug x --geojson /ruta/limite.geojson
 ```

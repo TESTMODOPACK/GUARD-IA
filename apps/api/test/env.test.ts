@@ -25,6 +25,22 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...base, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio' })).toThrow(/LOCAL_STORAGE_SECRET/);
   });
 
+  it('rechaza producción con MinIO interno sin dirección pública', () => {
+    const prod = { ...base, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000' })).toThrow(/S3_PUBLIC_ENDPOINT/);
+    expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000', S3_PUBLIC_ENDPOINT: 'https://media.example.cl' })).not.toThrow();
+    // S3 de un proveedor (sin endpoint propio): la URL firmada ya es pública.
+    expect(() => validateEnv(prod)).not.toThrow();
+  });
+
+  it('trata `VAR=` vacía (env_file) como no definida', () => {
+    const env = validateEnv({ ...base, METRICS_TOKEN: '', S3_PUBLIC_ENDPOINT: '', LOG_LEVEL: '' });
+    expect(env.METRICS_TOKEN).toBeUndefined();
+    expect(env.S3_PUBLIC_ENDPOINT).toBeUndefined();
+    expect(env.LOG_LEVEL).toBe('info');
+    expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: '' })).toThrow(/JWT_ACCESS_SECRET/);
+  });
+
   it('exige un secreto JWT de 32+ caracteres', () => {
     expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'corto' })).toThrow(/JWT_ACCESS_SECRET/);
   });

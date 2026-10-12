@@ -96,6 +96,8 @@ services:
       REDIS_URL: redis://redis:6379
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://minio:9000
+      # La API sube por la red interna, pero firma las URLs con el host público que sirve Caddy.
+      S3_PUBLIC_ENDPOINT: https://${MEDIA_DOMAIN:?define MEDIA_DOMAIN}
       S3_BUCKET: ${S3_BUCKET:-guardia-media}
       S3_FORCE_PATH_STYLE: "true"
       OTP_DEBUG_ENDPOINT: "false"
@@ -128,6 +130,7 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN:?define API_DOMAIN}
       CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:-central.example.cl}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/caddy:/data

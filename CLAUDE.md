@@ -118,11 +118,12 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 ## Pendiente conocido
 
-- Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0, 1 y 2 hechas; siguiente: etapa 3, app Expo).
+- Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
+  ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
+  Guard-IA") y se retoma después del piloto.
   Entorno: `docs/entorno-local.md` (Postgres/Redis en WSL; `pnpm infra:wsl` + `pnpm dev`).
-- Para la etapa 4 (ensayo con Docker): con `S3_ENDPOINT=http://minio:9000` las URLs firmadas de media
-  apuntan a un host interno que el navegador no alcanza (falta un endpoint público de MinIO y
-  agregarlo a la CSP de la central); `infra/.env.production.example` no existe aunque se cita.
+- Media en el VPS: la API sube a `http://minio:9000` y firma con `S3_PUBLIC_ENDPOINT` (`https://MEDIA_DOMAIN`,
+  MinIO detrás de Caddy, solo GET/HEAD; ya en la CSP). Falta probarlo en un VPS real (no hay Docker local).
 - `next build` con `output: 'standalone'` falla en Windows al copiar node_modules enlazados por pnpm
   (symlinks); compila bien y la imagen Docker se construye en Linux. CSP de la central sin nonce.
 - ARCO hecho (API `GET /me/export` y `DELETE /me` por anonimización, migración 0002; app: pantalla `privacy` "Mis datos", probada en web). En el teléfono el export se entrega con el menú Compartir como texto; un archivo .json requiere `expo-file-system` + `expo-sharing`.

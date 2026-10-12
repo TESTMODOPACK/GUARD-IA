@@ -134,5 +134,5 @@ quedan como registro municipal sin datos personales y con la ubicación redondea
 | Municipio piloto | Seed `Municipio Demo` con rectángulo del Gran Santiago; `pnpm seed --geojson` carga uno real |
 | Reportes urbanos | Misma central, filtro por `type` |
 | Audio ambiente | Un clip (Fase 3) |
-| Dominio y VPS | Compose aislado; dominios por variables `API_DOMAIN` y `CENTRAL_DOMAIN` |
+| Dominio y VPS | Compose aislado; dominios por variables `API_DOMAIN`, `CENTRAL_DOMAIN` y `MEDIA_DOMAIN` (audio y fotos) |
 | Repositorio | Entregado como archivo; `git init` hecho, sin remoto |

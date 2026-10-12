@@ -44,6 +44,11 @@ const EnvSchema = z.object({
   /** s3 | local. `local` guarda en disco y sirve por URL firmada HMAC (solo desarrollo). */
   STORAGE_DRIVER: z.enum(['s3', 'local']).default('s3'),
   S3_ENDPOINT: z.string().url().optional(),
+  /**
+   * Dirección pública del mismo bucket para las URLs firmadas que abre el navegador de la central.
+   * Con MinIO en Docker, S3_ENDPOINT es interno (http://minio:9000) y el navegador no lo alcanza.
+   */
+  S3_PUBLIC_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default('guardia-media'),
   S3_ACCESS_KEY: z.string().optional(),
@@ -84,7 +89,9 @@ const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 
 export function validateEnv(raw: Record<string, unknown>): Env {
-  const parsed = EnvSchema.safeParse(raw);
+  // `VAR=` en un env_file llega como "": se trata como no definida (rige el default o "requerida").
+  const defined = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== ''));
+  const parsed = EnvSchema.safeParse(defined);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
@@ -99,6 +106,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (env.STORAGE_DRIVER === 'local') problems.push('STORAGE_DRIVER=local es solo para desarrollo');
     if (env.SMS_PROVIDER === 'console') problems.push('SMS_PROVIDER=console escribe los OTP en el log; usa twilio');
     if (env.LOCAL_STORAGE_SECRET.startsWith('dev-only')) problems.push('LOCAL_STORAGE_SECRET tiene el valor por defecto');
+    if (env.STORAGE_DRIVER === 's3' && env.S3_ENDPOINT?.startsWith('http://') && !env.S3_PUBLIC_ENDPOINT) {
+      problems.push('S3_ENDPOINT es interno (http): define S3_PUBLIC_ENDPOINT o la central no podrá abrir audio ni fotos');
+    }
     if (problems.length) throw new Error(`Configuración inválida para producción:\n  - ${problems.join('\n  - ')}`);
   }
   if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {

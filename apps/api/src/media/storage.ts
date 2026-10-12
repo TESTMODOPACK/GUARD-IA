@@ -28,6 +28,8 @@ export interface Storage {
 @Injectable()
 export class S3Storage implements Storage {
   private readonly client: S3Client;
+  /** Solo firma URLs (no toca la red): apunta a la dirección pública si existe. */
+  private readonly signer: S3Client;
   private readonly bucket: string;
 
   constructor(env: Env) {
@@ -35,12 +37,15 @@ export class S3Storage implements Storage {
       throw new Error('STORAGE_DRIVER=s3 requiere S3_ACCESS_KEY y S3_SECRET_KEY');
     }
     this.bucket = env.S3_BUCKET;
-    this.client = new S3Client({
+    const base = {
       region: env.S3_REGION,
-      endpoint: env.S3_ENDPOINT,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
       credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
-    });
+    };
+    this.client = new S3Client({ ...base, endpoint: env.S3_ENDPOINT });
+    // La firma incluye el host: se firma contra el host que el navegador va a pedir. El proxy
+    // (Caddy) reenvía ese Host a MinIO sin cambiarlo, así que la firma se valida igual.
+    this.signer = env.S3_PUBLIC_ENDPOINT ? new S3Client({ ...base, endpoint: env.S3_PUBLIC_ENDPOINT }) : this.client;
   }
 
   async put(key: string, body: Buffer, mime: string) {
@@ -62,7 +67,7 @@ export class S3Storage implements Storage {
 
   async signedUrl(key: string, ttlSeconds: number) {
     const url = await getSignedUrl(
-      this.client,
+      this.signer,
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: ttlSeconds },
     );
