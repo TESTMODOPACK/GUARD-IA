@@ -6,6 +6,7 @@ import { Logger } from 'nestjs-pino';
 import type { ServerOptions } from 'socket.io';
 import { API_PREFIX } from '@guardia/shared';
 import { AppModule } from './app.module';
+import { loadEnvFiles } from './cli/load-env';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { ENV, type Env } from './config/env';
 
@@ -49,6 +50,8 @@ export async function createApp(): Promise<NestExpressApplication> {
 }
 
 async function bootstrap() {
+  // En desarrollo lee el .env del monorepo; nunca pisa variables ya definidas (Docker, CI).
+  loadEnvFiles();
   const app = await createApp();
   const env = app.get<Env>(ENV);
   await app.listen(env.PORT, '0.0.0.0');

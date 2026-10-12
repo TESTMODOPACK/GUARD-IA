@@ -10,6 +10,7 @@ export function loadEnvFiles(): void {
   const candidates = [
     resolve(__dirname, '..', '..', '..', '..', '.env'), // raíz del monorepo
     resolve(__dirname, '..', '..', '.env'), // apps/api/.env
+    resolve(process.cwd(), '..', '..', '.env'), // raíz, con cwd = apps/api (pnpm --filter … dev)
     join(process.cwd(), '.env'),
   ];
   for (const file of candidates) {

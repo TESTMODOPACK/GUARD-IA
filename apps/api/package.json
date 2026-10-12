@@ -10,7 +10,7 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:db": "RUN_DB_TESTS=1 vitest run",
+    "test:db": "vitest run --mode db",
     "migrate": "tsx src/cli/migrate.ts",
     "seed": "tsx src/cli/seed.ts",
     "simulate": "tsx scripts/simulate.ts",
