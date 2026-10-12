@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { logout } from '@/lib/api';
@@ -8,13 +9,12 @@ import { LinkButton, Screen } from '@/components/ui';
 import { color, font, radius } from '@/theme';
 
 /**
- * Inicio del vecino. En 3b: sesión activa y registro del dispositivo para avisos.
- * El botón SOS se conecta en 3c (cuenta regresiva y POST /alerts).
+ * Inicio del vecino: SOS (cuenta regresiva y envío en /sos), estado del teléfono para avisos y
+ * registro del dispositivo (PUT /me/devices) al abrir.
  */
 export default function Home() {
   const { session } = useSession();
   const [push, setPush] = useState<PushResult | null>(null);
-  const [sosNote, setSosNote] = useState(false);
 
   useEffect(() => {
     registerDevice()
@@ -48,17 +48,15 @@ export default function Home() {
 
       <View style={styles.sosWrap}>
         <Pressable
-          onPress={() => setSosNote(true)}
+          onPress={() => router.push('/sos')}
           role="button"
-          accessibilityLabel="Pedir ayuda (se habilita en la próxima entrega)"
+          accessibilityLabel="Pedir ayuda: SOS con cuenta regresiva de 5 segundos"
           style={({ pressed }) => [styles.sos, pressed && { transform: [{ scale: 0.97 }] }]}
         >
           <Text style={styles.sosText}>SOS</Text>
           <Text style={styles.sosSub}>Toca para pedir ayuda</Text>
         </Pressable>
-        <Text style={styles.note}>
-          {sosNote ? 'El SOS se conecta en la entrega 3c. Por ahora usa la barra de abajo para llamar.' : '5 segundos para arrepentirte · cancelas hasta 30 s después'}
-        </Text>
+        <Text style={styles.note}>5 segundos para arrepentirte · cancelas hasta 30 s después</Text>
       </View>
 
       <View style={styles.card} accessibilityLiveRegion="polite">

@@ -29,7 +29,7 @@ Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado c
 
 ## Etapas
 
-> Avance: etapas 0, 1 y 2 ✅ · etapa 3: 3a ✅ 3b ✅ (12-10-2026) · siguiente: 3c (SOS por botón).
+> Avance: etapas 0, 1 y 2 ✅ · etapa 3: 3a ✅ 3b ✅ 3c ✅ (12-10-2026) · siguiente: 3d (seguimiento en tiempo real).
 
 ### Etapa 0 — Base de trabajo (1 sesión)
 

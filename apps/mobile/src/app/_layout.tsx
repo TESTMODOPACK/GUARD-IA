@@ -1,7 +1,7 @@
 import { BricolageGrotesque_600SemiBold, BricolageGrotesque_700Bold } from '@expo-google-fonts/bricolage-grotesque';
 import { Manrope_400Regular, Manrope_500Medium, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { View } from 'react-native';
@@ -23,6 +23,7 @@ export default function RootLayout() {
     Manrope_700Bold,
   });
   const { ready, session } = useSession();
+  const pathname = usePathname();
 
   useEffect(() => {
     void initSession();
@@ -49,10 +50,13 @@ export default function RootLayout() {
             </Stack.Protected>
             <Stack.Protected guard={signedIn && consented}>
               <Stack.Screen name="index" />
+              <Stack.Screen name="sos" options={{ animation: 'fade', gestureEnabled: false }} />
+              <Stack.Screen name="alert/[id]" />
             </Stack.Protected>
           </Stack>
         </View>
-        <EmergencyBar />
+        {/* Durante la cuenta regresiva la pantalla es solo para "No enviar". */}
+        {pathname !== '/sos' ? <EmergencyBar /> : null}
       </SafeAreaView>
     </SafeAreaProvider>
   );

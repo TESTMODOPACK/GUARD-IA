@@ -1,4 +1,12 @@
-import type { ApiError as ApiErrorBody, CitizenPublic, DeviceUpsert, TokenPair } from '@guardia/shared';
+import type {
+  ApiError as ApiErrorBody,
+  CitizenAlert,
+  CitizenPublic,
+  CreateAlertMeta,
+  CreateAlertResponse,
+  DeviceUpsert,
+  TokenPair,
+} from '@guardia/shared';
 import { API_BASE } from './config';
 import { clearSession, getSession, saveTokens } from './session';
 
@@ -91,7 +99,34 @@ export const api = {
   me: () => request<CitizenPublic>('/me'),
   consent: (version: string) => request<null>('/me/consent', { method: 'POST', body: json({ version }) }),
   upsertDevice: (d: DeviceUpsert) => request<null>('/me/devices', { method: 'PUT', body: json(d) }),
+  cancelAlert: (id: string) => request<CitizenAlert>(`/alerts/${id}/cancel`, { method: 'POST' }),
+  alert: (id: string) => request<CitizenAlert>(`/alerts/${id}`),
+  mine: () => request<CitizenAlert[]>('/alerts/mine?limit=20'),
 };
+
+/**
+ * Envía una alerta (multipart: `meta` JSON + `audio`/`photo` opcionales). Reintenta hasta 3 veces si
+ * no hay red o la API falla (5xx) con el MISMO `clientRef`: la base tiene UNIQUE (citizen_id,
+ * client_ref), así que un reintento nunca duplica la alerta.
+ */
+export async function sendAlert(meta: CreateAlertMeta & { clientRef: string }, files: { audio?: Blob; photo?: Blob } = {}) {
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const form = new FormData();
+    form.append('meta', JSON.stringify(meta));
+    if (files.audio) form.append('audio', files.audio);
+    if (files.photo) form.append('photo', files.photo);
+    try {
+      return await request<CreateAlertResponse>('/alerts', { method: 'POST', body: form });
+    } catch (e) {
+      last = e;
+      const retryable = e instanceof ApiError && (e.status === 0 || e.status >= 500);
+      if (!retryable) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  throw last;
+}
 
 /** Cierra la sesión aquí y en la API (revoca el refresh). Sin red, igual se cierra localmente. */
 export async function logout(): Promise<void> {
