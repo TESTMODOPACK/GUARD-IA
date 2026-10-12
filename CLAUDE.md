@@ -14,7 +14,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | 0 | Arquitectura y contratos | aprobada |
 | 1 | `apps/api` (NestJS 11, PostGIS/RLS, BullMQ, IA), infra, simulador | entregada y revisada |
 | 2 | `apps/command` (central Next.js 16) | cerrada: revisada, simulador y `ui-gate.mjs` verdes contra base real (12-10-2026) |
-| 3 | `apps/mobile` (Expo) | siguiente |
+| 3 | `apps/mobile` (Expo SDK 57, Expo Router) | implementada (3a–3f), probada en web contra la API real; falta Android real y push (development build) |
 | 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
 
 ## Comandos
