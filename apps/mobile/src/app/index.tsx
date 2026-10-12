@@ -59,6 +59,24 @@ export default function Home() {
         <Text style={styles.note}>5 segundos para arrepentirte · cancelas hasta 30 s después</Text>
       </View>
 
+      <View style={styles.tiles}>
+        <Pressable onPress={() => router.push('/voice')} role="button" style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
+          <View style={[styles.tileChip, { backgroundColor: 'rgba(255,59,79,0.16)' }]} />
+          <Text style={styles.tileTitle}>Hablar</Text>
+          <Text style={styles.tileSub}>Cuenta qué pasa</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/discreet')}
+          role="button"
+          accessibilityLabel="Modo discreto: pantalla negra que graba 15 segundos y envía el SOS sin que se note"
+          style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}
+        >
+          <View style={[styles.tileChip, { backgroundColor: 'rgba(185,165,255,0.16)' }]} />
+          <Text style={styles.tileTitle}>Discreto</Text>
+          <Text style={styles.tileSub}>Pantalla negra, sin sonido</Text>
+        </Pressable>
+      </View>
+
       <View style={styles.card} accessibilityLiveRegion="polite">
         <Text style={styles.cardLabel}>Este teléfono</Text>
         <Text style={styles.cardText}>{pushText}</Text>
@@ -108,6 +126,11 @@ const styles = StyleSheet.create({
   sosText: { color: '#ffffff', fontFamily: font.display, fontSize: 50, lineHeight: 54 },
   sosSub: { color: '#ffffff', fontFamily: font.bodyBold, fontSize: 13 },
   note: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12, textAlign: 'center', maxWidth: 300 },
+  tiles: { flexDirection: 'row', gap: 10 },
+  tile: { flex: 1, gap: 6, padding: 14, borderRadius: radius.card, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line },
+  tileChip: { width: 36, height: 36, borderRadius: 12 },
+  tileTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
+  tileSub: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },
   casesBtn: { gap: 2, padding: 16, borderRadius: radius.card, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line },
   casesTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
   casesSub: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },

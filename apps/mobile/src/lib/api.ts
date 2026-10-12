@@ -7,6 +7,7 @@ import type {
   DeviceUpsert,
   TokenPair,
 } from '@guardia/shared';
+import { Platform } from 'react-native';
 import { API_BASE } from './config';
 import { clearSession, getSession, saveTokens } from './session';
 
@@ -109,13 +110,16 @@ export const api = {
  * no hay red o la API falla (5xx) con el MISMO `clientRef`: la base tiene UNIQUE (citizen_id,
  * client_ref), así que un reintento nunca duplica la alerta.
  */
-export async function sendAlert(meta: CreateAlertMeta & { clientRef: string }, files: { audio?: Blob; photo?: Blob } = {}) {
+export async function sendAlert(
+  meta: CreateAlertMeta & { clientRef: string },
+  files: { audio?: UploadFile; photo?: UploadFile } = {},
+) {
   let last: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     const form = new FormData();
     form.append('meta', JSON.stringify(meta));
-    if (files.audio) form.append('audio', files.audio);
-    if (files.photo) form.append('photo', files.photo);
+    if (files.audio) await appendFile(form, 'audio', files.audio);
+    if (files.photo) await appendFile(form, 'photo', files.photo);
     try {
       return await request<CreateAlertResponse>('/alerts', { method: 'POST', body: form });
     } catch (e) {
@@ -126,6 +130,23 @@ export async function sendAlert(meta: CreateAlertMeta & { clientRef: string }, f
     }
   }
   throw last;
+}
+
+/** Archivo local para subir: en el teléfono, la ruta que devuelve el grabador o la cámara. */
+export type UploadFile = { uri: string; name: string; type: string };
+
+/**
+ * En el teléfono, React Native sube `{ uri, name, type }` directo desde el disco. En la web la uri es
+ * un blob: se lee y se normaliza el tipo ("audio/webm;codecs=opus" → "audio/webm"), porque la API
+ * compara el tipo exacto contra su lista permitida.
+ */
+async function appendFile(form: FormData, field: string, f: UploadFile): Promise<void> {
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(f.uri)).blob();
+    form.append(field, new Blob([blob], { type: f.type }), f.name);
+    return;
+  }
+  form.append(field, f as unknown as Blob);
 }
 
 /** Cierra la sesión aquí y en la API (revoca el refresh). Sin red, igual se cierra localmente. */

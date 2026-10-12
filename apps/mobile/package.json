@@ -16,6 +16,7 @@
     "@expo-google-fonts/manrope": "^0.4.2",
     "@guardia/shared": "workspace:*",
     "expo": "~57.0.27",
+    "expo-audio": "~57.0.5",
     "expo-constants": "~57.0.21",
     "expo-crypto": "~57.0.3",
     "expo-device": "~57.0.2",

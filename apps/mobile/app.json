@@ -37,6 +37,14 @@
         {
           "locationWhenInUsePermission": "Guard-IA usa tu ubicación solo cuando pides ayuda o reportas un problema, para que la central de tu municipio sepa dónde estás."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Guard-IA graba audio solo cuando pides ayuda por voz o en modo discreto, para que la central sepa qué pasa.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
       ]
     ]
   }

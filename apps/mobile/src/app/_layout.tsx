@@ -62,11 +62,13 @@ export default function RootLayout() {
               <Stack.Screen name="sos" options={{ animation: 'fade', gestureEnabled: false }} />
               <Stack.Screen name="alert/[id]" />
               <Stack.Screen name="cases" />
+              <Stack.Screen name="voice" />
+              <Stack.Screen name="discreet" options={{ animation: 'none', gestureEnabled: false }} />
             </Stack.Protected>
           </Stack>
         </View>
-        {/* Durante la cuenta regresiva la pantalla es solo para "No enviar". */}
-        {pathname !== '/sos' ? <EmergencyBar /> : null}
+        {/* Cuenta regresiva: solo "No enviar". Modo discreto: nada que delate la app. */}
+        {pathname !== '/sos' && pathname !== '/discreet' ? <EmergencyBar /> : null}
       </SafeAreaView>
     </SafeAreaProvider>
   );
