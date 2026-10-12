@@ -13,13 +13,13 @@ const NUMBERS = [
  */
 export function EmergencyBar() {
   return (
-    <View style={styles.wrap} accessibilityRole="toolbar" accessibilityLabel="Números de emergencia">
+    <View style={styles.wrap} role="toolbar" accessibilityLabel="Números de emergencia">
       <View style={styles.dock}>
         {NUMBERS.map((n) => (
           <Pressable
             key={n.number}
             onPress={() => Linking.openURL(`tel:${n.number}`)}
-            accessibilityRole="button"
+            role="button"
             accessibilityLabel={`Llamar al ${n.number}, ${n.agency}`}
             style={({ pressed }) => [styles.item, pressed && styles.pressed]}
           >
