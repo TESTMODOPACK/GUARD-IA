@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { EmergencyBar } from '@/components/EmergencyBar';
+import { connectCitizen, disconnectCitizen } from '@/lib/realtime';
 import { hasCurrentConsent, initSession, useSession } from '@/lib/session';
 import { color } from '@/theme';
 
@@ -28,6 +29,14 @@ export default function RootLayout() {
   useEffect(() => {
     void initSession();
   }, []);
+
+  // Canal en vivo /citizen mientras haya sesión con consentimiento vigente.
+  const liveFor = session && hasCurrentConsent(session) ? session.citizen.id : null;
+  useEffect(() => {
+    if (!liveFor) return;
+    connectCitizen();
+    return () => disconnectCitizen();
+  }, [liveFor]);
 
   // Sin fuentes o sesión aún: fondo del tema, sin parpadeo blanco.
   if (!fontsLoaded || !ready) return <View style={{ flex: 1, backgroundColor: color.bg }} />;
@@ -52,6 +61,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="sos" options={{ animation: 'fade', gestureEnabled: false }} />
               <Stack.Screen name="alert/[id]" />
+              <Stack.Screen name="cases" />
             </Stack.Protected>
           </Stack>
         </View>

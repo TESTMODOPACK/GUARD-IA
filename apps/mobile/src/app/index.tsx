@@ -65,6 +65,15 @@ export default function Home() {
         <Text style={styles.cardMeta}>Confianza {session.citizen.trustScore} / 100 · consentimiento {session.citizen.consentVersion}</Text>
       </View>
 
+      <Pressable
+        onPress={() => router.push('/cases')}
+        role="button"
+        style={({ pressed }) => [styles.casesBtn, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={styles.casesTitle}>Mis casos</Text>
+        <Text style={styles.casesSub}>Estado de tus alertas y reportes, en vivo</Text>
+      </Pressable>
+
       <LinkButton label="Cerrar sesión" onPress={() => void logout()} />
     </Screen>
   );
@@ -99,6 +108,9 @@ const styles = StyleSheet.create({
   sosText: { color: '#ffffff', fontFamily: font.display, fontSize: 50, lineHeight: 54 },
   sosSub: { color: '#ffffff', fontFamily: font.bodyBold, fontSize: 13 },
   note: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12, textAlign: 'center', maxWidth: 300 },
+  casesBtn: { gap: 2, padding: 16, borderRadius: radius.card, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line },
+  casesTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
+  casesSub: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },
   card: { gap: 6, padding: 16, borderRadius: radius.card, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line },
   cardLabel: { color: color.inkMuted, fontFamily: font.bodyBold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   cardText: { color: color.ink, fontFamily: font.body, fontSize: 14, lineHeight: 20 },

@@ -29,7 +29,7 @@ let refreshing: Promise<string | null> | null = null;
  * Renueva el access token una sola vez aunque varias llamadas fallen a la vez.
  * Solo un rechazo del refresh (4xx salvo 429) cierra la sesión; sin red o con la API caída, no.
  */
-async function refreshAccess(): Promise<string | null> {
+export async function refreshAccess(): Promise<string | null> {
   if (refreshing) return refreshing;
   refreshing = (async () => {
     const s = getSession();
@@ -47,7 +47,7 @@ async function refreshAccess(): Promise<string | null> {
   return refreshing;
 }
 
-async function accessToken(): Promise<string | null> {
+export async function accessToken(): Promise<string | null> {
   const s = getSession();
   if (!s) return null;
   return Date.now() < s.accessExpiresAt ? s.accessToken : refreshAccess();

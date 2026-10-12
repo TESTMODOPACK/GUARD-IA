@@ -4,14 +4,17 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'r
 import { CANCEL_WINDOW_SECONDS, type CitizenAlert } from '@guardia/shared';
 import { api, errorMessage } from '@/lib/api';
 import { dispatchLine, FINAL, STATUS_TEXT, STATUS_TITLE } from '@/lib/labels';
+import { onAlertStatus, onConnection } from '@/lib/realtime';
 import { ErrorText, LinkButton, Screen } from '@/components/ui';
 import { color, font, radius } from '@/theme';
 
-const POLL_MS = 4000;
+/** Respaldo si el WebSocket se cae; con el canal en vivo los cambios llegan al instante. */
+const POLL_MS = 15_000;
 
 /**
- * Estado de una alerta propia. En 3c consulta cada 4 s; en 3d el WebSocket /citizen lo reemplaza.
- * Cancelar solo mientras está PENDING y dentro de los 30 s (la API valida lo mismo).
+ * Estado de una alerta propia: llega en vivo por /citizen (`alert.status`) y se reconsulta cada 15 s
+ * por si el canal se cortó. Cancelar solo mientras está PENDING y dentro de los 30 s (la API valida
+ * lo mismo).
  */
 export default function AlertStatus() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,6 +22,7 @@ export default function AlertStatus() {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [cancelling, setCancelling] = useState(false);
+  const [live, setLive] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -33,6 +37,24 @@ export default function AlertStatus() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Cambios en vivo de esta alerta.
+  useEffect(
+    () =>
+      onAlertStatus((a) => {
+        if (a.id === id) setAlert(a);
+      }),
+    [id],
+  );
+  // Al reconectar, recuperar lo que pudo cambiar mientras no había canal.
+  useEffect(
+    () =>
+      onConnection((online) => {
+        setLive(online);
+        if (online) void load();
+      }),
+    [load],
+  );
 
   const final = alert ? FINAL.includes(alert.status) : false;
   useEffect(() => {
@@ -105,7 +127,9 @@ export default function AlertStatus() {
       ) : null}
 
       {error ? <ErrorText>{error}</ErrorText> : null}
-      {!final ? <Text style={styles.note}>Actualizando cada pocos segundos…</Text> : null}
+      {!final ? (
+        <Text style={styles.note}>{live ? 'En vivo · los cambios de la central aparecen al instante' : 'Reconectando… revisamos el estado cada 15 s'}</Text>
+      ) : null}
       <LinkButton label="Volver al inicio" onPress={() => router.replace('/')} />
     </Screen>
   );
