@@ -1,10 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
 import { api, errorMessage } from '@/lib/api';
 import { formatPhone, setPendingPhone, toE164 } from '@/lib/phone';
-import { ErrorText, Field, Lead, PrimaryButton, Screen, Title } from '@/components/ui';
-import { color } from '@/theme';
+import { BrandLockup } from '@/components/Brand';
+import { ErrorText, Field, Lead, PrimaryButton, Screen } from '@/components/ui';
 
 /** Ingreso: celular chileno → código por SMS. Sin RUT ni contraseña (minimización, Ley 21.719). */
 export default function Login() {
@@ -30,13 +29,8 @@ export default function Login() {
 
   return (
     <Screen center>
-      <View style={{ width: 64, height: 64, borderRadius: 20, borderWidth: 3, borderColor: color.accent, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: color.sos }} />
-      </View>
-      <View style={{ gap: 10 }}>
-        <Title>Tu barrio,{'\n'}más cerca de ayuda.</Title>
-        <Lead>Entra con tu celular. Te enviamos un código por SMS; no pedimos RUT ni contraseña.</Lead>
-      </View>
+      <BrandLockup tagline />
+      <Lead>Entra con tu celular. Te enviamos un código por SMS; no pedimos RUT ni contraseña.</Lead>
       <Field
         label="Número de celular"
         prefix="+56"

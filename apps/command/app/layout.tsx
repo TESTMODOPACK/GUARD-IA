@@ -4,11 +4,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Guard-IA Command',
   description: 'Central de monitoreo municipal',
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: '/favicon.png', apple: '/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0e1420',
+  themeColor: '#071426',
   width: 'device-width',
   initialScale: 1,
 };

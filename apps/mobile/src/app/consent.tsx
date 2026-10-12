@@ -8,9 +8,9 @@ import { color, font, TOUCH } from '@/theme';
 
 const ITEMS = [
   { title: 'Ubicación, audio y foto', text: 'Solo cuando pides ayuda o reportas, y van a la central de tu municipio.', tint: color.accent },
-  { title: 'IA para priorizar', text: 'El audio se transcribe y clasifica con OpenAI. Se borra a los 90 días.', tint: '#b9a5ff' },
+  { title: 'IA para priorizar', text: 'El audio se transcribe y clasifica con OpenAI. Se borra a los 90 días.', tint: color.ok },
   { title: 'Falsas alarmas', text: 'Bajan tu nivel de confianza; tus próximas alertas se revisan con más cuidado.', tint: color.warn },
-  { title: 'Tus derechos', text: 'Puedes pedir una copia de tus datos o borrar tu cuenta cuando quieras.', tint: '#60a5fa' },
+  { title: 'Tus derechos', text: 'Puedes pedir una copia de tus datos o borrar tu cuenta cuando quieras.', tint: '#8fb4ea' },
 ] as const;
 
 /** Consentimiento versionado (CONSENT_VERSION). Sin aceptar, la app no deja pedir ayuda. */

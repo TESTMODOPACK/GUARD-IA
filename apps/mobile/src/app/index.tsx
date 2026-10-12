@@ -5,6 +5,7 @@ import { logout } from '@/lib/api';
 import { formatPhone } from '@/lib/phone';
 import { registerDevice, type PushResult } from '@/lib/push';
 import { useSession } from '@/lib/session';
+import { BrandMark } from '@/components/Brand';
 import { LinkButton, Screen } from '@/components/ui';
 import { color, font, radius } from '@/theme';
 
@@ -36,9 +37,12 @@ export default function Home() {
   return (
     <Screen>
       <View style={styles.head}>
-        <View>
-          <Text style={styles.hello}>Hola</Text>
-          <Text style={styles.tenant}>{formatPhone(session.citizen.phone)}</Text>
+        <View style={styles.who}>
+          <BrandMark size={44} />
+          <View>
+            <Text style={styles.hello}>Hola</Text>
+            <Text style={styles.tenant}>{formatPhone(session.citizen.phone)}</Text>
+          </View>
         </View>
         <View style={styles.chip}>
           <View style={styles.chipDot} />
@@ -61,7 +65,7 @@ export default function Home() {
 
       <View style={styles.tiles}>
         <Pressable onPress={() => router.push('/voice')} role="button" style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
-          <View style={[styles.tileChip, { backgroundColor: 'rgba(255,59,79,0.16)' }]} />
+          <View style={[styles.tileChip, { backgroundColor: color.sosTint }]} />
           <Text style={styles.tileTitle}>Hablar</Text>
           <Text style={styles.tileSub}>Cuenta qué pasa</Text>
         </Pressable>
@@ -71,12 +75,12 @@ export default function Home() {
           accessibilityLabel="Modo discreto: pantalla negra que graba 15 segundos y envía el SOS sin que se note"
           style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}
         >
-          <View style={[styles.tileChip, { backgroundColor: 'rgba(185,165,255,0.16)' }]} />
+          <View style={[styles.tileChip, { backgroundColor: 'rgba(8,63,128,0.55)' }]} />
           <Text style={styles.tileTitle}>Discreto</Text>
           <Text style={styles.tileSub}>Pantalla negra, sin sonido</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/report')} role="button" style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
-          <View style={[styles.tileChip, { backgroundColor: 'rgba(62,224,181,0.14)' }]} />
+          <View style={[styles.tileChip, { backgroundColor: color.accentSoft }]} />
           <Text style={styles.tileTitle}>Reportar</Text>
           <Text style={styles.tileSub}>Bache, luz, basura…</Text>
         </Pressable>
@@ -113,6 +117,7 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  who: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   hello: { color: color.inkMuted, fontFamily: font.body, fontSize: 13 },
   tenant: { color: color.ink, fontFamily: font.display, fontSize: 22 },
   chip: {
@@ -122,7 +127,7 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(62,224,181,0.14)',
+    backgroundColor: color.okSoft,
   },
   chipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.ok },
   chipText: { color: color.ok, fontFamily: font.bodyBold, fontSize: 12 },

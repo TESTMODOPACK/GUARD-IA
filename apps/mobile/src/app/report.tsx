@@ -125,7 +125,7 @@ export default function Report() {
           value={text}
           onChangeText={(t) => setText(t.slice(0, MAX_TEXT))}
           placeholder="Ej.: bache grande frente al número 1234"
-          placeholderTextColor="#5d6a7f"
+          placeholderTextColor={color.inkFaint}
           multiline
           accessibilityLabel="Descripción del reporte"
           style={styles.textarea}
@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#33405a',
-    backgroundColor: '#0f1727',
+    borderColor: color.lineStrong,
+    backgroundColor: color.surface,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 8,

@@ -1,23 +1,26 @@
 @import 'tailwindcss';
 
 /*
- * Guard-IA Command · tokens de la sala de control.
- * El color codifica prioridad y estado; el acento teal es solo para acciones.
+ * Guard-IA Command · tokens de la sala de control, derivados del logo (mismos valores que
+ * apps/mobile/src/theme.ts): fondos azul marino, acento azul "IA" solo para acciones, cian de las
+ * ondas para la marca. El color de prioridad y estado no cambia con la marca: rojo, ámbar, pizarra
+ * (baja, para no confundirse con el acento) y verde para "en línea / resuelto".
  */
 @theme {
-  --color-bg: #0e1420;
-  --color-surface: #141c2b;
-  --color-surface-2: #1b2537;
-  --color-line: #2a3649;
-  --color-line-strong: #3a4860;
-  --color-ink: #e8edf5;
-  --color-ink-muted: #8a97ab;
-  --color-ink-faint: #5d6a7f;
-  --color-accent: #2fb7a6;
-  --color-accent-ink: #062a26;
+  --color-bg: #071426;
+  --color-surface: #0c1d36;
+  --color-surface-2: #12284a;
+  --color-line: #1d3557;
+  --color-line-strong: #2b4670;
+  --color-ink: #e9f1fb;
+  --color-ink-muted: #8ea3c0;
+  --color-ink-faint: #5b7091;
+  --color-accent: #1fa8f0;
+  --color-accent-ink: #031b33;
+  --color-signal: #01cbdf;
   --color-high: #ff5a4e;
   --color-medium: #f2b134;
-  --color-low: #5b8def;
+  --color-low: #8d9cc0;
   --color-ok: #4cc38a;
   --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --radius-ctl: 6px;
@@ -145,7 +148,7 @@ textarea {
 
 /* Leaflet en oscuro: atenúa los tiles de OSM sin cambiar la cartografía. */
 html .leaflet-container {
-  background: #0b1019;
+  background: #06111f;
   font-family: inherit;
 }
 .leaflet-tile-pane {

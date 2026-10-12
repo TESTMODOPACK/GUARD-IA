@@ -84,6 +84,9 @@ NestJS 11 CommonJS (no 12, es ESM-only). Drizzle sobre postgres-js. `lat/lng` co
 no hay `OPENAI_API_KEY`. Email de operador único global. Dashboard único con filtro por tipo (no una
 vista separada para Obras/Aseo). Cursor de la central `(prioridad, created_at µs, id)`.
 `NEXT_PUBLIC_API_URL` se fija en el build de la central (una imagen por entorno).
+Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps/command/app/globals.css`
+(mismos valores; el rojo queda solo para SOS/prioridad alta). Íconos y símbolo generados desde
+`apps/mobile/assets/brand/guardia-logo.png`.
 
 ## Preguntas abiertas (sección 13 del doc de Fase 0; lecturas provisionales en vigor)
 

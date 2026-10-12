@@ -26,11 +26,10 @@ export function TopBar({ tenantName, operatorName, onLogout }: { tenantName: str
   return (
     <header className="h-12 shrink-0 flex items-center gap-4 px-4 border-b border-line bg-surface">
       <div className="flex items-center gap-2 min-w-0">
-        <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-          <path d="M16 5l9 3.5v7.2c0 5.6-3.8 9.6-9 11.3-5.2-1.7-9-5.7-9-11.3V8.5L16 5z" fill="none" stroke="currentColor" className="text-accent" strokeWidth="2.2" />
-          <circle cx="16" cy="15.5" r="3.2" className="fill-high" />
-        </svg>
-        <span className="font-semibold">Guard-IA</span>
+        <img src="/brand-mark.png" alt="" width={26} height={26} className="shrink-0" />
+        <span className="font-bold tracking-wide whitespace-nowrap">
+          GUARD<span className="text-accent">-IA</span>
+        </span>
         <span className="text-ink-muted truncate">{tenantName}</span>
       </div>
 

@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0a0f1c",
+    "backgroundColor": "#061426",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "cl.guardia.vecino"
@@ -15,7 +15,7 @@
     "android": {
       "package": "cl.guardia.vecino",
       "adaptiveIcon": {
-        "backgroundColor": "#0a0f1c",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -30,6 +30,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#061426"
+        }
+      ],
       "expo-font",
       "expo-secure-store",
       [

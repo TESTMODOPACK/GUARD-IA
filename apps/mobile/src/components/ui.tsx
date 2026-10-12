@@ -78,7 +78,7 @@ export function Field({ label, prefix, ...input }: TextInputProps & { label: str
         <TextInput
           {...input}
           accessibilityLabel={label}
-          placeholderTextColor="#5d6a7f"
+          placeholderTextColor={color.inkFaint}
           style={[styles.input, input.style]}
         />
       </View>

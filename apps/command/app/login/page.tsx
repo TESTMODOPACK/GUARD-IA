@@ -45,15 +45,13 @@ export default function LoginPage() {
   return (
     <main className="h-screen grid place-items-center p-6">
       <form onSubmit={submit} className="w-[380px] max-w-full rounded-lg border border-line bg-surface p-6 space-y-5">
-        <div className="flex items-center gap-3">
-          <svg width="36" height="36" viewBox="0 0 32 32" aria-hidden>
-            <path d="M16 5l9 3.5v7.2c0 5.6-3.8 9.6-9 11.3-5.2-1.7-9-5.7-9-11.3V8.5L16 5z" fill="none" stroke="var(--color-accent)" strokeWidth="2.2" />
-            <circle cx="16" cy="15.5" r="3.2" fill="var(--color-high)" />
-          </svg>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight">Guard-IA Command</h1>
-            <p className="text-sm text-ink-muted">Central de monitoreo municipal</p>
-          </div>
+        <div className="flex flex-col items-center text-center gap-2 pb-1">
+          <img src="/brand-mark.png" alt="" width={72} height={72} />
+          <h1 className="text-2xl font-bold tracking-wide leading-tight">
+            GUARD<span className="text-accent">-IA</span>
+          </h1>
+          <p className="text-sm text-ink-muted">Central de monitoreo municipal</p>
+          <p className="text-xs text-ink-faint">Seguridad ciudadana que responde en el momento en que importa</p>
         </div>
         <Field label="Correo">
           <input className={inputClass} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus data-testid="login-email" />

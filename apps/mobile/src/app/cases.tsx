@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
   itemTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
   itemMeta: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },
   badge: { fontFamily: font.bodyBold, fontSize: 11, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, overflow: 'hidden', maxWidth: 140, textAlign: 'center' },
-  badgeLive: { color: color.sosSoft, backgroundColor: 'rgba(255,59,79,0.16)' },
-  badgeDone: { color: color.ok, backgroundColor: 'rgba(62,224,181,0.14)' },
+  badgeLive: { color: color.sosSoft, backgroundColor: color.sosTint },
+  badgeDone: { color: color.ok, backgroundColor: color.okSoft },
 });

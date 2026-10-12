@@ -1,22 +1,37 @@
 /**
- * Tokens del prototipo "Guard-IA · App del vecino" (modo nocturno).
- * El rojo es solo para emergencias; el acento menta, para acciones normales.
+ * Colores del logo Guard-IA (medidos sobre el original). Fuente única para la app y la central
+ * (apps/command/app/globals.css repite estos valores).
+ */
+export const brand = {
+  navy: '#061a30', // "GUARD"
+  deep: '#083f80', // base del escudo
+  blue: '#0082da', // escudo y "IA"
+  signal: '#01cbdf', // ondas
+} as const;
+
+/**
+ * Tema nocturno de la app del vecino, derivado del logo: fondos azul marino, acento azul "IA" para
+ * acciones normales y cian de las ondas para "en vivo / atendido". El rojo es solo para emergencias.
  */
 export const color = {
-  bg: '#0a0f1c',
-  surface: '#121a2b',
-  surface2: '#1a2438',
-  line: '#1d2638',
-  lineStrong: '#2b3650',
-  ink: '#f2f5fa',
-  inkMuted: '#9aa6bb',
-  accent: '#3ee0b5',
-  accentInk: '#06231b',
+  bg: '#061426',
+  surface: '#0b1e38',
+  surface2: '#112849',
+  line: '#16304f',
+  lineStrong: '#22406a',
+  ink: '#eef5fc',
+  inkMuted: '#93a8c6',
+  inkFaint: '#5b7396',
+  accent: '#1fa8f0',
+  accentInk: '#031b33',
+  accentSoft: 'rgba(31,168,240,0.16)',
   sos: '#e5243b',
   sosDeep: '#a60f25',
   sosSoft: '#ff8a94',
+  sosTint: 'rgba(255,59,79,0.16)',
   warn: '#ffc35a',
-  ok: '#7cf0cf',
+  ok: '#2fd3e3',
+  okSoft: 'rgba(47,211,227,0.14)',
 } as const;
 
 export const font = {
