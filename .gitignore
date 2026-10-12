@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.turbo/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+# configuración local de Claude Code (rutas de esta máquina)
+.claude/settings.local.json
+.claude/launch.json
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+.DS_Store
+# local storage driver (dev only)
+apps/api/.storage/
+infra/data/
+dump.rdb

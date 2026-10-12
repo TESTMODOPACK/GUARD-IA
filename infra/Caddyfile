@@ -1,0 +1,42 @@
+# TLS automático (Let's Encrypt). Los dominios vienen del entorno del contenedor.
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# Socket.io y REST van al mismo proceso.
+	reverse_proxy api:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Cuerpo máximo: audio + foto (sección 6: 10 MB por archivo).
+	request_body {
+		max_size 25MB
+	}
+
+	log {
+		output file /data/access-api.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+	}
+}
+
+# La central Next.js.
+{$CENTRAL_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy command:3001
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

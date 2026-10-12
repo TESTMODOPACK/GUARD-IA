@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10: native postinstall scripts must be allow-listed explicitly.
+onlyBuiltDependencies:
+  - esbuild
+  - "@node-rs/argon2"
+  - msgpackr-extract

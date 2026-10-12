@@ -1,0 +1,25 @@
+{
+  "name": "guard-ia",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "migrate": "pnpm --filter @guardia/api migrate",
+    "seed": "pnpm --filter @guardia/api seed",
+    "simulate": "pnpm --filter @guardia/api simulate",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.11.7",
+    "typescript": "^5.9.3"
+  }
+}

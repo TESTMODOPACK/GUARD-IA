@@ -1,0 +1,134 @@
+# Guard-IA · despliegue en un VPS con Docker Compose (sección 10 del documento de Fase 0).
+#   cp .env.production.example .env   (en infra/)
+#   docker compose up -d --build
+
+name: guardia
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guardia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d guardia"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?define S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?define S3_SECRET_KEY}
+    volumes:
+      - ./data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # Crea el bucket privado una vez y termina.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $S3_ACCESS_KEY $S3_SECRET_KEY &&
+        mc mb --ignore-existing local/${S3_BUCKET:-guardia-media} &&
+        mc anonymous set none local/${S3_BUCKET:-guardia-media}
+      "
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-guardia-media}
+
+  # Aplica migraciones con el dueño y fija la contraseña de guardia_app. Termina al completar.
+  migrate:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: guardia-api:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://guardia_app:${APP_DB_PASSWORD:?define APP_DB_PASSWORD}@db:5432/guardia
+      DATABASE_ADMIN_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/guardia
+    command: ["node", "dist/cli/migrate.js"]
+
+  api:
+    image: guardia-api:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgres://guardia_app:${APP_DB_PASSWORD}@db:5432/guardia
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET:-guardia-media}
+      S3_FORCE_PATH_STYLE: "true"
+      OTP_DEBUG_ENDPOINT: "false"
+    expose:
+      - "3000"
+
+  command:
+    build:
+      context: ..
+      dockerfile: apps/command/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?define PUBLIC_API_URL}
+    image: guardia-command:local
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3001"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - command
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?define API_DOMAIN}
+      CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:-central.example.cl}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config

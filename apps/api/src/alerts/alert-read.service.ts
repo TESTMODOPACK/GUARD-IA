@@ -1,0 +1,164 @@
+import { Injectable } from '@nestjs/common';
+import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert } from '@guardia/shared';
+import { AppError } from '../common/app-error';
+import {
+  toAlertDetail,
+  toAlertEvent,
+  toAlertSummary,
+  toCitizenAlert,
+  toDispatch,
+} from '../common/mappers';
+import type { Tx } from '../db/db.service';
+import { alert, alertEvent, citizen, dispatch, media, tenant, unit, type AlertRow } from '../db/schema';
+import { MediaService } from '../media/media.service';
+
+export interface ListFilters {
+  statuses?: AlertStatus[];
+  type?: AlertType;
+  since?: Date;
+  limit: number;
+  cursor?: string;
+}
+
+/** Orden de prioridad para la cola de la central: HIGH primero, luego antigüedad. */
+const PRIORITY_RANK = sql<number>`CASE ${alert.priority}
+  WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`;
+
+/**
+ * Lecturas de alertas compartidas por la API de ciudadano, la central, el worker IA
+ * y el gateway WS. Siempre reciben la transacción ya contextualizada (RLS).
+ */
+@Injectable()
+export class AlertReadService {
+  constructor(private readonly mediaSvc: MediaService) {}
+
+  private async extras(tx: Tx, rows: AlertRow[]) {
+    if (rows.length === 0) return new Map<string, { hasAudio: boolean; hasPhoto: boolean; trust: number | null }>();
+    const ids = rows.map((r) => r.id);
+    const mediaRows = await tx
+      .select({ alertId: media.alertId, kind: media.kind })
+      .from(media)
+      .where(and(inArray(media.alertId, ids), isNull(media.deletedAt)));
+    const citizenIds = [...new Set(rows.map((r) => r.citizenId))];
+    const citizens = await tx
+      .select({ id: citizen.id, trust: citizen.trustScore })
+      .from(citizen)
+      .where(inArray(citizen.id, citizenIds));
+    const trustById = new Map(citizens.map((c) => [c.id, c.trust]));
+    const map = new Map<string, { hasAudio: boolean; hasPhoto: boolean; trust: number | null }>();
+    for (const r of rows) {
+      map.set(r.id, { hasAudio: false, hasPhoto: false, trust: trustById.get(r.citizenId) ?? null });
+    }
+    for (const m of mediaRows) {
+      const e = map.get(m.alertId)!;
+      if (m.kind === 'AUDIO') e.hasAudio = true;
+      if (m.kind === 'PHOTO') e.hasPhoto = true;
+    }
+    return map;
+  }
+
+  async summaries(tx: Tx, rows: AlertRow[]): Promise<AlertSummary[]> {
+    const ex = await this.extras(tx, rows);
+    return rows.map((r) => {
+      const e = ex.get(r.id)!;
+      return toAlertSummary(r, { hasAudio: e.hasAudio, hasPhoto: e.hasPhoto, citizenTrustScore: e.trust });
+    });
+  }
+
+  async summary(tx: Tx, row: AlertRow): Promise<AlertSummary> {
+    return (await this.summaries(tx, [row]))[0];
+  }
+
+  /**
+   * Lista para la central, ordenada por prioridad y luego antigüedad.
+   * El cursor codifica la tupla completa de orden `${rank}_${createdAt ISO}_${id}` para que
+   * la página siguiente continúe exactamente donde terminó la anterior.
+   */
+  async list(tx: Tx, f: ListFilters): Promise<{ items: AlertSummary[]; nextCursor: string | null }> {
+    const where: SQL[] = [];
+    if (f.statuses?.length) where.push(inArray(alert.status, f.statuses));
+    if (f.type) where.push(eq(alert.type, f.type));
+    if (f.since) where.push(gt(alert.updatedAt, f.since));
+    if (f.cursor) {
+      // created_at viaja como texto de Postgres (microsegundos): un ISO de JS lo truncaría a ms
+      // y la página siguiente repetiría la última fila.
+      const [rankStr, ts, id] = f.cursor.split('_');
+      const rank = Number(rankStr);
+      if (Number.isInteger(rank) && ts && id && /^[0-9a-f-]{36}$/.test(id)) {
+        where.push(
+          sql`(${PRIORITY_RANK}, ${alert.createdAt}, ${alert.id}) > (${rank}::int, ${decodeURIComponent(ts)}::timestamptz, ${id}::uuid)`,
+        );
+      }
+    }
+    const rows = await tx
+      .select({ row: alert, rank: PRIORITY_RANK.as('rank'), createdAtText: sql<string>`${alert.createdAt}::text` })
+      .from(alert)
+      .where(where.length ? and(...where) : undefined)
+      .orderBy(PRIORITY_RANK, asc(alert.createdAt), asc(alert.id))
+      .limit(f.limit + 1);
+    const page = rows.slice(0, f.limit);
+    const last = page.at(-1);
+    return {
+      items: await this.summaries(tx, page.map((r) => r.row)),
+      nextCursor:
+        rows.length > f.limit && last ? `${last.rank}_${encodeURIComponent(last.createdAtText)}_${last.row.id}` : null,
+    };
+  }
+
+  async detail(tx: Tx, alertId: string): Promise<AlertDetail> {
+    const [row] = await tx.select().from(alert).where(eq(alert.id, alertId)).limit(1);
+    if (!row) throw new AppError('NOT_FOUND', 'Alerta no encontrada');
+    const [c] = await tx
+      .select({ phone: citizen.phone, name: citizen.name, trust: citizen.trustScore })
+      .from(citizen)
+      .where(eq(citizen.id, row.citizenId))
+      .limit(1);
+    const mediaRows = await tx.select().from(media).where(eq(media.alertId, row.id));
+    const dispatchRows = await tx
+      .select({ d: dispatch, unitCode: unit.code })
+      .from(dispatch)
+      .innerJoin(unit, eq(unit.id, dispatch.unitId))
+      .where(eq(dispatch.alertId, row.id))
+      .orderBy(desc(dispatch.createdAt));
+    const eventRows = await tx
+      .select()
+      .from(alertEvent)
+      .where(eq(alertEvent.alertId, row.id))
+      .orderBy(asc(alertEvent.createdAt));
+    const live = mediaRows.filter((m) => !m.deletedAt);
+    return toAlertDetail(row, {
+      hasAudio: live.some((m) => m.kind === 'AUDIO'),
+      hasPhoto: live.some((m) => m.kind === 'PHOTO'),
+      citizenTrustScore: c?.trust ?? null,
+      citizenPhone: c?.phone ?? null,
+      citizenName: c?.name ?? null,
+      media: await this.mediaSvc.toPublic(mediaRows),
+      dispatches: dispatchRows.map((d) => toDispatch(d.d, d.unitCode)),
+      events: eventRows.map(toAlertEvent),
+    });
+  }
+
+  /** Vista del vecino: estado + despacho activo + nombre del municipio. */
+  async citizenView(tx: Tx, alertId: string): Promise<CitizenAlert> {
+    const [row] = await tx.select().from(alert).where(eq(alert.id, alertId)).limit(1);
+    if (!row) throw new AppError('NOT_FOUND', 'Alerta no encontrada');
+    return this.citizenViewFromRow(tx, row);
+  }
+
+  async citizenViewFromRow(tx: Tx, row: AlertRow): Promise<CitizenAlert> {
+    let tenantName: string | null = null;
+    if (row.tenantId) {
+      const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, row.tenantId)).limit(1);
+      tenantName = t?.name ?? null;
+    }
+    const [active] = await tx
+      .select({ unitCode: unit.code, status: dispatch.status, updatedAt: dispatch.updatedAt })
+      .from(dispatch)
+      .innerJoin(unit, eq(unit.id, dispatch.unitId))
+      .where(and(eq(dispatch.alertId, row.id), inArray(dispatch.status, ['ASSIGNED', 'EN_ROUTE', 'ON_SITE'])))
+      .orderBy(desc(dispatch.createdAt))
+      .limit(1);
+    return toCitizenAlert(row, tenantName, active ?? null);
+  }
+}

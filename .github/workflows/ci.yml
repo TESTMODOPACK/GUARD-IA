@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: guardia
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://guardia_app:guardia_app_ci@localhost:5432/guardia
+      DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/guardia
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      STORAGE_DRIVER: local
+      OTP_DEBUG_ENDPOINT: "true"
+      AI_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm --filter @guardia/api migrate
+      - run: pnpm --filter @guardia/api seed
+      - run: pnpm --filter @guardia/shared test
+      - run: pnpm --filter @guardia/api test:db
+      - name: Simulador end-to-end (compuerta Fase 1)
+        run: |
+          (cd apps/api && node dist/main.js > api.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf localhost:3000/v1/health && break; sleep 1; done
+          pnpm --filter @guardia/api simulate --text "me están asaltando en la plaza" --concurrency 20
+      - name: Central en Chromium (compuerta Fase 2)
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+        run: |
+          cd apps/command
+          cp -r .next/static .next/standalone/apps/command/.next/ && cp -r public .next/standalone/apps/command/
+          (PORT=3001 HOSTNAME=0.0.0.0 node .next/standalone/apps/command/server.js > command.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf localhost:3001/login > /dev/null && break; sleep 1; done
+          node scripts/ui-gate.mjs --chrome "$(which google-chrome || which chromium-browser)"
+      - name: Capturas de la central
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-screenshots
+          path: apps/command/screenshots/
+          if-no-files-found: ignore
+      - name: Logs si algo falló
+        if: failure()
+        run: |
+          cat apps/api/api.log || true
+          cat apps/command/command.log || true
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Construir imagen de la API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: guardia-api:ci
+      - name: Construir imagen de la central
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/command/Dockerfile
+          push: false
+          tags: guardia-command:ci
+      # Fase 4: push a un registry y despliegue por SSH al VPS.

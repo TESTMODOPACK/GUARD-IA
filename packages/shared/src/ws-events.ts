@@ -1,0 +1,38 @@
+import type { AlertDetail, AlertSummary, CitizenAlert, Dispatch } from './schemas/alert';
+import type { Unit } from './schemas/ops';
+
+/** Namespaces de Socket.io. El JWT viaja en `handshake.auth.token`. */
+export const WS_NAMESPACES = {
+  ops: '/ops',
+  citizen: '/citizen',
+} as const;
+
+export const wsRooms = {
+  tenant: (tenantId: string) => `tenant:${tenantId}`,
+  citizen: (citizenId: string) => `citizen:${citizenId}`,
+};
+
+/** Eventos servidor → central (namespace /ops, room tenant:{id}). */
+export interface OpsServerEvents {
+  'alert.created': (alert: AlertSummary) => void;
+  'alert.updated': (alert: AlertDetail) => void;
+  'dispatch.updated': (dispatch: Dispatch) => void;
+  'unit.updated': (unit: Unit) => void;
+  /** Respuesta al `since` del handshake: alertas tocadas desde esa fecha. */
+  sync: (payload: { since: string; alerts: AlertSummary[] }) => void;
+}
+
+/** Eventos servidor → vecino (namespace /citizen, room citizen:{id}). */
+export interface CitizenServerEvents {
+  'alert.status': (payload: CitizenAlert) => void;
+}
+
+export type OpsEventName = keyof OpsServerEvents;
+export type CitizenEventName = keyof CitizenServerEvents;
+
+/** Datos opcionales del handshake. */
+export interface WsHandshakeAuth {
+  token: string;
+  /** ISO 8601: pide un `sync` con lo ocurrido desde esa fecha. */
+  since?: string;
+}
