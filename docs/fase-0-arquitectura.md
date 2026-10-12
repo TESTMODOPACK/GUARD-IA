@@ -110,7 +110,10 @@ VPS con Docker Compose (`infra/docker-compose.yml`): `db` (postgis), `redis`, `m
 
 Consentimiento versionado, minimización (sin RUT), retención 90 días de media, URLs firmadas,
 refresh rotativo, sesiones de operador de 12 h, auditoría inmutable para la app, rate limits,
-transferencia a OpenAI informada en el consentimiento. ARCO (`GET /me/export`, `DELETE /me`) en Fase 4.
+transferencia a OpenAI informada en el consentimiento. ARCO: `GET /me/export` (acceso, JSON
+descargable) y `DELETE /me` (supresión por anonimización, migración 0002, decidido el 12-10-2026): se
+borran teléfono, nombre, dispositivos, sesiones, textos, transcripciones, audio y fotos; las alertas
+quedan como registro municipal sin datos personales y con la ubicación redondeada a ~100 m.
 
 ## 12. Fases
 
