@@ -29,7 +29,7 @@ Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado c
 
 ## Etapas
 
-> Avance: etapa 0 ✅ (12-10-2026) · etapa 1 ✅ (12-10-2026) · siguiente: etapa 2.
+> Avance: etapa 0 ✅ · etapa 1 ✅ · etapa 2 ✅ (12-10-2026) · siguiente: etapa 3 (app Expo).
 
 ### Etapa 0 — Base de trabajo (1 sesión)
 
@@ -54,7 +54,7 @@ Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado c
 ### Etapa 2 — Endurecer sesión y calidad (1–2 sesiones)
 
 1. `POST /auth/logout` que revoca la familia de refresh (patrón "efectos antes del throw").
-2. `JWT_OPERATOR_REFRESH_TTL_SECONDS` separado (propuesta: 12 h, un turno); test.
+2. `JWT_OPERATOR_REFRESH_TTL_SECONDS` separado (13 h: un turno + margen); test.
 3. CSP para la central en `infra/Caddyfile` (self, API, tiles de OSM, Google Fonts).
 4. La central llama a logout al cerrar sesión.
 5. ESLint con reglas de hooks en `apps/command`; íconos del mapa memorizados; limpiar cerradas viejas del store.

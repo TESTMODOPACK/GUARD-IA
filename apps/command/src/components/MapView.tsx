@@ -11,30 +11,50 @@ import { categoryLabel, UNIT_STATUS } from '@/lib/labels';
 /** Centro por defecto: Santiago. Se recentra en la primera alerta o unidad con posición. */
 const DEFAULT_CENTER: [number, number] = [-33.5, -70.65];
 
+/**
+ * Íconos cacheados por apariencia: misma instancia entre renders, así react-leaflet no reemplaza el
+ * DOM del marcador en cada cambio del store (y el pulso de "nueva" no se reinicia).
+ */
+const icons = new Map<string, L.DivIcon>();
+function cachedIcon(key: string, make: () => L.DivIcon): L.DivIcon {
+  let icon = icons.get(key);
+  if (!icon) {
+    icon = make();
+    icons.set(key, icon);
+  }
+  return icon;
+}
+
 function alertIcon(a: AnyAlert, selected: boolean, pulse: boolean) {
-  return L.divIcon({
-    className: '',
-    html: `<div class="gi-marker" data-priority="${a.priority ?? 'NONE'}" data-selected="${selected}" data-pulse="${pulse}"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
+  const priority = a.priority ?? 'NONE';
+  return cachedIcon(`a|${priority}|${selected}|${pulse}`, () =>
+    L.divIcon({
+      className: '',
+      html: `<div class="gi-marker" data-priority="${priority}" data-selected="${selected}" data-pulse="${pulse}"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    }),
+  );
 }
 
 function unitIcon(status: string) {
-  return L.divIcon({
-    className: '',
-    html: `<div class="gi-unit" data-status="${status}"></div>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-  });
+  return cachedIcon(`u|${status}`, () =>
+    L.divIcon({
+      className: '',
+      html: `<div class="gi-unit" data-status="${status}"></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    }),
+  );
 }
 
-function FlyToSelected({ alert }: { alert: AnyAlert | null }) {
+/** Vuela a la alerta seleccionada; solo cuando cambia la selección o su posición. */
+function FlyToSelected({ id, lat, lng }: { id: string | null; lat?: number; lng?: number }) {
   const map = useMap();
   useEffect(() => {
-    if (!alert) return;
-    map.flyTo([alert.location.lat, alert.location.lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
-  }, [alert?.id, alert?.location.lat, alert?.location.lng, map]);
+    if (!id || lat === undefined || lng === undefined) return;
+    map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
+  }, [id, lat, lng, map]);
   return null;
 }
 
@@ -76,7 +96,7 @@ export default function MapView() {
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitOnce points={points} />
-      <FlyToSelected alert={selected} />
+      <FlyToSelected id={selected?.id ?? null} lat={selected?.location.lat} lng={selected?.location.lng} />
 
       {unitList.map((u) => (
         <Marker key={u.id} position={[u.lastLocation!.lat, u.lastLocation!.lng]} icon={unitIcon(u.status)}>

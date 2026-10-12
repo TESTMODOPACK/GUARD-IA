@@ -38,7 +38,6 @@ export function AudioPlayer({ media }: { media: MediaPublic }) {
   }
   return (
     <div className="flex items-center gap-3">
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio key={url ?? 'none'} controls preload="metadata" src={url ?? undefined} onError={onError} className="w-full h-9" />
       {media.durationS ? <span className="text-xs text-ink-muted tabular-nums shrink-0">{Math.round(media.durationS)} s</span> : null}
     </div>

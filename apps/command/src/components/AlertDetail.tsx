@@ -164,7 +164,6 @@ export function AlertDetailPanel() {
             {photo?.url ? (
               <section>
                 <h3 className="text-xs text-ink-muted mb-1.5">Foto</h3>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photo.url} alt="Foto enviada por el vecino" className="rounded-ctl border border-line max-h-56 object-cover" />
               </section>
             ) : null}

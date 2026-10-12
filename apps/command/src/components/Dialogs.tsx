@@ -6,6 +6,9 @@ import { REJECT_REASONS } from '@guardia/shared';
 import { REJECT_REASON, UNIT_STATUS } from '@/lib/labels';
 import { Button, Dialog, Field, inputClass, textareaClass } from './ui';
 
+/** Patrullas primero: para un SOS son la respuesta por defecto; motos e inspectores después. */
+const KIND_RANK: Record<string, number> = { PATRULLA: 0, MOTO: 1, INSPECTOR: 2 };
+
 export function DispatchDialog({
   units,
   onConfirm,
@@ -15,8 +18,6 @@ export function DispatchDialog({
   onConfirm: (unitId: string, notes?: string) => Promise<void>;
   onClose: () => void;
 }) {
-  // Patrullas primero: para un SOS son la respuesta por defecto; motos e inspectores después.
-  const KIND_RANK: Record<string, number> = { PATRULLA: 0, MOTO: 1, INSPECTOR: 2 };
   const available = useMemo(
     () =>
       units

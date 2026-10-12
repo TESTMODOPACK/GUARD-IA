@@ -36,6 +36,10 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
+		# La sesión vive en localStorage: connect/img/media solo hacia la API impiden sacar el token
+		# a otro dominio. 'unsafe-inline' en script-src lo exige el arranque de Next (nonce: pendiente).
+		# Si las URLs firmadas de media salen de otro host (S3/MinIO público), agregarlo a img-src y media-src.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://{$API_DOMAIN}; media-src 'self' blob: https://{$API_DOMAIN}; connect-src 'self' https://{$API_DOMAIN} wss://{$API_DOMAIN}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}

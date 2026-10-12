@@ -3,9 +3,9 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, logout } from '@/lib/api';
 import { connectRealtime, disconnectRealtime } from '@/lib/realtime';
-import { clearSession, loadSession, onSessionChange, type Session } from '@/lib/session';
+import { loadSession, onSessionChange, type Session } from '@/lib/session';
 import { unlockAudio } from '@/lib/sound';
 import { CLOSED_STATUSES, useStore } from '@/lib/store';
 import { AlertDetailPanel } from './AlertDetail';
@@ -77,7 +77,7 @@ export function Dashboard() {
         operatorName={session.operator.name}
         onLogout={() => {
           disconnectRealtime();
-          clearSession();
+          void logout();
         }}
       />
       <main className="flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_440px]">

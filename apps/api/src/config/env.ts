@@ -24,6 +24,11 @@ const EnvSchema = z.object({
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().default(30 * 24 * 3600),
   /** Sesiones de operador: 12 h (sección 11). */
   JWT_OPERATOR_ACCESS_TTL_SECONDS: z.coerce.number().int().default(12 * 3600),
+  /**
+   * Refresh de operador: un turno + 1 h de margen. Se renueva mientras la central está abierta;
+   * cerrada más de 13 h, pide login. El de 30 días (JWT_REFRESH_TTL_SECONDS) queda para el vecino.
+   */
+  JWT_OPERATOR_REFRESH_TTL_SECONDS: z.coerce.number().int().default(13 * 3600),
 
   /** console | twilio */
   SMS_PROVIDER: z.enum(['console', 'twilio']).default('console'),

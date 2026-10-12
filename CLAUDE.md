@@ -107,10 +107,12 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 ## Pendiente conocido
 
-- Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0 y 1 hechas). Entorno: `docs/entorno-local.md`
-  (Postgres/Redis en WSL; `pnpm infra:wsl` + `pnpm dev`).
-- Etapa 2 (siguiente): endpoint de logout que revoque el refresh, TTL de refresh de operador (hoy 30
-  días) y CSP en el Caddyfile de la central; detalles menores (íconos del mapa recreados en cada
-  render, sin ESLint, store sin limpieza de cerradas).
+- Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0, 1 y 2 hechas; siguiente: etapa 3, app Expo).
+  Entorno: `docs/entorno-local.md` (Postgres/Redis en WSL; `pnpm infra:wsl` + `pnpm dev`).
+- Para la etapa 4 (ensayo con Docker): con `S3_ENDPOINT=http://minio:9000` las URLs firmadas de media
+  apuntan a un host interno que el navegador no alcanza (falta un endpoint público de MinIO y
+  agregarlo a la CSP de la central); `infra/.env.production.example` no existe aunque se cita.
+- `next build` con `output: 'standalone'` falla en Windows al copiar node_modules enlazados por pnpm
+  (symlinks); compila bien y la imagen Docker se construye en Linux. CSP de la central sin nonce.
 - `GET /me/export` y `DELETE /me` (derechos ARCO) están en Fase 4.
 - Twilio, MinIO/S3 y push Expo reales no se han ejercitado con cuentas reales.

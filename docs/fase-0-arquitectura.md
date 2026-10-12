@@ -65,6 +65,9 @@ Transiciones en código: `packages/shared/src/enums.ts` (`ALERT_TRANSITIONS`, `D
 
 ## 6. Contratos API REST (`/v1`)
 
+Sesión (vecino y operador, sin access token): `POST /auth/refresh`, `POST /auth/logout` (revoca el
+refresh; siempre 204; agregado en la etapa 2 del plan local). Refresh: 30 días el vecino, 13 h el operador.
+
 Ciudadano (JWT `citizen`): `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/refresh`,
 `GET /me`, `POST /me/consent`, `PUT /me/devices`, `POST /alerts` (multipart `meta` + `audio` + `photo`),
 `POST /alerts/:id/cancel`, `GET /alerts/mine`, `GET /alerts/:id`.

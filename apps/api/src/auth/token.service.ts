@@ -26,6 +26,12 @@ export class TokenService {
       : this.env.JWT_ACCESS_TTL_SECONDS;
   }
 
+  private refreshTtl(claims: AccessClaims): number {
+    return claims.kind === 'operator'
+      ? this.env.JWT_OPERATOR_REFRESH_TTL_SECONDS
+      : this.env.JWT_REFRESH_TTL_SECONDS;
+  }
+
   signAccess(claims: AccessClaims): { token: string; expiresIn: number } {
     const expiresIn = this.accessTtl(claims);
     const token = this.jwt.sign(claims, {
@@ -58,7 +64,7 @@ export class TokenService {
         kind: claims.kind === 'citizen' ? 'CITIZEN' : 'OPERATOR',
         subjectId: claims.sub,
         tokenHash: hash(raw),
-        expiresAt: new Date(Date.now() + this.env.JWT_REFRESH_TTL_SECONDS * 1000),
+        expiresAt: new Date(Date.now() + this.refreshTtl(claims) * 1000),
       })
       .returning({ id: refreshToken.id });
     if (replaces) {
@@ -116,6 +122,20 @@ export class TokenService {
       const { refreshId: _id, ...pair } = await this.issuePair(tx, claims, row.id);
       return pair;
     });
+  }
+
+  /**
+   * Cierre de sesión: revoca el refresh presentado. Idempotente y silencioso (un token desconocido o
+   * ya revocado no es error), para no revelar si existía. Usarlo después de revocado dispara la
+   * detección de reutilización en `rotate`, que es lo deseado si alguien lo copió.
+   */
+  async revoke(raw: string): Promise<void> {
+    await this.dbs.asSystem((tx) =>
+      tx
+        .update(refreshToken)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(refreshToken.tokenHash, hash(raw)), isNull(refreshToken.revokedAt))),
+    );
   }
 }
 

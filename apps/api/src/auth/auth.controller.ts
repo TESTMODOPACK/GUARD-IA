@@ -39,6 +39,13 @@ export class AuthController {
     return this.auth.refresh(body.refreshToken);
   }
 
+  /** Vecino y operador. Sin access token: poseer el refresh basta para revocarlo. Siempre 204. */
+  @Post('auth/logout')
+  @HttpCode(204)
+  async logout(@Body(zod(RefreshSchema)) body: Refresh) {
+    await this.auth.logout(body.refreshToken);
+  }
+
   @Get('me')
   @Auth('citizen')
   me(@CurrentAuth() auth: CitizenClaims) {

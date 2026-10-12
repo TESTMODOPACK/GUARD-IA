@@ -71,6 +71,26 @@ export async function refreshAccessToken(): Promise<string | null> {
   return refreshing;
 }
 
+/**
+ * Cierra la sesión en la API (revoca el refresh) y la borra localmente en todas las pestañas.
+ * Si la API no responde, igual se cierra aquí: el refresh vence solo en 13 h.
+ */
+export async function logout(): Promise<void> {
+  const s = loadSession();
+  clearSession();
+  if (!s) return;
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: s.refreshToken }),
+      keepalive: true,
+    });
+  } catch {
+    // Sin red: la sesión local ya se borró.
+  }
+}
+
 export async function getAccessToken(): Promise<string | null> {
   const s = loadSession();
   if (!s) return null;

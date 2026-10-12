@@ -174,6 +174,11 @@ export class AuthService {
     return this.tokens.rotate(raw, (tx, kind, subjectId) => this.claimsFor(tx, kind, subjectId));
   }
 
+  /** Cierre de sesión (vecino u operador): el refresh deja de servir. El access vence solo. */
+  async logout(raw: string): Promise<void> {
+    await this.tokens.revoke(raw);
+  }
+
   private async claimsFor(tx: Tx, kind: 'CITIZEN' | 'OPERATOR', subjectId: string): Promise<AccessClaims> {
     if (kind === 'CITIZEN') {
       const [c] = await tx.select().from(citizen).where(eq(citizen.id, subjectId)).limit(1);

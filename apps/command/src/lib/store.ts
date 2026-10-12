@@ -116,7 +116,17 @@ export const useStore = create<State>((set, get) => ({
 
   select: (selectedId) => set({ selectedId }),
   setTypeFilter: (typeFilter) => set({ typeFilter }),
-  setShowClosed: (showClosed) => set({ showClosed }),
+  // Al volver a "Activas" se sueltan las cerradas cargadas (salvo la abierta en el detalle), para que
+  // un turno largo no acumule cientos de alertas en memoria; se recargan si se vuelve a "Cerradas".
+  setShowClosed: (showClosed) =>
+    set((s) => {
+      if (showClosed) return { showClosed };
+      const alerts: Record<string, AnyAlert> = {};
+      for (const a of Object.values(s.alerts)) {
+        if (!CLOSED_STATUSES.includes(a.status) || a.id === s.selectedId) alerts[a.id] = a;
+      }
+      return { showClosed, alerts };
+    }),
   touchEvent: (iso) => set((s) => ({ lastEventAt: !s.lastEventAt || iso > s.lastEventAt ? iso : s.lastEventAt })),
   clearFresh: (id) =>
     set((s) => {
