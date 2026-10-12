@@ -13,7 +13,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | --- | --- | --- |
 | 0 | Arquitectura y contratos | aprobada |
 | 1 | `apps/api` (NestJS 11, PostGIS/RLS, BullMQ, IA), infra, simulador | entregada y revisada |
-| 2 | `apps/command` (central Next.js 16) | entregada; revisión independiente pendiente |
+| 2 | `apps/command` (central Next.js 16) | cerrada: revisada, simulador y `ui-gate.mjs` verdes contra base real (12-10-2026) |
 | 3 | `apps/mobile` (Expo) | siguiente |
 | 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
 
@@ -107,12 +107,10 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 ## Pendiente conocido
 
-- Revisión independiente de `apps/command` hecha (12-10-2026). XSS: limpio. Corregido en cliente:
-  reconexión WS (auth como función, reintento tras cierre del servidor, recarga REST en cada conexión),
-  refresh que cerraba sesión ante 5xx, refresh entre pestañas (Web Locks + evento `storage`), botón
-  ocupado clicable (doble despacho), paginación de activas, diálogos accesibles. **Falta**: correr
-  `ui-gate.mjs` y el simulador con base real; endpoint de logout que revoque el refresh, TTL de
-  refresh de operador (hoy 30 días) y CSP en el Caddyfile de la central; detalles menores (íconos del
-  mapa recreados en cada render, sin ESLint, store sin limpieza de cerradas).
+- Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0 y 1 hechas). Entorno: `docs/entorno-local.md`
+  (Postgres/Redis en WSL; `pnpm infra:wsl` + `pnpm dev`).
+- Etapa 2 (siguiente): endpoint de logout que revoque el refresh, TTL de refresh de operador (hoy 30
+  días) y CSP en el Caddyfile de la central; detalles menores (íconos del mapa recreados en cada
+  render, sin ESLint, store sin limpieza de cerradas).
 - `GET /me/export` y `DELETE /me` (derechos ARCO) están en Fase 4.
 - Twilio, MinIO/S3 y push Expo reales no se han ejercitado con cuentas reales.

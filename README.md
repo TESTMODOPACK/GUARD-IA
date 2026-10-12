@@ -9,7 +9,7 @@ central de monitoreo con triage por IA. Documento de arquitectura (Fase 0): `doc
 | --- | --- | --- |
 | 0 | Arquitectura, modelo de datos, contratos | aprobada |
 | 1 | `apps/api` (NestJS + PostGIS/RLS + BullMQ + IA), Docker Compose, simulador | entregada |
-| 2 | `apps/command` (central Next.js: cola, mapa, audio, ficha IA, despacho) | **esta entrega** |
+| 2 | `apps/command` (central Next.js: cola, mapa, audio, ficha IA, despacho) | cerrada |
 | 3 | `apps/mobile` (Expo) | pendiente |
 | 4 | Despliegue y piloto | pendiente |
 
@@ -25,7 +25,8 @@ docs/               arquitectura y decisiones
 
 ## Desarrollo local
 
-Requisitos: Node 22, pnpm 10, PostgreSQL 16 con PostGIS, Redis. (O `docker compose -f infra/docker-compose.yml up db redis minio`.)
+Requisitos: Node 22, pnpm 10, PostgreSQL 16 con PostGIS, Redis. En Windows, ver `docs/entorno-local.md`
+(Postgres y Redis en WSL). (O `docker compose -f infra/docker-compose.yml up db redis minio`.)
 
 ```bash
 cp .env.example .env            # editar JWT_* y, si corresponde, OPENAI_API_KEY

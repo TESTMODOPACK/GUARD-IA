@@ -44,9 +44,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 1. Simulador en modo externo.
 const simCwd = resolve(here, '..', '..', 'api');
-const sim = spawn('pnpm', ['simulate', '--api', API, '--text', 'me están asaltando en la esquina de la plaza', '--external-dispatch', '--wait', '120'], {
+// En Windows pnpm es un .cmd: Node solo lo lanza con shell, y entonces hay que citar los argumentos.
+const isWin = process.platform === 'win32';
+const simArgs = ['simulate', '--api', API, '--text', 'me están asaltando en la esquina de la plaza', '--external-dispatch', '--wait', '120'];
+const sim = spawn('pnpm', isWin ? simArgs.map((a) => (/\s/.test(a) ? `"${a}"` : a)) : simArgs, {
   cwd: simCwd,
   stdio: ['ignore', 'pipe', 'pipe'],
+  shell: isWin,
 });
 let simOut = '';
 let alertId = null;

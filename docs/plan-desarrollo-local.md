@@ -29,6 +29,8 @@ Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado c
 
 ## Etapas
 
+> Avance: etapa 0 ✅ (12-10-2026) · etapa 1 ✅ (12-10-2026) · siguiente: etapa 2.
+
 ### Etapa 0 — Base de trabajo (1 sesión)
 
 1. `git init`, `.gitignore` (node_modules, .next, dist, .env, storage local), commit inicial con el estado actual.
