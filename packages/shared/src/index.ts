@@ -4,6 +4,7 @@ export * from './schemas/auth';
 export * from './schemas/alert';
 export * from './schemas/ops';
 export * from './schemas/ai';
+export * from './schemas/privacy';
 export * from './ws-events';
 
 /** Ventana en la que el vecino puede cancelar su propia alerta. */

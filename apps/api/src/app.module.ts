@@ -17,6 +17,7 @@ import { RetentionCron } from './jobs/retention.cron';
 import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OpsModule } from './ops/ops.module';
+import { PrivacyModule } from './privacy/privacy.module';
 import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
@@ -68,6 +69,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     AiModule,
     AlertsModule,
     OpsModule,
+    PrivacyModule,
   ],
   controllers: [HealthController],
   providers: [RetentionCron, AiOutboxCron],

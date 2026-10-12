@@ -125,5 +125,5 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   agregarlo a la CSP de la central); `infra/.env.production.example` no existe aunque se cita.
 - `next build` con `output: 'standalone'` falla en Windows al copiar node_modules enlazados por pnpm
   (symlinks); compila bien y la imagen Docker se construye en Linux. CSP de la central sin nonce.
-- `GET /me/export` y `DELETE /me` (derechos ARCO) están en Fase 4.
+- ARCO hecho en la API (`GET /me/export`, `DELETE /me` por anonimización, migración 0002); falta exponerlo en la app (pantalla "Mis datos").
 - Twilio, MinIO/S3 y push Expo reales no se han ejercitado con cuentas reales.
