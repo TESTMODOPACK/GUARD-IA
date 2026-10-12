@@ -29,7 +29,7 @@ Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado c
 
 ## Etapas
 
-> Avance: etapas 0, 1 y 2 ✅ · etapa 3: 3a–3f ✅ (12-10-2026) · pendiente de la fase 3: prueba en Android real y push con development build · luego etapa 4.
+> Avance: etapas 0, 1 y 2 ✅ · etapa 3: 3a–3f ✅ (12-10-2026) · pendiente de la fase 3: prueba en Android real y push con development build · etapa 4: derechos ARCO ✅ (API + app).
 
 ### Etapa 0 — Base de trabajo (1 sesión)
 

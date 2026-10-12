@@ -1,6 +1,8 @@
 import type {
   ApiError as ApiErrorBody,
   CitizenAlert,
+  CitizenEraseResult,
+  CitizenExport,
   CitizenPublic,
   CreateAlertMeta,
   CreateAlertResponse,
@@ -103,6 +105,8 @@ export const api = {
   cancelAlert: (id: string) => request<CitizenAlert>(`/alerts/${id}/cancel`, { method: 'POST' }),
   alert: (id: string) => request<CitizenAlert>(`/alerts/${id}`),
   mine: () => request<CitizenAlert[]>('/alerts/mine?limit=20'),
+  exportData: () => request<CitizenExport>('/me/export'),
+  eraseAccount: () => request<CitizenEraseResult>('/me', { method: 'DELETE' }),
 };
 
 /**

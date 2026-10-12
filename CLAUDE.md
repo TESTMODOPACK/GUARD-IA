@@ -98,7 +98,7 @@ vista separada para Obras/Aseo). Cursor de la central `(prioridad, created_at µ
 
 `pnpm mobile` (en PowerShell: `pnpm.cmd mobile`; si cambian dependencias o rutas: `--clear`). Rutas en
 `src/app` con `Stack.Protected`: sin sesión → `login`/`verify`; sin `CONSENT_VERSION` vigente →
-`consent`; si no → `index`, `sos`, `voice`, `discreet`, `report`, `alert/[id]`, `cases`. Sesión en
+`consent`; si no → `index`, `sos`, `voice`, `discreet`, `report`, `alert/[id]`, `cases`, `privacy` (Mis datos: export y supresión). Sesión en
 SecureStore (`lib/session.ts`), cliente con refresh de una vez (`lib/api.ts`), WS `/citizen`
 (`lib/realtime.ts`), envío multipart con `clientRef` y 3 reintentos (`sendAlert`). La URL de la API sale
 de la IP que sirve Metro (o `EXPO_PUBLIC_API_URL`). Usar `npx expo install` para dependencias y revisar
@@ -125,5 +125,5 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   agregarlo a la CSP de la central); `infra/.env.production.example` no existe aunque se cita.
 - `next build` con `output: 'standalone'` falla en Windows al copiar node_modules enlazados por pnpm
   (symlinks); compila bien y la imagen Docker se construye en Linux. CSP de la central sin nonce.
-- ARCO hecho en la API (`GET /me/export`, `DELETE /me` por anonimización, migración 0002); falta exponerlo en la app (pantalla "Mis datos").
+- ARCO hecho (API `GET /me/export` y `DELETE /me` por anonimización, migración 0002; app: pantalla `privacy` "Mis datos", probada en web). En el teléfono el export se entrega con el menú Compartir como texto; un archivo .json requiere `expo-file-system` + `expo-sharing`.
 - Twilio, MinIO/S3 y push Expo reales no se han ejercitado con cuentas reales.

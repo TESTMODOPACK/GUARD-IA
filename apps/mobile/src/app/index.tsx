@@ -97,6 +97,15 @@ export default function Home() {
         <Text style={styles.casesSub}>Estado de tus alertas y reportes, en vivo</Text>
       </Pressable>
 
+      <Pressable
+        onPress={() => router.push('/privacy')}
+        role="button"
+        style={({ pressed }) => [styles.casesBtn, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={styles.casesTitle}>Mis datos</Text>
+        <Text style={styles.casesSub}>Descargar lo que guardamos o borrar tu cuenta</Text>
+      </Pressable>
+
       <LinkButton label="Cerrar sesión" onPress={() => void logout()} />
     </Screen>
   );
