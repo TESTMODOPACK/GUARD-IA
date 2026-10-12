@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Guard-IA",
+    "slug": "guardia",
+    "scheme": "guardia",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0f1c",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "cl.guardia.vecino"
+    },
+    "android": {
+      "package": "cl.guardia.vecino",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0f1c",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}

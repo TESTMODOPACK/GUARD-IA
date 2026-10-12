@@ -16,6 +16,7 @@
     "seed": "pnpm --filter @guardia/api seed",
     "simulate": "pnpm --filter @guardia/api simulate",
     "test:db": "pnpm --filter @guardia/api test:db",
+    "mobile": "pnpm --filter @guardia/mobile start",
     "infra:wsl": "wsl -d Ubuntu-24.04 -u root -- bash -c \"service postgresql start && service redis-server start && echo 'Postgres y Redis listos (Ctrl+C para detener)' && exec sleep infinity\"",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\""
   },
