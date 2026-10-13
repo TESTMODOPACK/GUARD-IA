@@ -86,6 +86,13 @@ export function IncidentPanel({ alert }: { alert: AnyAlert }) {
           {IMPORTANCE[inc.level]} · {inc.importance}/100
         </span>
       </div>
+      {grouped && inc.category && inc.category !== alert.category ? (
+        <p className="text-sm">
+          <span className="text-ink-muted">La situación se clasificó como </span>
+          <span className="font-medium">{categoryLabel(inc.category)}</span>
+          {inc.summary ? <span className="text-ink-muted"> · {inc.summary}</span> : null}
+        </p>
+      ) : null}
       {inc.reasons.length ? (
         <ul className="text-xs text-ink-muted list-disc pl-4 space-y-0.5">
           {inc.reasons.map((r) => (

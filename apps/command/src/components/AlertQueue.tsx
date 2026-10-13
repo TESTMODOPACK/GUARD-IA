@@ -166,7 +166,8 @@ function AlertRow({
         <div className="flex items-center gap-2">
           <PriorityDot priority={alert.priority} />
           <span className="text-sm font-medium truncate">
-            {categoryLabel(alert.category, alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar')}
+            {/* En un grupo, la clasificación de la situación (la más específica de sus reportes). */}
+            {categoryLabel(inc?.category ?? alert.category, alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar')}
           </span>
           <span className={`ml-auto shrink-0 text-sm tabular-nums ${ageTone}`} title={`Llegó a las ${formatTime(alert.createdAt)}`}>
             {formatWait(alert.createdAt, now)}
@@ -207,7 +208,7 @@ function AlertRow({
           </span>
         </div>
         {repeated && last !== alert.createdAt ? <p className="mt-1 text-xs text-ink-faint">Último reporte {formatSince(last, now)}</p> : null}
-        {alert.aiSummary ? <p className="mt-1 text-xs text-ink-muted truncate">{alert.aiSummary}</p> : null}
+        {(inc?.summary ?? alert.aiSummary) ? <p className="mt-1 text-xs text-ink-muted truncate">{inc?.summary ?? alert.aiSummary}</p> : null}
       </button>
     </li>
   );

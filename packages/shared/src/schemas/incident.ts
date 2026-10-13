@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AlertCategory, AlertType, Priority } from '../enums';
+import { ALERT_CATEGORIES, type AlertCategory, type AlertType, type Priority } from '../enums';
 import { UuidSchema } from './common';
 
 /**
@@ -126,6 +126,13 @@ export function incidentImportance(i: ImportanceInput): {
 /** Lo que la central sabe del grupo de una alerta. Viaja en AlertSummary.incident. */
 export const IncidentInfoSchema = z.object({
   id: UuidSchema,
+  /**
+   * Clasificación de la SITUACIÓN: la más específica entre sus reportes. Un SOS por botón (sin
+   * audio ni texto) queda "sin clasificar", pero si el mismo hecho llegó también por voz, la
+   * situación toma la categoría y el resumen que la IA sacó del audio.
+   */
+  category: z.enum(ALERT_CATEGORIES).nullable(),
+  summary: z.string().nullable(),
   /** Alerta que representa al grupo en la cola: la abierta más antigua. */
   primaryAlertId: UuidSchema,
   alertCount: z.number().int(),

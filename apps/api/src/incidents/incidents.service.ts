@@ -160,7 +160,11 @@ export class IncidentsService {
              coalesce(bool_or((a.ai_flags->>'minor_involved')::boolean), false) AS minor,
              coalesce(bool_and(coalesce((a.ai_flags->>'possible_false_alarm')::boolean, false)), false) AS false_alarm,
              max(c.trust_score) AS max_trust,
-             (array_agg(a.category ORDER BY a.created_at) FILTER (WHERE a.category IS NOT NULL))[1] AS category
+             -- La categoría más informativa: primero las específicas (no "otro"), luego la de mayor
+             -- prioridad y, a igualdad, la más reciente (la IA pudo reclasificar).
+             (array_agg(a.category ORDER BY (a.category IN ('OTRO_EMERGENCIA', 'OTRO_URBANO')),
+                        CASE a.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 3 END,
+                        a.created_at DESC) FILTER (WHERE a.category IS NOT NULL))[1] AS category
       FROM alert a JOIN citizen c ON c.id = a.citizen_id
       WHERE a.incident_id = ${incidentId}::uuid AND a.status NOT IN ('CANCELLED', 'REJECTED')`)) as unknown as {
       n: number;
@@ -178,7 +182,8 @@ export class IncidentsService {
       category: string | null;
     }[];
 
-    const category = (inc.category ?? agg.category) as typeof inc.category;
+    // Reporte urbano: la categoría es la llave del grupo (todas iguales). SOS: la más específica.
+    const category = (agg.category ?? inc.category) as typeof inc.category;
     const result = incidentImportance({
       type: inc.type,
       category,
@@ -223,7 +228,11 @@ export async function loadIncidentInfos(tx: Tx, ids: string[]): Promise<Map<stri
   if (unique.length === 0) return out;
   // SQL explícito: dentro de una subconsulta, la columna del incidente debe ir con su alias.
   const rows = (await tx.execute(sql`
-    SELECT i.id, i.alert_count, i.citizen_count, i.recurrence_count, i.importance, i.importance_reasons,
+    SELECT i.id, i.category, i.alert_count, i.citizen_count, i.recurrence_count, i.importance, i.importance_reasons,
+           (SELECT m.ai_summary FROM alert m
+             WHERE m.incident_id = i.id AND m.ai_summary IS NOT NULL AND m.status NOT IN ('CANCELLED', 'REJECTED')
+             ORDER BY (m.category IN ('OTRO_EMERGENCIA', 'OTRO_URBANO')), m.ai_confidence DESC NULLS LAST, m.created_at DESC
+             LIMIT 1) AS summary,
            to_char(i.first_alert_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS first_at,
            to_char(i.last_alert_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_at,
            (SELECT m.id FROM alert m WHERE m.incident_id = i.id
@@ -235,6 +244,8 @@ export async function loadIncidentInfos(tx: Tx, ids: string[]): Promise<Map<stri
       sql`, `,
     )})`)) as unknown as {
     id: string;
+    category: IncidentInfo['category'];
+    summary: string | null;
     alert_count: number;
     citizen_count: number;
     recurrence_count: number;
@@ -249,6 +260,8 @@ export async function loadIncidentInfos(tx: Tx, ids: string[]): Promise<Map<stri
     if (!r.primary_id) continue;
     out.set(r.id, {
       id: r.id,
+      category: r.category,
+      summary: r.summary,
       primaryAlertId: r.primary_id,
       alertCount: r.alert_count,
       openCount: Number(r.open_count),

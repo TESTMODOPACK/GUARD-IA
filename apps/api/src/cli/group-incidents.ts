@@ -31,6 +31,15 @@ async function main() {
       if (r?.joined) joined++;
     }
     console.log(`[incidentes] ${pending.length} alertas agrupadas; ${joined} se sumaron a un incidente existente`);
+    // Recalcular los abiertos: cambian las reglas de importancia o de clasificación de la situación.
+    const open = await dbs.asSystem((tx) =>
+      tx
+        .selectDistinct({ id: alert.incidentId })
+        .from(alert)
+        .where(and(isNotNull(alert.incidentId), inArray(alert.status, ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED']))),
+    );
+    for (const { id } of open) if (id) await dbs.asSystem((tx) => incidents.recompute(tx, id));
+    console.log(`[incidentes] ${open.length} incidentes abiertos recalculados`);
   } finally {
     await dbs.onModuleDestroy();
   }
