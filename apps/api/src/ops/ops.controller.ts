@@ -73,6 +73,13 @@ export class OpsController {
     return this.ops.resolve(op, id, body.notes, body.includeGrouped ?? false);
   }
 
+  /** Transcribir y clasificar de nuevo (p. ej. llegó con la IA en modo de prueba o caída). */
+  @Post('alerts/:id/reanalyze')
+  @HttpCode(200)
+  reanalyze(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
+    return this.ops.reanalyze(op, id);
+  }
+
   /** Sacar la alerta de su grupo: la central decidió que es otra situación. */
   @Post('alerts/:id/detach')
   @HttpCode(200)

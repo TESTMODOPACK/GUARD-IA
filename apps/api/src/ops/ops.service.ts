@@ -12,6 +12,7 @@ import {
   type UpdateDispatch,
 } from '@guardia/shared';
 import { AlertReadService } from '../alerts/alert-read.service';
+import { AlertsService } from '../alerts/alerts.service';
 import { AppError } from '../common/app-error';
 import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
 import { DbService, type Tx } from '../db/db.service';
@@ -43,6 +44,7 @@ export class OpsService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly incidents: IncidentsService,
+    private readonly alertsSvc: AlertsService,
   ) {}
 
   list(op: OperatorClaims, q: OpsAlertsQuery) {
@@ -301,6 +303,33 @@ export class OpsService {
       kind: 'RESOLVED',
       payload,
     });
+  }
+
+  /**
+   * Volver a analizar con IA (transcribir y clasificar de nuevo): para una alerta que llegó con la
+   * IA en modo de prueba o caída. Se borra la transcripción anterior y se encola un job nuevo (id
+   * propio: el del primer análisis ya existe en la cola y BullMQ lo ignoraría).
+   */
+  async reanalyze(op: OperatorClaims, alertId: string): Promise<AlertDetail> {
+    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const row = await this.loadForUpdate(tx, alertId);
+      if (row.aiStatus === 'PROCESSING') throw new AppError('CONFLICT', 'La IA ya está analizando esta alerta');
+      if (['CANCELLED', 'UNROUTED'].includes(row.status)) throw new AppError('CONFLICT', 'Esta alerta no se analiza');
+      await tx.update(alert).set({ aiStatus: 'QUEUED', aiError: null, transcription: null }).where(eq(alert.id, alertId));
+      await this.events.record(tx, {
+        alertId,
+        tenantId: op.tenantId,
+        actorType: 'OPERATOR',
+        actorId: op.sub,
+        kind: 'NOTE',
+        payload: { text: 'Se pidió volver a analizar con IA (transcripción y clasificación).' },
+      });
+      return this.reads.detail(tx, alertId);
+    });
+    this.realtime.alertUpdated(op.tenantId, detail);
+    const queued = await this.alertsSvc.enqueue(alertId, `alert-${alertId}-r${Date.now()}`);
+    if (!queued) throw new AppError('INTERNAL', 'No se pudo encolar el análisis; intenta de nuevo en un momento');
+    return detail;
   }
 
   /**

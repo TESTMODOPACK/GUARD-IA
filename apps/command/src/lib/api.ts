@@ -165,6 +165,7 @@ export const api = {
   resolve: (id: string, notes?: string, includeGrouped = false) =>
     request<AlertDetail>(`/ops/alerts/${id}/resolve`, { method: 'POST', body: json({ notes, includeGrouped }) }),
   detach: (id: string) => request<AlertDetail>(`/ops/alerts/${id}/detach`, { method: 'POST' }),
+  reanalyze: (id: string) => request<AlertDetail>(`/ops/alerts/${id}/reanalyze`, { method: 'POST' }),
   note: (id: string, text: string) => request<AlertEvent>(`/ops/alerts/${id}/notes`, { method: 'POST', body: json({ text }) }),
   updateDispatch: (id: string, status: DispatchStatus, notes?: string) =>
     request<Dispatch>(`/ops/dispatches/${id}`, { method: 'PATCH', body: json({ status, notes }) }),

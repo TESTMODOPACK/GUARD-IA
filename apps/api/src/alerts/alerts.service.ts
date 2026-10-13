@@ -202,14 +202,10 @@ export class AlertsService {
    * Encola el job de IA sin bloquear la respuesta más de 800 ms. Si Redis no responde,
    * la alerta queda QUEUED y el barrido de AiOutboxCron la reencola después.
    */
-  async enqueue(alertId: string): Promise<boolean> {
+  async enqueue(alertId: string, jobId = `alert-${alertId}`): Promise<boolean> {
     try {
       await withTimeout(
-        this.queue.add(
-          PROCESS_ALERT_JOB,
-          { alertId, enqueuedAt: new Date().toISOString() },
-          { ...PROCESS_ALERT_JOB_OPTS, jobId: `alert-${alertId}` },
-        ),
+        this.queue.add(PROCESS_ALERT_JOB, { alertId, enqueuedAt: new Date().toISOString() }, { ...PROCESS_ALERT_JOB_OPTS, jobId }),
         800,
       );
       return true;

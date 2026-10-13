@@ -5,6 +5,7 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AlertReadService } from '../src/alerts/alert-read.service';
+import type { AlertsService } from '../src/alerts/alerts.service';
 import type { OperatorClaims } from '../src/auth/auth.guard';
 import { loadEnvFiles } from '../src/cli/load-env';
 import { validateEnv } from '../src/config/env';
@@ -64,7 +65,8 @@ d('incidentes', () => {
     const reads = new AlertReadService({ toPublic: async () => [] } as unknown as MediaService);
     const realtime = { alertUpdated: () => undefined, citizenAlertStatus: () => undefined } as unknown as RealtimeService;
     const notifications = { notifyAlertStatus: async () => undefined } as unknown as NotificationsService;
-    ops = new OpsService(dbs, reads, new EventsService(), realtime, notifications, incidents);
+    const alertsSvc = { enqueue: async () => true } as unknown as AlertsService;
+    ops = new OpsService(dbs, reads, new EventsService(), realtime, notifications, incidents, alertsSvc);
 
     const [t] = await admin<{ id: string }[]>`
       INSERT INTO tenant (name, slug, boundary) VALUES ('Inc', ${'inc-test-' + suffix}, ST_GeomFromGeoJSON(${BOX})::geography) RETURNING id`;

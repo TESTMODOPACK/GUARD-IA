@@ -185,6 +185,18 @@ export function AlertDetailPanel() {
                   {detail.aiConfidence !== null ? ` · confianza ${Math.round(detail.aiConfidence * 100)} %` : ''}
                 </span>
               </div>
+              {/* Llegó con la IA en modo de prueba o caída, o el operador duda: transcribir y clasificar de nuevo. */}
+              {(detail.hasAudio || detail.userText) && !['QUEUED', 'PROCESSING'].includes(detail.aiStatus) ? (
+                <Button
+                  variant="ghost"
+                  className="mt-1 h-7 px-2 text-xs"
+                  busy={busy === 'reanalyze'}
+                  onClick={() => void run('reanalyze', () => api.reanalyze(alert.id), 'Analizando de nuevo con IA…').catch(() => undefined)}
+                  data-testid="action-reanalyze"
+                >
+                  Volver a analizar {detail.hasAudio ? '(transcribir el audio)' : ''}
+                </Button>
+              ) : null}
               {detail.aiSummary ? <p className="mt-2 text-sm">{detail.aiSummary}</p> : null}
               {/* Texto escrito sin audio: la IA lo analizó; la transcripción del audio va arriba. */}
               {detail.userText ? (
