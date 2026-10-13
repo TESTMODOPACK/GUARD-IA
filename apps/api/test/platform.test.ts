@@ -35,6 +35,7 @@ d('consola de plataforma', () => {
   let admin: postgres.Sql;
   let tokens: PlatformTokensService;
   let auth: PlatformAuthService;
+  let devAuth: PlatformAuthService;
   let tenants: PlatformTenantsService;
   let users: PlatformUsersService;
   let opStatus: OperatorStatusService;
@@ -93,7 +94,8 @@ d('consola de plataforma', () => {
   }
 
   beforeAll(async () => {
-    const env = validateEnv(process.env);
+    // El segundo factor se prueba siempre, aunque el .env local lo tenga apagado (PLATFORM_TOTP_REQUIRED=false).
+    const env = { ...validateEnv(process.env), PLATFORM_TOTP_REQUIRED: true };
     if (!env.DATABASE_ADMIN_URL) throw new Error('DATABASE_ADMIN_URL requerido');
     if (!env.PLATFORM_JWT_SECRET || !env.PLATFORM_ENCRYPTION_KEY) throw new Error('PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY requeridos');
     dbs = new DbService(env);
@@ -106,6 +108,7 @@ d('consola de plataforma', () => {
     const status = new PlatformUserStatusService(dbs);
     const audit = new PlatformAuditService(dbs);
     auth = new PlatformAuthService(env, dbs, tokens, audit, status, rate);
+    devAuth = new PlatformAuthService({ ...env, PLATFORM_TOTP_REQUIRED: false }, dbs, tokens, audit, status, rate);
     opStatus = new OperatorStatusService(dbs);
     opTokens = new TokenService(env, jwt, dbs);
     tenants = new PlatformTenantsService(dbs, audit, opStatus, opTokens);
@@ -167,6 +170,7 @@ d('consola de plataforma', () => {
     // Segundo ingreso: ya no enrola, y el mismo código no se acepta otra vez.
     const again = await auth.login(email('super'), PASSWORD, IP);
     expect(again.step).toBe('totp');
+    if (again.step !== 'totp') return;
     await expect(auth.verifyCode(again.challengeToken, code, IP)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
 
     const r = await auth.refresh(s.refreshToken, IP);
@@ -190,6 +194,19 @@ d('consola de plataforma', () => {
     expect(u.locked).toBe(true);
     const [l] = await admin<{ n: number }[]>`SELECT count(*)::int AS n FROM platform_audit_log WHERE target_id = ${id} AND action = 'LOCKED'`;
     expect(l.n).toBe(1);
+  });
+
+  it('en desarrollo, con el segundo factor apagado, la contraseña basta y la bitácora lo anota', async () => {
+    const id = await platformUser('nototp', 'SUPPORT');
+    await expect(devAuth.login(email('nototp'), 'incorrecta-123', IP)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    const r = await devAuth.login(email('nototp'), PASSWORD, IP);
+    expect(r.step).toBe('done');
+    if (r.step !== 'done') return;
+    expect(r.session.user).toMatchObject({ id, mustChangePassword: true });
+    expect(tokens.verifyAccess(r.session.accessToken).sub).toBe(id);
+    const [l] = await admin<{ payload: Record<string, unknown> }[]>`
+      SELECT payload FROM platform_audit_log WHERE target_id = ${id} AND action = 'LOGIN'`;
+    expect(l.payload).toEqual({ secondFactor: false });
   });
 
   it('un token de operador no abre la consola', () => {

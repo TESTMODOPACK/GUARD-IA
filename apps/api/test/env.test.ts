@@ -43,6 +43,13 @@ describe('validateEnv', () => {
     expect(validateEnv(base).PLATFORM_JWT_SECRET).toBeUndefined();
   });
 
+  it('el segundo factor de la consola solo se apaga en desarrollo', () => {
+    const prod = { ...base, ...PLATFORM, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    expect(validateEnv(base).PLATFORM_TOTP_REQUIRED).toBe(true);
+    expect(validateEnv({ ...base, PLATFORM_TOTP_REQUIRED: 'false' }).PLATFORM_TOTP_REQUIRED).toBe(false);
+    expect(() => validateEnv({ ...prod, PLATFORM_TOTP_REQUIRED: 'false' })).toThrow(/PLATFORM_TOTP_REQUIRED/);
+  });
+
   it('trata `VAR=` vacía (env_file) como no definida', () => {
     const env = validateEnv({ ...base, METRICS_TOKEN: '', S3_PUBLIC_ENDPOINT: '', LOG_LEVEL: '' });
     expect(env.METRICS_TOKEN).toBeUndefined();

@@ -121,8 +121,9 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     (`dispatch.outcome`); "era otra situación" corrige la categoría como clasificación de terreno
     (`triage_label.field_*`) y "falsa alarma confirmada" permite rechazar una alerta ya despachada.
 15. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
-    `SMS_PROVIDER=console`, secretos por defecto y la falta de `PLATFORM_JWT_SECRET`/`PLATFORM_ENCRYPTION_KEY`
-    (distintos entre sí y del de la API). No lo relajes.
+    `SMS_PROVIDER=console`, secretos por defecto, la falta de `PLATFORM_JWT_SECRET`/`PLATFORM_ENCRYPTION_KEY`
+    (distintos entre sí y del de la API) y `PLATFORM_TOTP_REQUIRED=false` (solo desarrollo: la consola entra
+    sin segundo factor). No lo relajes.
 16. **Plataforma** (migración 0010, `docs/plan-plataforma.md` P1): contexto RLS `platform` (`DbService.asPlatform`)
     que ve municipios, comunas y sus tablas, y de las cuentas del municipio solo las de ADMIN; nunca alertas,
     vecinos ni casos: las cifras salen de funciones SECURITY DEFINER que devuelven conteos

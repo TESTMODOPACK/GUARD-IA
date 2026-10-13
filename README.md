@@ -86,6 +86,8 @@ pnpm --filter @guardia/platform dev    # http://localhost:3002
 
 El comando imprime una contraseña temporal una sola vez. Al entrar, la consola muestra la clave del segundo factor
 (TOTP) para cargarla en una app de autenticación y luego pide definir una contraseña propia (12+ caracteres).
+Para probar en el computador sin app de autenticación: `PLATFORM_TOTP_REQUIRED=false` en `.env` (se entra solo
+con la contraseña y la bitácora lo anota). En producción la API no arranca con ese valor.
 
 ## Tests
 

@@ -61,6 +61,7 @@ export class PlatformAuthService {
       throw new AppError('UNAUTHORIZED', 'Credenciales inválidas');
     }
 
+    if (!this.env.PLATFORM_TOTP_REQUIRED) return { step: 'done', session: await this.openSession(user, ip) };
     if (user.totpEnabledAt) return { step: 'totp', challengeToken: this.tokens.signChallenge(user.id, false) };
 
     const secret = newTotpSecret();
@@ -73,6 +74,22 @@ export class PlatformAuthService {
       secret,
       otpauthUri: otpauthUri(this.env.PLATFORM_TOTP_ISSUER, user.email, secret),
     };
+  }
+
+  /** Solo desarrollo (PLATFORM_TOTP_REQUIRED=false): sesión con la contraseña. La bitácora lo deja anotado. */
+  private async openSession(user: PlatformUserRow, ip: string): Promise<PlatformSession> {
+    const out = await this.dbs.asSystem(async (tx) => {
+      const [u] = await tx
+        .update(platformUser)
+        .set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() })
+        .where(eq(platformUser.id, user.id))
+        .returning();
+      await this.audit.record(tx, { actorId: u.id, action: 'LOGIN', targetId: u.id, ip, payload: { secondFactor: false } });
+      const pair = await this.tokens.issueSession(tx, u, ip);
+      return { ...pair, user: toPlatformUserPublic(u) };
+    });
+    this.status.invalidate(user.id);
+    return out;
   }
 
   async verifyCode(challengeToken: string, code: string, ip: string): Promise<PlatformSession> {

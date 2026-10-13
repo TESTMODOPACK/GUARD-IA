@@ -65,28 +65,6 @@ export const PlatformLoginSchema = z.object({
 });
 export type PlatformLogin = z.infer<typeof PlatformLoginSchema>;
 
-/**
- * Paso 1 correcto: la consola pide el código. `enroll` es el primer ingreso (o tras un restablecimiento):
- * la clave se muestra una sola vez para cargarla en la app de autenticación.
- */
-export const PlatformLoginStepSchema = z.discriminatedUnion('step', [
-  z.object({ step: z.literal('totp'), challengeToken: z.string() }),
-  z.object({
-    step: z.literal('enroll'),
-    challengeToken: z.string(),
-    /** Clave en base32, para escribirla a mano en la app de autenticación. */
-    secret: z.string(),
-    otpauthUri: z.string(),
-  }),
-]);
-export type PlatformLoginStep = z.infer<typeof PlatformLoginStepSchema>;
-
-export const PlatformTotpSchema = z.object({
-  challengeToken: z.string().min(20).max(2000),
-  code: z.string().regex(/^\d{6}$/, 'El código tiene 6 dígitos'),
-});
-export type PlatformTotp = z.infer<typeof PlatformTotpSchema>;
-
 export const PlatformUserPublicSchema = z.object({
   id: UuidSchema,
   email: z.email(),
@@ -103,6 +81,30 @@ export const PlatformSessionSchema = z.object({
   user: PlatformUserPublicSchema,
 });
 export type PlatformSession = z.infer<typeof PlatformSessionSchema>;
+
+/**
+ * Paso 1 correcto: la consola pide el código. `enroll` es el primer ingreso (o tras un restablecimiento):
+ * la clave se muestra una sola vez para cargarla en la app de autenticación. `done` solo existe en
+ * desarrollo con PLATFORM_TOTP_REQUIRED=false (producción lo rechaza): la sesión sale sin segundo factor.
+ */
+export const PlatformLoginStepSchema = z.discriminatedUnion('step', [
+  z.object({ step: z.literal('totp'), challengeToken: z.string() }),
+  z.object({
+    step: z.literal('enroll'),
+    challengeToken: z.string(),
+    /** Clave en base32, para escribirla a mano en la app de autenticación. */
+    secret: z.string(),
+    otpauthUri: z.string(),
+  }),
+  z.object({ step: z.literal('done'), session: PlatformSessionSchema }),
+]);
+export type PlatformLoginStep = z.infer<typeof PlatformLoginStepSchema>;
+
+export const PlatformTotpSchema = z.object({
+  challengeToken: z.string().min(20).max(2000),
+  code: z.string().regex(/^\d{6}$/, 'El código tiene 6 dígitos'),
+});
+export type PlatformTotp = z.infer<typeof PlatformTotpSchema>;
 
 export const PlatformChangePasswordSchema = z
   .object({

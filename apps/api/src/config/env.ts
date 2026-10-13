@@ -43,6 +43,14 @@ const EnvSchema = z.object({
   PLATFORM_SESSION_MAX_SECONDS: z.coerce.number().int().min(900).max(24 * 3600).default(8 * 3600),
   /** Nombre que muestra la app de autenticación junto al correo. */
   PLATFORM_TOTP_ISSUER: z.string().min(2).max(40).default('Guard-IA'),
+  /**
+   * Segundo factor de la consola. `false` solo para probar en el computador sin app de autenticación:
+   * el ingreso queda con contraseña. Producción lo rechaza.
+   */
+  PLATFORM_TOTP_REQUIRED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   /** console | twilio */
   SMS_PROVIDER: z.enum(['console', 'twilio']).default('console'),
@@ -138,6 +146,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     } else if (env.PLATFORM_JWT_SECRET === env.JWT_ACCESS_SECRET || env.PLATFORM_ENCRYPTION_KEY === env.PLATFORM_JWT_SECRET) {
       problems.push('PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY deben ser distintas entre sí y de JWT_ACCESS_SECRET');
     }
+    if (!env.PLATFORM_TOTP_REQUIRED) problems.push('PLATFORM_TOTP_REQUIRED=false es solo para desarrollo: la consola exige segundo factor');
     if (problems.length) throw new Error(`Configuración inválida para producción:\n  - ${problems.join('\n  - ')}`);
   }
   if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
