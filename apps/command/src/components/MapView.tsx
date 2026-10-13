@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import type { AnyAlert } from '@/lib/store';
-import { ACTIVE_STATUSES, useStore } from '@/lib/store';
+import { ACTIVE_STATUSES, representatives, useStore } from '@/lib/store';
 import { categoryLabel, UNIT_STATUS } from '@/lib/labels';
 
 /** Centro por defecto: Santiago. Se recentra en la primera alerta o unidad con posición. */
@@ -77,7 +77,8 @@ export default function MapView() {
   const select = useStore((s) => s.select);
   const fresh = useStore((s) => s.fresh);
 
-  const active = useMemo(() => Object.values(alerts).filter((a) => ACTIVE_STATUSES.includes(a.status)), [alerts]);
+  // Un marcador por situación: los reportes repetidos del mismo bache no tapan el mapa.
+  const active = useMemo(() => representatives(Object.values(alerts).filter((a) => ACTIVE_STATUSES.includes(a.status))), [alerts]);
   const selected = selectedId ? (alerts[selectedId] ?? null) : null;
   const unitList = useMemo(() => Object.values(units).filter((u) => u.lastLocation), [units]);
 

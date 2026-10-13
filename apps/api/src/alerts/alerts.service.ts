@@ -183,11 +183,10 @@ export class AlertsService {
     if (row.tenantId) {
       // Agrupar con reportes de la misma situación ANTES de avisar, para que la central reciba la
       // alerta ya agrupada y no suene por cada repetido. Ya está confirmada: si esto tarda más de
-      // 300 ms o falla, sale sin grupo y el worker la agrupa después (regla 1: el SOS no espera).
-      await this.groupQuickly(row.id);
+      // 200 ms o falla, sale sin grupo y el worker la agrupa después (regla 1: el SOS no espera).
+      const incidentId = await this.groupQuickly(row.id);
       // Paso 2: la central lo ve ahora, antes de cualquier IA.
-      const [fresh] = await this.dbs.asSystem((tx) => tx.select().from(alert).where(eq(alert.id, row.id)).limit(1));
-      const summary = await this.dbs.asSystem((tx) => this.reads.summary(tx, fresh ?? row));
+      const summary = await this.dbs.asSystem((tx) => this.reads.summary(tx, { ...row, incidentId }));
       this.realtime.alertCreated(row.tenantId, summary);
       this.metrics.alertCreateLatency.observe({ type: row.type }, (Date.now() - t0) / 1000);
 
@@ -297,12 +296,16 @@ export class AlertsService {
     return view;
   }
 
-  /** Agrupa con tope de 300 ms. Nunca lanza: el worker IA vuelve a intentarlo (attach es idempotente). */
-  private async groupQuickly(alertId: string): Promise<void> {
+  /**
+   * Agrupa con tope de 200 ms (en producción tarda unos ms). Nunca lanza: si no alcanza, el worker
+   * IA vuelve a intentarlo (attach es idempotente). Devuelve el incidente o null.
+   */
+  private async groupQuickly(alertId: string): Promise<string | null> {
     try {
-      await withTimeout(this.incidents.attach(alertId), 300);
+      return (await withTimeout(this.incidents.attach(alertId), 200))?.incidentId ?? null;
     } catch (e) {
       this.logger.warn(`agrupación de ${alertId} pendiente (la hace el worker): ${(e as Error).message}`);
+      return null;
     }
   }
 

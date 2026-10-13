@@ -1,7 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import type { AlertDetail, AlertSummary, Dispatch, Unit } from '@guardia/shared';
+import type { AlertDetail, AlertSummary, Dispatch, ImportanceLevel, Unit } from '@guardia/shared';
 import { WS_NAMESPACES } from '@guardia/shared';
 import { api, fetchAllAlerts, getAccessToken, refreshAccessToken } from './api';
 import { API_URL } from './config';
@@ -18,10 +18,40 @@ let serverDrops = 0;
 /** Invalida cargas en vuelo de una conexión anterior. */
 let resyncSeq = 0;
 
-/** SOS pendientes que la central todavía no conocía. */
+/** Se sumó a una situación que ya estaba en la cola (no la abrió). */
+const joinedExisting = (a: AnyAlert) => !!a.incident && a.incident.primaryAlertId !== a.id;
+const LEVEL_RANK: Record<ImportanceLevel, number> = { BAJA: 0, MEDIA: 1, ALTA: 2, CRITICA: 3 };
+
+/** SOS pendientes que la central todavía no conocía y que abren una situación nueva. */
 function unseenPendingSos(list: AnyAlert[]): string[] {
   const known = useStore.getState().alerts;
-  return list.filter((a) => !(a.id in known) && a.type === 'EMERGENCY_SOS' && a.status === 'PENDING').map((a) => a.id);
+  return list
+    .filter((a) => !(a.id in known) && a.type === 'EMERGENCY_SOS' && a.status === 'PENDING' && !joinedExisting(a))
+    .map((a) => a.id);
+}
+
+/**
+ * Avisos sonoros sin saturar: un SOS nuevo suena fuerte; otro vecino que reporta el mismo SOS, un
+ * tono corto; un reporte urbano solo suena cuando su situación llega a importancia alta o crítica.
+ * Los reportes repetidos de un problema conocido no suenan.
+ */
+function announceCreated(a: AlertSummary, before: ImportanceLevel | undefined) {
+  const s = useStore.getState();
+  const joined = joinedExisting(a);
+  if (a.type === 'EMERGENCY_SOS') {
+    if (!joined) {
+      if (s.prefs.sound) ping('sos');
+      return;
+    }
+    if (s.prefs.sound) ping('high');
+    s.notify('ok', `Otro vecino reporta el mismo SOS (${a.incident!.citizenCount} vecinos)`);
+    return;
+  }
+  const level = a.incident?.level;
+  if (!level || LEVEL_RANK[level] < LEVEL_RANK.ALTA) return;
+  if (before && LEVEL_RANK[before] >= LEVEL_RANK[level]) return; // ya se avisó en este nivel
+  if (s.prefs.sound) ping('high');
+  s.notify('ok', joined ? `Reporte repetido: la situación subió a importancia ${level === 'CRITICA' ? 'crítica' : 'alta'}` : 'Reporte urbano de importancia alta');
 }
 
 /** Incorpora alertas al store. Con `announce`, los SOS nuevos se resaltan y suenan una vez. */
@@ -105,17 +135,18 @@ export function connectRealtime(): void {
 
   socket.on('alert.created', (a: AlertSummary) => {
     const s = useStore.getState();
-    s.upsertAlert(a, { fresh: true });
+    const before = a.incident ? Object.values(s.alerts).find((x) => x.incident?.id === a.incident!.id)?.incident?.level : undefined;
+    s.upsertAlert(a, { fresh: !joinedExisting(a) });
     s.touchEvent(a.updatedAt);
-    if (s.prefs.sound && a.type === 'EMERGENCY_SOS') ping('sos');
+    announceCreated(a, before);
   });
   socket.on('alert.updated', (a: AlertDetail) => {
     const s = useStore.getState();
     const prev = s.alerts[a.id];
     s.upsertAlert(a);
     s.touchEvent(a.updatedAt);
-    // Primer HIGH confirmado por la IA: segundo aviso corto.
-    if (s.prefs.sound && a.priority === 'HIGH' && prev?.priority !== 'HIGH' && a.status === 'PENDING') ping('high');
+    // Primer HIGH confirmado por la IA en una situación nueva: segundo aviso corto.
+    if (s.prefs.sound && a.priority === 'HIGH' && prev?.priority !== 'HIGH' && a.status === 'PENDING' && !joinedExisting(a)) ping('high');
   });
   socket.on('dispatch.updated', (d: Dispatch) => {
     const s = useStore.getState();

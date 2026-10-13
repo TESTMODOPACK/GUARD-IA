@@ -23,6 +23,7 @@ import { isDetail, useStore } from '@/lib/store';
 import { useNow } from './AlertQueue';
 import { AudioPlayer } from './AudioPlayer';
 import { ContactsHint } from './ContactsHint';
+import { IncidentPanel, Transcript } from './IncidentPanel';
 import { DispatchDialog, RejectDialog, ResolveDialog } from './Dialogs';
 import { Button, PriorityDot, Spinner, Tag, textareaClass } from './ui';
 
@@ -149,6 +150,8 @@ export function AlertDetailPanel() {
           ) : null}
         </div>
 
+        <IncidentPanel alert={alert} />
+
         <ContactsHint agency={alert.suggestedAgency} type={alert.type} />
 
         {/* Audio y foto */}
@@ -164,6 +167,7 @@ export function AlertDetailPanel() {
                 <AudioPlayer media={audio} />
               </section>
             ) : null}
+            <Transcript detail={detail} />
             {photo?.url ? (
               <section>
                 <h3 className="text-xs text-ink-muted mb-1.5">Foto</h3>
@@ -182,11 +186,7 @@ export function AlertDetailPanel() {
                 </span>
               </div>
               {detail.aiSummary ? <p className="mt-2 text-sm">{detail.aiSummary}</p> : null}
-              {detail.transcription ? (
-                <blockquote className="mt-2 text-sm text-ink-muted border-l-2 border-line-strong pl-3 whitespace-pre-wrap">{detail.transcription}</blockquote>
-              ) : detail.hasAudio && detail.aiStatus === 'DONE' ? (
-                <p className="mt-2 text-sm text-ink-muted">El audio no tenía habla inteligible.</p>
-              ) : null}
+              {/* Texto escrito sin audio: la IA lo analizó; la transcripción del audio va arriba. */}
               {detail.userText ? (
                 <p className="mt-2 text-sm">
                   <span className="text-ink-muted">Escribió: </span>
@@ -317,7 +317,13 @@ export function AlertDetailPanel() {
         <RejectDialog onClose={() => setDialog(null)} onConfirm={(reason, notes) => run('reject', () => api.reject(alert.id, reason, notes), 'Alerta rechazada')} />
       ) : null}
       {dialog === 'resolve' ? (
-        <ResolveDialog onClose={() => setDialog(null)} onConfirm={(notes) => run('resolve', () => api.resolve(alert.id, notes), 'Alerta resuelta')} />
+        <ResolveDialog
+          groupedOpen={Math.max(0, (alert.incident?.openCount ?? 1) - 1)}
+          onClose={() => setDialog(null)}
+          onConfirm={(notes, includeGrouped) =>
+            run('resolve', () => api.resolve(alert.id, notes, includeGrouped), includeGrouped ? 'Situación resuelta: se avisó a cada vecino' : 'Alerta resuelta')
+          }
+        />
       ) : null}
     </aside>
   );

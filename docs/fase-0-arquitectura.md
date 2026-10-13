@@ -84,6 +84,10 @@ incluso con contraseña temporal); `GET /ops/shifts?from&to`, `GET /ops/shifts/s
 `POST /ops/contacts`, `PATCH|DELETE /ops/contacts/:id` (ADMIN, SUPERVISOR); `GET /ops/admin/overview?range`,
 `GET /ops/admin/activity?source=cases|system&cursor` (ADMIN, SUPERVISOR).
 
+Incidentes (migración 0004, 13-10-2026): `AlertSummary.incident` trae el grupo (conteos, vecinos, recurrencia,
+importancia y motivos); `POST /ops/alerts/:id/resolve` acepta `includeGrouped` (cierra todo el grupo y avisa a
+cada vecino) y `POST /ops/alerts/:id/detach` separa una alerta de su grupo.
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.

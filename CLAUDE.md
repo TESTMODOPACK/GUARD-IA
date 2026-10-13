@@ -80,7 +80,12 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     caché 30 s; invalidar tras cambiar una cuenta), no del JWT. Toda acción de administración escribe
     `audit_log` en la MISMA transacción (`AuditService.record(tx, …)`); `audit_log` es de solo inserción.
     Contraseña temporal → solo `@AllowPendingPassword()` pasa. Los contactos se desactivan, no se borran.
-11. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
+11. **Incidentes** (migración 0004): alertas de la misma situación se agrupan (reglas en
+    `shared/schemas/incident.ts`); la importancia sale de `incidentImportance` (reglas explícitas, un SOS
+    nunca baja de MEDIA). Agrupar va DESPUÉS del commit con tope de 200 ms y es idempotente (el worker
+    reintenta); nunca bloquea el SOS. La central muestra una tarjeta por situación, de la más nueva a la
+    más antigua y sin ocultar ninguna; la importancia informa y regula el sonido, no filtra.
+12. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)

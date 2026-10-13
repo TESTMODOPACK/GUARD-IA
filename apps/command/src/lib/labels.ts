@@ -7,6 +7,8 @@ import type {
   AuditKind,
   ContactCategory,
   DispatchStatus,
+  ImportanceLevel,
+  ImportanceReason,
   OperatorRole,
   Priority,
   RejectReason,
@@ -157,6 +159,49 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   CONTACT_UPDATED: 'Editó un contacto',
   CONTACT_REMOVED: 'Desactivó un contacto',
 };
+
+export const IMPORTANCE: Record<ImportanceLevel, string> = {
+  CRITICA: 'Crítica',
+  ALTA: 'Alta',
+  MEDIA: 'Media',
+  BAJA: 'Baja',
+};
+
+/** Por qué una situación tiene la importancia que tiene (se muestra en la ficha). */
+export const IMPORTANCE_REASON: Record<ImportanceReason, string> = {
+  SOS: 'Es un SOS',
+  PRIORITY_HIGH: 'La IA la clasificó urgente',
+  PRIORITY_MEDIUM: 'La IA la clasificó de prioridad media',
+  UNCLASSIFIED_SOS: 'SOS aún sin clasificar: se trata como urgente',
+  MANY_CITIZENS: 'Varios vecinos la reportaron',
+  RECURRENT: 'Ya se había resuelto aquí y volvió',
+  DANGEROUS_CATEGORY: 'Riesgo para el tránsito',
+  WEAPON: 'Mencionan un arma',
+  INJURED: 'Hay personas heridas',
+  MINOR: 'Hay un menor involucrado',
+  POSSIBLE_FALSE_ALARM: 'Posible falsa alarma (un solo reporte)',
+  LOW_TRUST: 'Vecino con baja confianza (un solo reporte)',
+};
+
+/**
+ * Cuánto lleva esperando, para la cola: 0:42 y 12:05 en la primera hora (el operador cuenta
+ * segundos), después "hace 3 h" o "hace 2 d" (un reloj "22 h 06" se confunde con una hora del día).
+ */
+export function formatWait(fromIso: string, now: number): string {
+  const s = Math.max(0, Math.floor((now - new Date(fromIso).getTime()) / 1000));
+  if (s < 3600) return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  if (s < 86_400) return `hace ${Math.floor(s / 3600)} h`;
+  return `hace ${Math.floor(s / 86_400)} d`;
+}
+
+/** "hace 5 min", "hace 3 h": para el último reporte de un grupo. */
+export function formatSince(fromIso: string, now: number): string {
+  const s = Math.max(0, Math.floor((now - new Date(fromIso).getTime()) / 1000));
+  if (s < 60) return 'recién';
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86_400) return `hace ${Math.floor(s / 3600)} h`;
+  return `hace ${Math.floor(s / 86_400)} d`;
+}
 
 /** Duración en segundos como la lee un supervisor: 45 s, 3 min, 1 h 20. */
 export function formatDuration(s: number | null): string {

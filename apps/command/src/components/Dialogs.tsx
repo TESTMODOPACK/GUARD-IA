@@ -134,8 +134,18 @@ export function RejectDialog({
   );
 }
 
-export function ResolveDialog({ onConfirm, onClose }: { onConfirm: (notes?: string) => Promise<void>; onClose: () => void }) {
+export function ResolveDialog({
+  onConfirm,
+  onClose,
+  groupedOpen = 0,
+}: {
+  onConfirm: (notes: string | undefined, includeGrouped: boolean) => Promise<void>;
+  onClose: () => void;
+  /** Otras alertas abiertas de la misma situación. */
+  groupedOpen?: number;
+}) {
   const [notes, setNotes] = useState('');
+  const [includeGrouped, setIncludeGrouped] = useState(groupedOpen > 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,7 +153,7 @@ export function ResolveDialog({ onConfirm, onClose }: { onConfirm: (notes?: stri
     setBusy(true);
     setError(null);
     try {
-      await onConfirm(notes.trim() || undefined);
+      await onConfirm(notes.trim() || undefined, groupedOpen > 0 && includeGrouped);
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -158,6 +168,21 @@ export function ResolveDialog({ onConfirm, onClose }: { onConfirm: (notes?: stri
       <Field label="Cómo se resolvió (opcional)">
         <textarea className={textareaClass} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
+      {groupedOpen > 0 ? (
+        <label className="mt-3 flex items-start gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeGrouped}
+            onChange={(e) => setIncludeGrouped(e.target.checked)}
+            className="mt-0.5 accent-[var(--color-accent)]"
+            data-testid="resolve-grouped"
+          />
+          <span>
+            Resolver también {groupedOpen === 1 ? 'el otro reporte' : `los otros ${groupedOpen} reportes`} de esta situación
+            <span className="block text-xs text-ink-muted">Cada vecino que reportó recibe el aviso de que se resolvió.</span>
+          </span>
+        </label>
+      ) : null}
       {error ? <p role="alert" className="mt-2 text-sm text-high">{error}</p> : null}
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
