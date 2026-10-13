@@ -5,6 +5,11 @@ import {
   canTransitionAlert,
   canTransitionDispatch,
   ChangeTenantStatusSchema,
+  blockNotice,
+  CreateReviewSchema,
+  DecideBlockSchema,
+  hasCriticalPhrase,
+  rejectNotice,
   isValidRut,
   normalizeRut,
   OtpVerifySchema,
@@ -123,5 +128,32 @@ describe('RUT y municipios (plataforma)', () => {
   it('la contraseña de plataforma pide 12 caracteres', () => {
     expect(PlatformChangePasswordSchema.safeParse({ currentPassword: 'x', newPassword: 'corta12345' }).success).toBe(false);
     expect(PlatformChangePasswordSchema.safeParse({ currentPassword: 'x', newPassword: 'una-clave-larga' }).success).toBe(true);
+  });
+});
+
+describe('uso indebido: restricción, bloqueo y revisión', () => {
+  it('una frase de riesgo vital impide bajar la prioridad de una cuenta restringida', () => {
+    expect(hasCriticalPhrase('EMERGENCY_SOS', 'le dispararon a mi vecino y está sangrando')).toBe(true);
+    expect(hasCriticalPhrase('EMERGENCY_SOS', 'estoy probando la aplicación')).toBe(false);
+    expect(hasCriticalPhrase('EMERGENCY_SOS', '')).toBe(false);
+  });
+
+  it('una prueba repetida avisa como aviso falso; la primera no', () => {
+    expect(rejectNotice('TEST', null).warning).toBe(false);
+    expect(rejectNotice('TEST', 2)).toMatchObject({ warning: true, title: expect.stringContaining('restringida') });
+    expect(blockNotice(180, 'Municipalidad de Prueba').body).toContain('6 meses');
+    expect(blockNotice(null, 'Municipalidad de Prueba').body).toContain('hasta nuevo aviso');
+  });
+
+  it('aprobar un bloqueo exige plazo válido y motivo; la revisión apunta a una sola cosa', () => {
+    expect(DecideBlockSchema.safeParse({ approve: true, note: 'tres bromas' }).success).toBe(false);
+    expect(DecideBlockSchema.safeParse({ approve: true, days: 45, note: 'tres bromas' }).success).toBe(false);
+    expect(DecideBlockSchema.safeParse({ approve: true, days: 30, note: 'tres bromas' }).success).toBe(true);
+    expect(DecideBlockSchema.safeParse({ approve: true, days: null, note: 'acoso reiterado' }).success).toBe(true);
+    expect(DecideBlockSchema.safeParse({ approve: false, note: 'no corresponde' }).success).toBe(true);
+    const id = '00000000-0000-4000-8000-000000000000';
+    expect(CreateReviewSchema.safeParse({ strikeId: id, blockId: id, text: 'no fui yo, me robaron el teléfono' }).success).toBe(false);
+    expect(CreateReviewSchema.safeParse({ strikeId: id, text: 'corto' }).success).toBe(false);
+    expect(CreateReviewSchema.safeParse({ strikeId: id, text: 'no fui yo, me robaron el teléfono' }).success).toBe(true);
   });
 });

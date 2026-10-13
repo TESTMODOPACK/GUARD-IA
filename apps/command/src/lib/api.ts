@@ -1,4 +1,7 @@
 import type {
+  AccountsOverview,
+  DecideBlock,
+  ResolveReview,
   ActivityPage,
   AdminOverview,
   AdminRange,
@@ -177,6 +180,16 @@ export const api = {
     request<{ toTenantName: string }>(`/ops/alerts/${id}/transfer`, { method: 'POST', body: json({ tenantId, reason }) }),
   tenants: () => request<TenantOption[]>('/ops/tenants'),
   citizenStanding: (alertId: string) => request<CitizenStanding>(`/ops/alerts/${alertId}/citizen-standing`),
+  // Cuentas de vecinos (uso indebido, 0011): SUPERVISOR y ADMIN.
+  accounts: () => request<AccountsOverview>('/ops/accounts'),
+  decideBlock: (id: string, body: DecideBlock) =>
+    request<AccountsOverview>(`/ops/blocks/${id}/decision`, { method: 'POST', body: json(body) }),
+  liftBlock: (id: string, reason: string) =>
+    request<AccountsOverview>(`/ops/blocks/${id}/lift`, { method: 'POST', body: json({ reason }) }),
+  annulStrike: (id: string, reason: string) =>
+    request<AccountsOverview>(`/ops/strikes/${id}/annul`, { method: 'POST', body: json({ reason }) }),
+  resolveReview: (id: string, body: ResolveReview) =>
+    request<AccountsOverview>(`/ops/reviews/${id}/resolve`, { method: 'POST', body: json(body) }),
   recordOutcome: (dispatchId: string, body: RecordOutcome) =>
     request<Dispatch>(`/ops/dispatches/${dispatchId}/outcome`, { method: 'POST', body: json(body) }),
   refer: (id: string, agencies: SuggestedAgency[], notes?: string) =>

@@ -3,7 +3,7 @@ import { asc, eq, inArray, sql } from 'drizzle-orm';
 import type { CitizenEraseResult, CitizenExport } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import { DbService } from '../db/db.service';
-import { alert, alertEvent, citizen, citizenStrike, device, media, tenant } from '../db/schema';
+import { alert, alertEvent, citizen, citizenBlock, citizenReview, citizenStrike, device, media, tenant } from '../db/schema';
 import { MediaService } from '../media/media.service';
 
 /** Derechos ARCO del vecino (Ley 21.719): acceso (export) y supresión (anonimización). */
@@ -38,6 +38,17 @@ export class PrivacyService {
         .innerJoin(tenant, eq(tenant.id, citizenStrike.tenantId))
         .where(eq(citizenStrike.citizenId, citizenId))
         .orderBy(asc(citizenStrike.createdAt));
+      // Bloqueos y revisiones (0011): el nombre del municipio sale del directorio (0009).
+      const blocks = await tx
+        .select({ b: citizenBlock, municipality: sql<string>`(SELECT d.name FROM tenant_directory d WHERE d.id = ${citizenBlock.tenantId})` })
+        .from(citizenBlock)
+        .where(eq(citizenBlock.citizenId, citizenId))
+        .orderBy(asc(citizenBlock.proposedAt));
+      const reviews = await tx
+        .select({ r: citizenReview, municipality: sql<string>`(SELECT d.name FROM tenant_directory d WHERE d.id = ${citizenReview.tenantId})` })
+        .from(citizenReview)
+        .where(eq(citizenReview.citizenId, citizenId))
+        .orderBy(asc(citizenReview.createdAt));
       const events = ids.length
         ? await tx
             .select({ alertId: alertEvent.alertId, kind: alertEvent.kind, createdAt: alertEvent.createdAt })
@@ -63,6 +74,23 @@ export class PrivacyService {
           expiresAt: st.expiresAt.toISOString(),
           annulled: st.annulledAt !== null,
           note: st.note,
+        })),
+        blocks: blocks.map(({ b, municipality }) => ({
+          municipality,
+          status: b.status,
+          proposedAt: b.proposedAt.toISOString(),
+          startsAt: b.startsAt?.toISOString() ?? null,
+          endsAt: b.endsAt?.toISOString() ?? null,
+          decisionNote: b.decisionNote,
+        })),
+        reviews: reviews.map(({ r, municipality }) => ({
+          municipality,
+          target: r.strikeId ? ('STRIKE' as const) : ('BLOCK' as const),
+          text: r.text,
+          status: r.status,
+          response: r.response,
+          createdAt: r.createdAt.toISOString(),
+          resolvedAt: r.resolvedAt?.toISOString() ?? null,
         })),
         devices: devices.map((d) => ({ platform: d.platform, appVersion: d.appVersion, lastSeenAt: d.lastSeenAt.toISOString() })),
         alerts: alerts.map((a) => ({

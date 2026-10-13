@@ -4,12 +4,14 @@ import { and, eq, sql } from 'drizzle-orm';
 import { randomInt } from 'node:crypto';
 import type {
   AccessClaims,
+  CitizenAccount,
   CitizenPublic,
   DeviceUpsert,
   OperatorPublic,
   TenantStatus,
   TokenPair,
 } from '@guardia/shared';
+import { loadCitizenAccount } from '../accounts/account-read';
 import { AppError } from '../common/app-error';
 import { ENV, type Env } from '../config/env';
 import { DbService, type Tx } from '../db/db.service';
@@ -94,7 +96,7 @@ export class AuthService {
       if (c.blockedAt) throw new AppError('FORBIDDEN', 'Cuenta bloqueada');
 
       const { refreshId: _id, ...pair } = await this.tokens.issuePair(tx, { kind: 'citizen', sub: c.id });
-      return { ...pair, citizen: toCitizenPublic(c) };
+      return { ...pair, citizen: toCitizenPublic(c, await loadCitizenAccount(tx, c.id)) };
     });
   }
 
@@ -139,7 +141,7 @@ export class AuthService {
     return this.dbs.asCitizen(citizenId, async (tx) => {
       const [c] = await tx.select().from(citizen).where(eq(citizen.id, citizenId)).limit(1);
       if (!c) throw new AppError('NOT_FOUND', 'Ciudadano no encontrado');
-      return toCitizenPublic(c);
+      return toCitizenPublic(c, await loadCitizenAccount(tx, c.id));
     });
   }
 
@@ -227,7 +229,7 @@ export class AuthService {
 /** Caché de códigos OTP solo cuando OTP_DEBUG_ENDPOINT=true (ver ConsoleSmsProvider). */
 export const devOtpCache = new Map<string, string>();
 
-function toCitizenPublic(c: typeof citizen.$inferSelect): CitizenPublic {
+function toCitizenPublic(c: typeof citizen.$inferSelect, account: CitizenAccount): CitizenPublic {
   return {
     id: c.id,
     phone: c.phone,
@@ -235,6 +237,7 @@ function toCitizenPublic(c: typeof citizen.$inferSelect): CitizenPublic {
     trustScore: c.trustScore,
     consentVersion: c.consentVersion,
     consentAt: c.consentAt ? c.consentAt.toISOString() : null,
+    account,
   };
 }
 

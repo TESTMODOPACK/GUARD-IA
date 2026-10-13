@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { ALERT_CATEGORIES, ALERT_EVENT_KINDS, ALERT_SOURCES, ALERT_STATUSES, ALERT_TYPES, MEDIA_KINDS } from '../enums';
+import {
+  ALERT_CATEGORIES,
+  ALERT_EVENT_KINDS,
+  ALERT_SOURCES,
+  ALERT_STATUSES,
+  ALERT_TYPES,
+  CITIZEN_BLOCK_STATUSES,
+  CITIZEN_REVIEW_STATUSES,
+  MEDIA_KINDS,
+} from '../enums';
 import { CitizenPublicSchema } from './auth';
 import { LocationSchema, UuidSchema } from './common';
 
@@ -19,6 +28,29 @@ export const CitizenExportSchema = z.object({
       expiresAt: z.iso.datetime(),
       annulled: z.boolean(),
       note: z.string(),
+    }),
+  ),
+  /** Bloqueos (0011): propuestos, decididos o levantados, con el motivo que escribió el municipio. */
+  blocks: z.array(
+    z.object({
+      municipality: z.string(),
+      status: z.enum(CITIZEN_BLOCK_STATUSES),
+      proposedAt: z.iso.datetime(),
+      startsAt: z.iso.datetime().nullable(),
+      endsAt: z.iso.datetime().nullable(),
+      decisionNote: z.string().nullable(),
+    }),
+  ),
+  /** Revisiones que pidió el vecino y la respuesta del municipio (0011). */
+  reviews: z.array(
+    z.object({
+      municipality: z.string(),
+      target: z.enum(['STRIKE', 'BLOCK']),
+      text: z.string(),
+      status: z.enum(CITIZEN_REVIEW_STATUSES),
+      response: z.string().nullable(),
+      createdAt: z.iso.datetime(),
+      resolvedAt: z.iso.datetime().nullable(),
     }),
   ),
   devices: z.array(

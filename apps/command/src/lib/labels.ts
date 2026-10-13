@@ -284,6 +284,11 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   CONTACT_REMOVED: 'Desactivó un contacto',
   ALERT_TRANSFERRED: 'Traspasó una alerta a otro municipio',
   TENANT_STATUS_CHANGED: 'Cambió el estado del municipio en Guard-IA',
+  CITIZEN_BLOCKED: 'Aprobó el bloqueo de un vecino',
+  CITIZEN_BLOCK_DISMISSED: 'Descartó una propuesta de bloqueo',
+  CITIZEN_UNBLOCKED: 'Levantó el bloqueo de un vecino',
+  STRIKE_ANNULLED: 'Anuló una falta',
+  REVIEW_RESOLVED: 'Respondió una solicitud de revisión',
 };
 
 /** Aviso fijo bajo la barra superior según el estado del municipio (0010). Activo: sin aviso. */
@@ -368,6 +373,23 @@ export function classificationLabel(c: AlertCategory | null, sub: string | null 
 /** 1.ª, 2.ª, 3.ª… */
 export function ordinal(n: number): string {
   return `${n}.ª`;
+}
+
+/** Qué pasa con la cuenta del vecino si se pone esta falta (escalera de 0011, mismos umbrales que la base). */
+export function strikeConsequence(nextStrike: number, openBlock: 'PROPOSED' | 'ACTIVE' | null): string {
+  const n = `Será su ${ordinal(nextStrike)} falta en 90 días`;
+  if (nextStrike <= 1) return `${n}: recibe una advertencia y su confianza baja 25 puntos.`;
+  if (nextStrike === 2) {
+    return `${n}: la cuenta queda restringida (su SOS entra en prioridad media y no puede enviar reportes urbanos).`;
+  }
+  if (openBlock) return `${n}: ya tiene un bloqueo ${openBlock === 'ACTIVE' ? 'vigente' : 'propuesto'}; no se propone otro.`;
+  return `${n}: se propondrá bloquear su cuenta. Lo decide un supervisor o el administrador, no quien rechaza.`;
+}
+
+/** Plazo de un bloqueo: "30 días", "6 meses" o "sin plazo". */
+export function blockDays(days: number | null): string {
+  if (days === null) return 'sin plazo';
+  return days === 180 ? '6 meses' : `${days} días`;
 }
 
 /** "Carabineros, SAMU y Bomberos". */

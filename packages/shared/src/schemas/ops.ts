@@ -63,6 +63,8 @@ export const CitizenStandingSchema = z.object({
   activeStrikes: z.number().int(),
   strikesByTenant: z.array(z.object({ tenantName: z.string(), count: z.number().int() })),
   recentRejections: z.array(z.object({ reason: z.enum(REJECT_REASONS), at: z.iso.datetime() })),
+  /** Propuesta o bloqueo vigente (0011): con uno abierto, otra falta no propone otro. */
+  openBlock: z.enum(['PROPOSED', 'ACTIVE']).nullable(),
 });
 export type CitizenStanding = z.infer<typeof CitizenStandingSchema>;
 

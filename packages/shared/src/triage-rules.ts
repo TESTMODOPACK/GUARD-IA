@@ -309,6 +309,16 @@ export function matchTriageRules(type: AlertType, text: string): string[] {
   return TRIAGE_RULES.filter((r) => r.types.includes(type) && matches(r, t)).map((r) => r.id);
 }
 
+/**
+ * ¿Hay una frase de riesgo vital (una regla que exige prioridad alta)? El worker la usa para no bajar a media
+ * el SOS de una cuenta restringida o de baja confianza cuando la vida de alguien puede estar en riesgo.
+ */
+export function hasCriticalPhrase(type: AlertType, text: string): boolean {
+  const t = normalizeTriageText(text);
+  if (!t) return false;
+  return TRIAGE_RULES.some((r) => r.minPriority === 'HIGH' && r.types.includes(type) && matches(r, t));
+}
+
 function setsCategory(id: string, type: AlertType): boolean {
   return !!TRIAGE_RULES.find((r) => r.id === id)?.set?.[type];
 }

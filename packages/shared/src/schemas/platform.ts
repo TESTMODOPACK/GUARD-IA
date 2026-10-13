@@ -234,6 +234,13 @@ export const TenantDetailSchema = TenantListItemSchema.extend({
   audioRetentionDays: z.number().int(),
   createdAt: z.iso.datetime(),
   sosMonth: z.number().int(),
+  /** Uso indebido en este municipio (0011): solo cifras, sin vecinos. */
+  misuse: z.object({
+    strikesMonth: z.number().int(),
+    activeBlocks: z.number().int(),
+    pendingProposals: z.number().int(),
+    pendingReviews: z.number().int(),
+  }),
   readiness: z.object({ ready: z.boolean(), items: z.array(ReadinessItemSchema) }),
   /** Estados a los que puede pasar ahora (TENANT_TRANSITIONS). */
   transitions: z.array(z.enum(TENANT_STATUSES)),

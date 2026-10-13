@@ -153,6 +153,8 @@ export const AlertSummarySchema = z.object({
   hasAudio: z.boolean(),
   hasPhoto: z.boolean(),
   citizenTrustScore: z.number().int().nullable(),
+  /** El vecino tenía la cuenta restringida al enviarla (2 avisos falsos en 90 días; migración 0011). */
+  citizenRestricted: z.boolean(),
   /** Grupo de alertas sobre la misma situación (migración 0004); null mientras no se agrupa. */
   incident: IncidentInfoSchema.nullable(),
   createdAt: z.iso.datetime(),

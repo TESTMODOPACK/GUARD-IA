@@ -1,17 +1,19 @@
 import type {
   ApiError as ApiErrorBody,
+  CitizenAccountDetail,
   CitizenAlert,
   CitizenEraseResult,
   CitizenExport,
   CitizenPublic,
   CreateAlertMeta,
   CreateAlertResponse,
+  CreateReview,
   DeviceUpsert,
   TokenPair,
 } from '@guardia/shared';
 import { Platform } from 'react-native';
 import { API_BASE } from './config';
-import { clearSession, getSession, saveTokens } from './session';
+import { clearSession, getSession, saveTokens, updateCitizen } from './session';
 
 export class ApiError extends Error {
   constructor(
@@ -147,6 +149,9 @@ export const api = {
   alert: (id: string) => request<CitizenAlert>(`/alerts/${id}`),
   mine: () => request<CitizenAlert[]>('/alerts/mine?limit=20'),
   exportData: () => request<CitizenExport>('/me/export'),
+  /** Estado de tu cuenta (uso indebido, 0011) y solicitud de revisión. */
+  account: () => request<CitizenAccountDetail>('/me/account'),
+  requestReview: (body: CreateReview) => request<CitizenAccountDetail>('/me/reviews', { method: 'POST', body: json(body) }),
   eraseAccount: () => request<CitizenEraseResult>('/me', { method: 'DELETE' }),
 };
 
@@ -169,12 +174,26 @@ export async function sendAlert(
       return await request<CreateAlertResponse>('/alerts', { method: 'POST', body: form });
     } catch (e) {
       last = e;
+      // Cuenta bloqueada o restringida (0011): se relee el estado y la app cambia de pantalla sola.
+      if (e instanceof ApiError && (e.code === 'ACCOUNT_BLOCKED' || e.code === 'ACCOUNT_RESTRICTED')) void syncAccount();
       const retryable = e instanceof ApiError && (e.status === 0 || e.status >= 500);
       if (!retryable) throw e;
       await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
   throw last;
+}
+
+/**
+ * Relee el vecino (con el estado de su cuenta) y lo guarda en la sesión: al abrir la app, al recibir
+ * `account.updated` y cuando una alerta vuelve rechazada por la cuenta. Sin red no pasa nada.
+ */
+export async function syncAccount(): Promise<void> {
+  try {
+    await updateCitizen(await api.me());
+  } catch {
+    // Sin red o sesión vencida: se reintenta en el próximo evento.
+  }
 }
 
 /** Archivo local para subir: en el teléfono, la ruta que devuelve el grabador o la cámara. */

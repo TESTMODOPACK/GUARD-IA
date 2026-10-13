@@ -57,8 +57,8 @@ export function falseAlarmNotice(activeStrikes: number): CitizenNotice {
   }
   if (activeStrikes === 2) {
     return {
-      title: 'Segunda advertencia por aviso falso',
-      body: `Es el segundo aviso falso en 90 días. ${base} Si se repite, tu municipalidad puede bloquear tu cuenta.`,
+      title: 'Segunda advertencia: cuenta restringida',
+      body: `Es el segundo aviso falso en 90 días. ${base} El SOS sigue funcionando, pero no podrás enviar reportes urbanos mientras tengas dos avisos vigentes. Si se repite, tu municipalidad puede bloquear tu cuenta.`,
       warning: true,
     };
   }
@@ -70,5 +70,44 @@ export function falseAlarmNotice(activeStrikes: number): CitizenNotice {
 }
 
 export function rejectNotice(reason: RejectReason, activeStrikes: number | null): CitizenNotice {
-  return reason === 'FALSE_ALARM' ? falseAlarmNotice(activeStrikes ?? 1) : BY_REASON[reason];
+  // Una prueba repetida cuenta como aviso falso (0011): llega con activeStrikes y la misma advertencia.
+  return reason === 'FALSE_ALARM' || (reason === 'TEST' && activeStrikes !== null)
+    ? falseAlarmNotice(activeStrikes ?? 1)
+    : BY_REASON[reason];
+}
+
+/** "30 días", "6 meses" o "hasta nuevo aviso". */
+export function blockTerm(days: number | null): string {
+  if (days === null) return 'hasta nuevo aviso';
+  return days === 180 ? 'por 6 meses' : `por ${days} días`;
+}
+
+/** Bloqueo aprobado por el supervisor (0011). La app queda sin uso; siempre recuerda los números de emergencia. */
+export function blockNotice(days: number | null, tenantName: string): CitizenNotice {
+  return {
+    title: 'Tu cuenta fue bloqueada',
+    body: `${tenantName} bloqueó tu cuenta ${blockTerm(days)} por avisos falsos reiterados. No podrás enviar alertas desde la app. Ante una emergencia llama al 133, 131 o 132. Puedes pedir revisión en "Estado de tu cuenta".`,
+    warning: true,
+  };
+}
+
+export const UNBLOCK_NOTICE: CitizenNotice = {
+  title: 'Tu cuenta fue desbloqueada',
+  body: 'Ya puedes volver a usar la app. El SOS es solo para emergencias reales.',
+  warning: false,
+};
+
+export const STRIKE_ANNULLED_NOTICE: CitizenNotice = {
+  title: 'Anulamos una advertencia',
+  body: 'Revisamos un aviso que habíamos marcado como falso y lo anulamos. Disculpa las molestias.',
+  warning: false,
+};
+
+/** Respuesta a una solicitud de revisión: siempre con el texto que escribió el municipio. */
+export function reviewNotice(granted: boolean, response: string): CitizenNotice {
+  return {
+    title: granted ? 'Acogimos tu solicitud de revisión' : 'Revisamos tu solicitud',
+    body: response,
+    warning: false,
+  };
 }

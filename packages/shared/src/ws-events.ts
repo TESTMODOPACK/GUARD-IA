@@ -1,5 +1,6 @@
 import type { AlertDetail, AlertSummary, CitizenAlert, Dispatch } from './schemas/alert';
 import type { Unit } from './schemas/ops';
+import type { AccountLevel } from './enums';
 
 /** Namespaces de Socket.io. El JWT viaja en `handshake.auth.token`. */
 export const WS_NAMESPACES = {
@@ -36,6 +37,8 @@ export interface AlertTransferred {
 /** Eventos servidor → vecino (namespace /citizen, room citizen:{id}). */
 export interface CitizenServerEvents {
   'alert.status': (payload: CitizenAlert) => void;
+  /** Cambió el estado de la cuenta (bloqueo, falta anulada, revisión resuelta; 0011): la app relee GET /me. */
+  'account.updated': (payload: { level: AccountLevel }) => void;
 }
 
 export type OpsEventName = keyof OpsServerEvents;

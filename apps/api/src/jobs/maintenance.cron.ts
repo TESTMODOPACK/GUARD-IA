@@ -31,6 +31,11 @@ export class MaintenanceCron {
         DELETE FROM platform_session WHERE id IN (
           SELECT id FROM platform_session WHERE expires_at < now() - interval '1 day'
            ORDER BY expires_at LIMIT 5000 FOR UPDATE SKIP LOCKED)`);
+      // Bloqueos de vecinos cumplidos (0011): pasan a EXPIRED y liberan el "un bloqueo abierto por vecino".
+      const expired = await this.purgeBatch(sql`
+        UPDATE citizen_block SET status = 'EXPIRED'
+         WHERE status = 'ACTIVE' AND ends_at IS NOT NULL AND ends_at <= now()`);
+      if (expired > 0) this.logger.log(`${expired} bloqueos de vecinos cumplidos`);
       if (tokens + codes + sessions > 0) {
         this.logger.log(`Purga: ${tokens} refresh tokens, ${codes} códigos de ingreso y ${sessions} sesiones de plataforma vencidos`);
       }

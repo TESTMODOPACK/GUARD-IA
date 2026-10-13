@@ -33,6 +33,8 @@ import {
   PRIORITIES,
   SUGGESTED_AGENCIES,
   TENANT_STATUSES,
+  CITIZEN_BLOCK_STATUSES,
+  CITIZEN_REVIEW_STATUSES,
   UNIT_KINDS,
   UNIT_STATUSES,
   type SuggestedAgency,
@@ -63,6 +65,8 @@ export const mediaKindEnum = pgEnum('media_kind', MEDIA_KINDS);
 export const alertEventKindEnum = pgEnum('alert_event_kind', ALERT_EVENT_KINDS);
 export const tokenKindEnum = pgEnum('token_kind', ['CITIZEN', 'OPERATOR']);
 export const tenantStatusEnum = pgEnum('tenant_status', TENANT_STATUSES);
+export const citizenBlockStatusEnum = pgEnum('citizen_block_status', CITIZEN_BLOCK_STATUSES);
+export const citizenReviewStatusEnum = pgEnum('citizen_review_status', CITIZEN_REVIEW_STATUSES);
 export const platformRoleEnum = pgEnum('platform_role', PLATFORM_ROLES);
 export const platformActionEnum = pgEnum('platform_action', PLATFORM_ACTIONS);
 
@@ -187,6 +191,8 @@ export const alert = pgTable('alert', {
   aiTriage: jsonb('ai_triage').$type<Triage>(),
   // 0006_geo_routing.sql (la fija el trigger de ruteo; la app no la cambia)
   comunaCut: integer('comuna_cut'),
+  // 0011_misuse_blocks.sql: cuenta restringida al enviarla (la fija el trigger alert_account).
+  citizenRestricted: boolean('citizen_restricted').notNull().default(false),
   // 0009_hardening.sql: orden de la cola (HIGH 0, MEDIUM 1, LOW 2, sin prioridad 1), con índice.
   priorityRank: smallint('priority_rank').generatedAlwaysAs(
     sql`CASE priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`,
@@ -425,6 +431,53 @@ export const citizenStrike = pgTable('citizen_strike', {
   annulReason: text('annul_reason'),
 });
 
+// ------------------------------------------------------------- 0011_misuse_blocks.sql
+
+/** Bloqueo propuesto por la 3.ª falta y decidido por otra persona (supervisor o administrador). */
+export const citizenBlock = pgTable('citizen_block', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  citizenId: uuid('citizen_id')
+    .notNull()
+    .references(() => citizen.id),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  alertId: uuid('alert_id').references(() => alert.id),
+  status: citizenBlockStatusEnum('status').notNull().default('PROPOSED'),
+  strikes: smallint('strikes').notNull(),
+  suggestedDays: smallint('suggested_days').notNull(),
+  days: smallint('days'),
+  startsAt: ts('starts_at'),
+  endsAt: ts('ends_at'),
+  proposedBy: uuid('proposed_by').notNull(),
+  proposedAt: ts('proposed_at').notNull().defaultNow(),
+  decidedBy: uuid('decided_by'),
+  decidedAt: ts('decided_at'),
+  decisionNote: text('decision_note'),
+  liftedBy: uuid('lifted_by'),
+  liftedAt: ts('lifted_at'),
+  liftReason: text('lift_reason'),
+});
+
+/** Revisión pedida por el vecino de una falta o un bloqueo; la resuelve el municipio que sancionó. */
+export const citizenReview = pgTable('citizen_review', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  citizenId: uuid('citizen_id')
+    .notNull()
+    .references(() => citizen.id),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  strikeId: uuid('strike_id').references(() => citizenStrike.id),
+  blockId: uuid('block_id').references(() => citizenBlock.id),
+  text: text('text').notNull(),
+  status: citizenReviewStatusEnum('status').notNull().default('PENDING'),
+  response: text('response'),
+  resolvedBy: uuid('resolved_by'),
+  resolvedAt: ts('resolved_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
 // ------------------------------------------------------------- 0010_platform.sql
 
 export const region = pgTable('region', {
@@ -502,6 +555,8 @@ export const platformAuditLog = pgTable('platform_audit_log', {
 });
 
 export const schema = {
+  citizenBlock,
+  citizenReview,
   region,
   provincia,
   tenantTestPhone,

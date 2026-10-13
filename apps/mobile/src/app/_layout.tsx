@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { EmergencyBar } from '@/components/EmergencyBar';
+import { syncAccount } from '@/lib/api';
 import { connectCitizen, disconnectCitizen } from '@/lib/realtime';
 import { hasCurrentConsent, initSession, useSession } from '@/lib/session';
 import { color } from '@/theme';
@@ -35,6 +36,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (!liveFor) return;
     connectCitizen();
+    // Estado de la cuenta al abrir (bloqueo, restricción; 0011): la sesión guardada puede estar desactualizada.
+    void syncAccount();
     return () => disconnectCitizen();
   }, [liveFor]);
 
@@ -43,6 +46,9 @@ export default function RootLayout() {
 
   const signedIn = !!session;
   const consented = hasCurrentConsent(session);
+  // Cuenta bloqueada por uso indebido (decisión 13-10-2026): la app queda sin uso; solo el bloqueo, el estado de
+  // la cuenta (pedir revisión) y Mis datos. Los números de emergencia siguen abajo, siempre.
+  const blocked = session?.citizen.account?.level === 'BLOCKED';
 
   return (
     <SafeAreaProvider>
@@ -57,20 +63,27 @@ export default function RootLayout() {
             <Stack.Protected guard={signedIn && !consented}>
               <Stack.Screen name="consent" />
             </Stack.Protected>
-            <Stack.Protected guard={signedIn && consented}>
+            <Stack.Protected guard={signedIn && consented && !blocked}>
               <Stack.Screen name="index" />
               <Stack.Screen name="sos" options={{ animation: 'fade', gestureEnabled: false }} />
               <Stack.Screen name="alert/[id]" />
               <Stack.Screen name="cases" />
               <Stack.Screen name="voice" />
               <Stack.Screen name="report" />
-              <Stack.Screen name="privacy" />
               <Stack.Screen name="discreet" options={{ animation: 'none', gestureEnabled: false }} />
+            </Stack.Protected>
+            <Stack.Protected guard={signedIn && consented && blocked}>
+              <Stack.Screen name="blocked" options={{ gestureEnabled: false }} />
+            </Stack.Protected>
+            <Stack.Protected guard={signedIn && consented}>
+              <Stack.Screen name="account" />
+              <Stack.Screen name="privacy" />
             </Stack.Protected>
           </Stack>
         </View>
         {/* Cuenta regresiva: solo "No enviar". Modo discreto: nada que delate la app. */}
-        {pathname !== '/sos' && pathname !== '/discreet' ? <EmergencyBar /> : null}
+        {/* La pantalla de bloqueo ya trae los números en grande. */}
+        {pathname !== '/sos' && pathname !== '/discreet' && pathname !== '/blocked' ? <EmergencyBar /> : null}
       </SafeAreaView>
     </SafeAreaProvider>
   );

@@ -277,7 +277,7 @@ revisión, anular faltas. Falta de PT: la app de terreno.
 Etapa 2a hecha (migración 0009, endurecimiento de la base, informe en `docs/revision-base-de-datos.md`): sin PK de
 texto, índices y `tenant_id` explícito por municipio, privilegios mínimos (cada migración nueva declara sus
 `GRANT`), RLS en `tenant` con la vista `tenant_directory`, FK compuestas por municipio y purga de tokens y
-códigos vencidos. El particionado queda como `0011_scale.sql`.
+códigos vencidos. El particionado queda como `0012_scale.sql` (`0011` es el bloqueo por uso indebido).
 
 Etapa 2b hecha (migración 0010, P1): consola aparte (`apps/platform`, dominio propio en Caddy) con usuarios de
 plataforma y segundo factor TOTP, sesiones cortas y bloqueo por intentos; regiones de norte a sur y provincias;
@@ -286,7 +286,21 @@ límite oficial); lista de puesta en marcha validada en la base; activar, suspen
 (solo superadministrador, sin alertas abiertas); modo prueba por teléfonos de prueba; administrador municipal con
 contraseña temporal y restablecimiento; bitácora de plataforma y registro en la bitácora del municipio; demanda no
 atendida por comuna. Queda de P1: estado "En negociación" con responsable comercial (RF-1.5), QR del segundo factor,
-acceso de soporte (RF-4.4). Sigue la etapa 3 (resto del uso indebido) o P2 (errores y salud).
+acceso de soporte (RF-4.4).
+
+Etapa 3 hecha (migración 0011, resto de PU): con 2 faltas vigentes la cuenta queda **restringida** (el SOS llega con
+la marca "Cuenta restringida" y el worker lo deja en media salvo frase de riesgo vital; el reporte urbano se
+rechaza); la 3.ª falta crea una **propuesta de bloqueo** (30 días; 6 meses si ya cumplió uno en el último año) que
+aprueba o descarta un supervisor o administrador distinto de quien la propuso (la base lo exige); "sin plazo" solo
+el administrador. La cuenta bloqueada no envía alertas: la app muestra solo el bloqueo, los números 133/131/132 y
+"Pedir revisión". **Estado de tu cuenta** en "Mis datos" (faltas, bloqueo, hasta cuándo, quién lo decidió y las
+revisiones con su respuesta); la revisión la resuelve el municipio que sancionó y, si se acoge, anula la falta o
+levanta el bloqueo. Anular una falta devuelve 25 puntos de confianza y avisa al vecino. Una prueba repetida en 90
+días cuenta como falta. Todo queda en la bitácora del municipio y se avisa al vecino por WS y push. Central:
+`/admin/cuentas`. Consola: cifras por municipio (faltas del mes, bloqueos vigentes, por aprobar y revisiones
+pendientes) sin datos personales. En vez de `citizen_restriction` y `citizen_notice` (sección Datos) quedaron
+`citizen_block` y `citizen_review`; la restricción se calcula de las faltas vigentes. Siguen PT (app de terreno) y
+P2 (errores y salud).
 
 ## 6. Modelo de datos propuesto
 
@@ -345,7 +359,8 @@ acceso de soporte (RF-4.4). Sigue la etapa 3 (resto del uso indebido) o P2 (erro
    factura? (el modelo lo permite con `customer` y `contract_tenant`).
 8. ~~Cuenta bloqueada: ¿la app reemplaza el SOS por los números de emergencia o el SOS sigue llegando?~~
    **Decidido (13-10):** la cuenta bloqueada no puede usar la app (ni SOS ni reportes); la pantalla de bloqueo
-   muestra, solo como texto, los números 133/131/132, el plazo y cómo pedir revisión.
+   muestra los números 133/131/132 (tocarlos abre el marcador del teléfono, no pasa por Guard-IA), el plazo y cómo
+   pedir revisión.
 9. ~~Escalera de uso indebido: ¿3 faltas en 90 días y 30 días de bloqueo?~~ **Decidido (13-10):** sí.
 10. Terreno: ¿app web dentro de la central (recomendado para el piloto) o app nativa desde el comienzo? ¿Cada
     funcionario con su cuenta (recomendado, por trazabilidad) o una cuenta por unidad?

@@ -41,6 +41,9 @@ export const ERROR_CODES = [
   'UNIT_UNAVAILABLE',
   'MEDIA_TOO_LARGE',
   'PASSWORD_CHANGE_REQUIRED',
+  /** Uso indebido (0011): con 2 faltas no se envían reportes urbanos; bloqueada, ninguna alerta. */
+  'ACCOUNT_RESTRICTED',
+  'ACCOUNT_BLOCKED',
   'INTERNAL',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];

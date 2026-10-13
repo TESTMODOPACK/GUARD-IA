@@ -128,6 +128,17 @@ SUPERADMIN), `POST /platform/tenants/:id/admins`, `POST /platform/tenants/:id/ad
 el municipio está en implementación o suspendido; la bitácora del municipio muestra las acciones de la plataforma
 como "Equipo Guard-IA" (`TENANT_STATUS_CHANGED`, `OPERATOR_CREATED`, `PASSWORD_RESET`).
 
+Restricción y bloqueo (migración 0011, 13-10-2026; `docs/plan-plataforma.md` §5b). Vecino: `GET /me` trae
+`citizen.account` `{level: OK|WARNED|RESTRICTED|BLOCKED, activeStrikes, restrictedUntil, block}`; `GET /me/account`
+(faltas vigentes, bloqueo, revisiones con respuesta); `POST /me/reviews` `{strikeId | blockId, text}` (10 a 1000
+caracteres, 5 por día, una pendiente por falta o bloqueo). `POST /alerts` responde 403 `ACCOUNT_BLOCKED` (cuenta
+bloqueada, cualquier tipo) o `ACCOUNT_RESTRICTED` (reporte urbano con 2 faltas), con `details.account`. Central
+(ADMIN, SUPERVISOR): `GET /ops/accounts` (bloqueos por aprobar, revisiones pendientes, bloqueos vigentes, faltas de
+90 días), `POST /ops/blocks/:id/decision` `{approve, days?: 30|180|null, note}` (no quien lo propuso; `null` solo
+ADMIN), `POST /ops/blocks/:id/lift` `{reason}`, `POST /ops/strikes/:id/annul` `{reason}`, `POST /ops/reviews/:id/resolve`
+`{grant, response}`. `AlertSummary.citizenRestricted`, `CitizenStanding.openBlock` y `blockProposed` en el evento de
+rechazo. WS `/citizen`: `account.updated` `{level}` (la app relee la cuenta). Consola: `TenantDetail.misuse`.
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.

@@ -91,6 +91,29 @@ export type RejectReason = (typeof REJECT_REASONS)[number];
 export const STRIKE_WINDOW_DAYS = 90;
 
 /**
+ * Escalera de uso indebido (migración 0011; la base aplica los mismos umbrales en alert_account_check).
+ * 2 faltas vigentes: cuenta restringida (SOS en prioridad media, sin reportes urbanos). 3: propuesta de
+ * bloqueo para el supervisor. Bloqueo de 30 días; 6 meses si ya cumplió uno en el último año.
+ */
+export const RESTRICT_AT_STRIKES = 2;
+export const BLOCK_PROPOSAL_AT_STRIKES = 3;
+export const BLOCK_DAYS = 30;
+export const BLOCK_REPEAT_DAYS = 180;
+export const BLOCK_DURATIONS = [BLOCK_DAYS, BLOCK_REPEAT_DAYS] as const;
+
+/** Estado de la cuenta del vecino, de menor a mayor. */
+export const ACCOUNT_LEVELS = ['OK', 'WARNED', 'RESTRICTED', 'BLOCKED'] as const;
+export type AccountLevel = (typeof ACCOUNT_LEVELS)[number];
+
+/** Tipo citizen_block_status (0011). */
+export const CITIZEN_BLOCK_STATUSES = ['PROPOSED', 'ACTIVE', 'DISMISSED', 'LIFTED', 'EXPIRED'] as const;
+export type CitizenBlockStatus = (typeof CITIZEN_BLOCK_STATUSES)[number];
+
+/** Tipo citizen_review_status (0011). */
+export const CITIZEN_REVIEW_STATUSES = ['PENDING', 'GRANTED', 'DENIED'] as const;
+export type CitizenReviewStatus = (typeof CITIZEN_REVIEW_STATUSES)[number];
+
+/**
  * Lo que informa la unidad al llegar (migración 0008). Los terminales cierran el despacho y liberan la
  * unidad; "pide apoyo" y "era otra situación" lo dejan abierto.
  */
@@ -127,6 +150,12 @@ export const AUDIT_KINDS = [
   'ALERT_TRANSFERRED',
   /** Migración 0010: la plataforma activó, suspendió o dio de baja el municipio. */
   'TENANT_STATUS_CHANGED',
+  /** Migración 0011: uso indebido (bloqueos, faltas anuladas, revisiones). */
+  'CITIZEN_BLOCKED',
+  'CITIZEN_BLOCK_DISMISSED',
+  'CITIZEN_UNBLOCKED',
+  'STRIKE_ANNULLED',
+  'REVIEW_RESOLVED',
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 

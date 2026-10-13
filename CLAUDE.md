@@ -17,6 +17,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | 3 | `apps/mobile` (Expo SDK 57, Expo Router) | implementada (3a–3f), probada en web contra la API real; falta Android real y push (development build) |
 | 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
 | P1 | Consola de plataforma (`apps/platform`, migración 0010) | implementada y probada en local (13-10-2026) |
+| PU | Uso indebido: faltas (0008), restricción, bloqueo con aprobación y revisión (0011) | implementado y probado en local (13-10-2026) |
 
 ## Comandos
 
@@ -46,11 +47,12 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock, `triage.prompt.ts`), `realtime/` (Socket.io
   `/ops` y `/citizen`), `media/` (S3 o disco local), `geo/` (comunas, traspaso entre municipios), `notifications/` (push Expo), `db/` (Drizzle +
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA, tokens y códigos vencidos), `cli/`
-  (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003). `scripts/simulate.ts` es el simulador.
+  (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003), `accounts/` (estado de cuenta
+  del vecino, bloqueos, anulación de faltas y revisiones; migración 0011). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
   (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
   `admin/AdminShell`). Páginas: `/` central, `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
-  `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
+  `/admin/cuentas` (bloqueos por aprobar, revisiones, faltas), `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
 - `apps/api/src/platform/`: consola de plataforma (TOTP propio sin dependencias, tokens y sesiones propias,
   guard propio, regiones y comunas, municipios, equipo, bitácora). `apps/platform/src`: `lib/` (api, sesión en
@@ -120,6 +122,7 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     `shared/src/citizen-notices.ts` (push y app). La central registra lo que informa la unidad
     (`dispatch.outcome`); "era otra situación" corrige la categoría como clasificación de terreno
     (`triage_label.field_*`) y "falsa alarma confirmada" permite rechazar una alerta ya despachada.
+    Una prueba (`TEST`) repetida en 90 días también es falta.
 15. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console`, secretos por defecto, la falta de `PLATFORM_JWT_SECRET`/`PLATFORM_ENCRYPTION_KEY`
     (distintos entre sí y del de la API) y `PLATFORM_TOTP_REQUIRED=false` (solo desarrollo: la consola entra
@@ -135,6 +138,16 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     Toda acción escribe `platform_audit_log` en la misma transacción y, si toca un municipio, también su
     `audit_log` con `platform_actor_id` (la central lo muestra como "Equipo Guard-IA"). Tokens, secreto y
     sesiones de la consola no se mezclan con los de vecinos y operadores; segundo factor TOTP obligatorio.
+17. **Restricción y bloqueo** (migración 0011, `accounts/`): con 2 faltas vigentes la cuenta queda restringida; con 3
+    se propone un bloqueo (`citizen_block` PROPOSED; 30 días, 180 si ya cumplió uno en el último año; sin plazo solo
+    ADMIN) que decide otra persona (SUPERVISOR o ADMIN; CHECK `citizen_block_two_people_chk`). El trigger
+    `alert_account` (BEFORE INSERT, corre antes que el ruteo) rechaza toda alerta de una cuenta bloqueada (GIA10 →
+    `ACCOUNT_BLOCKED`) y el reporte urbano de una restringida (GIA11 → `ACCOUNT_RESTRICTED`), y marca
+    `alert.citizen_restricted`. **Nunca toca `priority`**: el vecino inserta sin prioridad (política
+    `alert_citizen_insert`); el worker deja en media el SOS restringido o de baja confianza salvo frase de riesgo
+    vital (`capPriority`, `hasCriticalPhrase`). La app bloqueada solo muestra los números de emergencia, el plazo y
+    "Pedir revisión" (`citizen_review`, la resuelve el municipio que sancionó). Cada decisión escribe `audit_log` en
+    la misma transacción; el aviso (`account.updated` por WS y push) va después del commit.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
@@ -160,7 +173,8 @@ Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps
 
 `pnpm mobile` (en PowerShell: `pnpm.cmd mobile`; si cambian dependencias o rutas: `--clear`). Rutas en
 `src/app` con `Stack.Protected`: sin sesión → `login`/`verify`; sin `CONSENT_VERSION` vigente →
-`consent`; si no → `index`, `sos`, `voice`, `discreet`, `report`, `alert/[id]`, `cases`, `privacy` (Mis datos: export y supresión). Sesión en
+`consent`; si no → `index`, `sos`, `voice`, `discreet`, `report`, `alert/[id]`, `cases`, `privacy` (Mis datos: export y supresión),
+`account` (Estado de tu cuenta y pedir revisión); con la cuenta bloqueada solo `blocked`, `account` y `privacy`. Sesión en
 SecureStore (`lib/session.ts`), cliente con refresh de una vez (`lib/api.ts`), WS `/citizen`
 (`lib/realtime.ts`), envío multipart con `clientRef` y 3 reintentos (`sendAlert`). La URL de la API sale
 de la IP que sirve Metro (o `EXPO_PUBLIC_API_URL`). Usar `npx expo install` para dependencias y revisar
@@ -182,8 +196,8 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 - Base de datos: informe en `docs/revision-base-de-datos.md`. `0009_hardening.sql` aplicada en local (PK de
   texto corregidas, índices por municipio, privilegios, FK compuestas, RLS de `tenant` + `tenant_directory`,
-  `MaintenanceCron`). Falta `0011_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
-  piloto; `0010` es la consola de plataforma.
+  `MaintenanceCron`). Falta `0012_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
+  piloto; `0010` es la consola de plataforma y `0011` el bloqueo por uso indebido.
 - Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
   Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
@@ -191,9 +205,9 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   hace falta el plan pagado o un proveedor con más cuota (si se agota, rige el respaldo por reglas).
 - Plataforma y operación (borrador 1, 13-10-2026): `docs/plan-plataforma.md` (consola de superadministrador por
   región, planes, contratos, facturación, bitácora de errores, métricas; uso indebido con escalera de faltas;
-  unidad en terreno que informa resultados). Etapa 1 hecha (13-10-2026): motivos de rechazo, faltas y
-  advertencias, resultado en terreno desde la central. Siguen P1 (consola; decidir si va en dominio propio), resto
-  de PU (restricción, bloqueo con aprobación, "Estado de tu cuenta"), app de terreno y P2; decisiones en §9.
+  unidad en terreno que informa resultados). Etapas 1 (motivos de rechazo, faltas, resultado en terreno),
+  2 (endurecimiento 0009 y consola P1) y 3 (resto de PU: restricción, bloqueo con aprobación, "Estado de tu cuenta" y
+  revisión) hechas el 13-10-2026. Siguen la app de terreno (PT) y P2 (errores y salud); decisiones en §9.
 - Consola de plataforma (P1) sin hacer aún: QR para el segundo factor (hoy la clave se escribe a mano o se abre
   el enlace `otpauth://` en el teléfono; un QR requiere agregar una librería), estado "En negociación" y asignación
   comercial (RF-1.5), acceso de soporte (RF-4.4), avisos por correo al suspender. La primera alerta tras 30 s sin

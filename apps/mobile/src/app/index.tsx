@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { logout } from '@/lib/api';
+import { accountBanner } from '@/lib/labels';
 import { formatPhone } from '@/lib/phone';
 import { registerDevice, type PushResult } from '@/lib/push';
 import { useSession } from '@/lib/session';
@@ -24,6 +25,9 @@ export default function Home() {
   }, []);
 
   if (!session) return null;
+  const account = session.citizen.account;
+  const banner = accountBanner(account);
+  const restricted = account?.level === 'RESTRICTED';
 
   const pushText =
     push === null
@@ -49,6 +53,18 @@ export default function Home() {
           <Text style={styles.chipText}>Sesión activa</Text>
         </View>
       </View>
+
+      {banner ? (
+        <Pressable
+          onPress={() => router.push('/account')}
+          role="button"
+          accessibilityLabel={`${banner.title}. Ver el estado de tu cuenta`}
+          style={({ pressed }) => [styles.banner, pressed && { opacity: 0.85 }]}
+        >
+          <Text style={styles.bannerTitle}>{banner.title}</Text>
+          <Text style={styles.bannerText}>{banner.body}</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.sosWrap}>
         <Pressable
@@ -79,10 +95,15 @@ export default function Home() {
           <Text style={styles.tileTitle}>Discreto</Text>
           <Text style={styles.tileSub}>Pantalla negra, sin sonido</Text>
         </Pressable>
-        <Pressable onPress={() => router.push('/report')} role="button" style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
+        <Pressable
+          onPress={() => (restricted ? router.push('/account') : router.push('/report'))}
+          role="button"
+          accessibilityLabel={restricted ? 'Reportar no disponible: tu cuenta está restringida' : 'Reportar un problema de la calle'}
+          style={({ pressed }) => [styles.tile, restricted && { opacity: 0.5 }, pressed && { opacity: 0.8 }]}
+        >
           <View style={[styles.tileChip, { backgroundColor: color.accentSoft }]} />
           <Text style={styles.tileTitle}>Reportar</Text>
-          <Text style={styles.tileSub}>Bache, luz, basura…</Text>
+          <Text style={styles.tileSub}>{restricted ? 'No disponible por ahora' : 'Bache, luz, basura…'}</Text>
         </Pressable>
       </View>
 
@@ -150,6 +171,9 @@ const styles = StyleSheet.create({
   tileChip: { width: 36, height: 36, borderRadius: 12 },
   tileTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
   tileSub: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },
+  banner: { gap: 4, padding: 14, borderRadius: radius.card, backgroundColor: 'rgba(255,195,90,0.12)', borderWidth: 1, borderColor: 'rgba(255,195,90,0.45)' },
+  bannerTitle: { color: color.warn, fontFamily: font.bodyBold, fontSize: 15 },
+  bannerText: { color: color.ink, fontFamily: font.bodyRegular, fontSize: 13, lineHeight: 19 },
   casesBtn: { gap: 2, padding: 16, borderRadius: radius.card, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line },
   casesTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
   casesSub: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12 },

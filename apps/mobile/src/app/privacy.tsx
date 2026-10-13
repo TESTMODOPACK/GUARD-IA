@@ -112,6 +112,15 @@ export default function Privacy() {
         audios y fotos. No incluye los audios ni las fotos.
       </Text>
 
+      <Pressable
+        onPress={() => router.push('/account')}
+        role="button"
+        style={({ pressed }) => [styles.card, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={styles.linkTitle}>Estado de tu cuenta</Text>
+        <Text style={styles.note}>Advertencias, bloqueos y solicitudes de revisión</Text>
+      </Pressable>
+
       <View style={styles.danger}>
         <Text style={styles.dangerTitle} role="heading">
           Borrar mi cuenta
@@ -194,6 +203,7 @@ const styles = StyleSheet.create({
   rowLabel: { color: color.inkMuted, fontFamily: font.body, fontSize: 13 },
   rowValue: { color: color.ink, fontFamily: font.bodyBold, fontSize: 13, flexShrink: 1, textAlign: 'right' },
   note: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12, lineHeight: 18 },
+  linkTitle: { color: color.ink, fontFamily: font.bodyBold, fontSize: 15 },
   danger: {
     gap: 12,
     padding: 16,

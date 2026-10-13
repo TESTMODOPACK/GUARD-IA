@@ -1,4 +1,4 @@
-import type { AlertStatus, CitizenAlert, CivicCategory, DispatchStatus } from '@guardia/shared';
+import type { AlertStatus, CitizenAccount, CitizenAlert, CitizenReviewStatus, CivicCategory, DispatchStatus } from '@guardia/shared';
 import { rejectNotice } from '@guardia/shared';
 
 /** Vocabulario del vecino: una palabra por concepto, igual en toda la app. */
@@ -98,3 +98,38 @@ export function kindLabel(a: CitizenAlert): string {
 
 /** Estados finales: la pantalla deja de consultar. */
 export const FINAL: AlertStatus[] = ['RESOLVED', 'REJECTED', 'CANCELLED', 'UNROUTED'];
+
+// ------------------------------------------------------------------ estado de la cuenta (0011)
+
+/** "12-11-2026". */
+export function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** "hasta el 12-11-2026" o "hasta nuevo aviso". */
+export function untilText(iso: string | null): string {
+  return iso ? `hasta el ${shortDate(iso)}` : 'hasta nuevo aviso';
+}
+
+/** Aviso al abrir la app (nunca en el camino del SOS). Bloqueada tiene su propia pantalla. */
+export function accountBanner(a: CitizenAccount | undefined): { title: string; body: string } | null {
+  if (!a || a.level === 'OK' || a.level === 'BLOCKED') return null;
+  if (a.level === 'WARNED') {
+    return {
+      title: a.activeStrikes === 1 ? 'Tienes una advertencia' : `Tienes ${a.activeStrikes} advertencias`,
+      body: 'Recibimos un aviso falso desde tu cuenta. Usa el SOS solo en emergencias reales. Toca para ver el detalle o pedir revisión.',
+    };
+  }
+  return {
+    title: 'Tu cuenta está restringida',
+    body: `Tienes ${a.activeStrikes} avisos falsos en 90 días. El SOS sigue funcionando, pero no puedes enviar reportes urbanos ${
+      a.restrictedUntil ? untilText(a.restrictedUntil) : 'por ahora'
+    }. Toca para ver el detalle o pedir revisión.`,
+  };
+}
+
+export const REVIEW_STATUS: Record<CitizenReviewStatus, string> = {
+  PENDING: 'Revisión pedida: tu municipalidad te responderá',
+  GRANTED: 'Revisión acogida',
+  DENIED: 'Revisión respondida: se mantiene',
+};

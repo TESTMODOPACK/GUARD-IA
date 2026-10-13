@@ -96,6 +96,8 @@ d('uso indebido y resultado en terreno', () => {
 
   afterAll(async () => {
     if (tenants.length) {
+      await admin`DELETE FROM citizen_review WHERE tenant_id IN ${admin(tenants)}`;
+      await admin`DELETE FROM citizen_block WHERE tenant_id IN ${admin(tenants)}`;
       await admin`DELETE FROM citizen_strike WHERE tenant_id IN ${admin(tenants)}`;
       await admin`DELETE FROM triage_label WHERE tenant_id IN ${admin(tenants)}`;
       await admin`DELETE FROM alert_event WHERE tenant_id IN ${admin(tenants)}`;
@@ -145,7 +147,7 @@ d('uso indebido y resultado en terreno', () => {
     const second = await sos(1);
     notices.length = 0;
     await ops.reject(op[1], second, { reason: 'FALSE_ALARM', notes: EVIDENCE });
-    expect(notices[0].title).toBe('Segunda advertencia por aviso falso');
+    expect(notices[0].title).toBe('Segunda advertencia: cuenta restringida');
 
     const next = await sos(0);
     const detail = await ops.detail(op[0], next);

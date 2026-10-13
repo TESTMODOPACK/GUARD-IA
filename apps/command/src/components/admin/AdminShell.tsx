@@ -18,6 +18,7 @@ const SECTIONS: { href: string; label: string; roles: OperatorRole[] }[] = [
   { href: '/admin/usuarios', label: 'Usuarios', roles: MANAGERS },
   { href: '/admin/turnos', label: 'Turnos', roles: [] },
   { href: '/directorio', label: 'Directorio', roles: [] },
+  { href: '/admin/cuentas', label: 'Cuentas', roles: MANAGERS },
   { href: '/admin/bitacora', label: 'Bitácora', roles: MANAGERS },
 ];
 

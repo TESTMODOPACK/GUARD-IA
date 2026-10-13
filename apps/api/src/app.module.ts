@@ -21,6 +21,7 @@ import { OpsModule } from './ops/ops.module';
 import { AdminModule } from './admin/admin.module';
 import { GeoModule } from './geo/transfer.service';
 import { IncidentsModule } from './incidents/incidents.service';
+import { AccountsModule } from './accounts/accounts.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -79,6 +80,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     IncidentsModule,
     GeoModule,
     PlatformModule,
+    AccountsModule,
   ],
   controllers: [HealthController],
   providers: [RetentionCron, AiOutboxCron, MaintenanceCron],

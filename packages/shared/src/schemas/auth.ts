@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { OPERATOR_ROLES, TENANT_STATUSES } from '../enums';
+import { CitizenAccountSchema } from './account';
 import { PhoneSchema, UuidSchema } from './common';
 
 export const OtpRequestSchema = z.object({
@@ -50,6 +51,11 @@ export const CitizenPublicSchema = z.object({
   trustScore: z.number().int(),
   consentVersion: z.string().nullable(),
   consentAt: z.iso.datetime().nullable(),
+  /**
+   * Estado de la cuenta por uso indebido (0011). Opcional: una sesión guardada antes de 0011 no lo trae; la
+   * app lo refresca con GET /me al abrir.
+   */
+  account: CitizenAccountSchema.optional(),
 });
 export type CitizenPublic = z.infer<typeof CitizenPublicSchema>;
 

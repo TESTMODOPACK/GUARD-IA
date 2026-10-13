@@ -120,6 +120,19 @@ export default function TenantPage() {
                 <p className="text-xs text-ink-faint mt-3">Solo cifras: la consola no ve alertas, vecinos ni casos.</p>
               </Card>
 
+              <Card title="Uso indebido">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <Metric label="Faltas (30 días)" value={t.misuse.strikesMonth} />
+                  <Metric label="Bloqueos vigentes" value={t.misuse.activeBlocks} />
+                  <Metric label="Bloqueos por aprobar" value={t.misuse.pendingProposals} />
+                  <Metric label="Revisiones pendientes" value={t.misuse.pendingReviews} />
+                </div>
+                <p className="text-xs text-ink-faint mt-3">
+                  Lo decide la central del municipio. Si se acumulan revisiones sin responder, conviene hablar con el
+                  municipio.
+                </p>
+              </Card>
+
               <Card
                 title="Administradores municipales"
                 actions={

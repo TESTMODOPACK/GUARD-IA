@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Namespace } from 'socket.io';
 import {
   wsRooms,
+  type AccountLevel,
   type AlertDetail,
   type AlertSummary,
   type AlertTransferred,
@@ -58,6 +59,11 @@ export class RealtimeService {
 
   citizenAlertStatus(citizenId: string, payload: CitizenAlert) {
     this.citizenNs?.to(wsRooms.citizen(citizenId)).emit('alert.status', payload);
+  }
+
+  /** La cuenta del vecino cambió (bloqueo, falta anulada, revisión; 0011): la app relee GET /me. */
+  citizenAccountUpdated(citizenId: string, payload: { level: AccountLevel }) {
+    this.citizenNs?.to(wsRooms.citizen(citizenId)).emit('account.updated', payload);
   }
 
   /** Sync al reconectar: alertas tocadas desde `since` (máximo 200). */

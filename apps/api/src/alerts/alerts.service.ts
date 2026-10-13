@@ -9,6 +9,7 @@ import {
   type CreateAlertResponse,
 } from '@guardia/shared';
 import { ALERTS_QUEUE, PROCESS_ALERT_JOB, PROCESS_ALERT_JOB_OPTS, type ProcessAlertJob } from '../ai/ai.queue';
+import { loadCitizenAccount } from '../accounts/account-read';
 import { AppError } from '../common/app-error';
 import { ENV, type Env } from '../config/env';
 import { DbService, type Tx } from '../db/db.service';
@@ -174,6 +175,10 @@ export class AlertsService {
         const again = await this.findByClientRef(citizenId, meta.clientRef);
         if (again) return this.toResponse(again.row, again.tenant);
       }
+      // Uso indebido (0011): el trigger alert_account rechaza la alerta de una cuenta bloqueada (GIA10) y el
+      // reporte urbano de una restringida (GIA11). La app recibe el estado de la cuenta para mostrarlo.
+      const code = (e as { code?: string; cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;
+      if (code === 'GIA10' || code === 'GIA11') throw await this.accountError(citizenId, code);
       throw e;
     }
 
@@ -222,6 +227,26 @@ export class AlertsService {
       tenant: t ? { id: t.id, name: t.name } : null,
       cancellableUntil: new Date(row.createdAt.getTime() + CANCEL_WINDOW_SECONDS * 1000).toISOString(),
     };
+  }
+
+  private async accountError(citizenId: string, code: 'GIA10' | 'GIA11'): Promise<AppError> {
+    const account = await this.dbs.asCitizen(citizenId, (tx) => loadCitizenAccount(tx, citizenId)).catch(() => null);
+    if (code === 'GIA10') {
+      const until = account?.block?.endsAt
+        ? `hasta el ${new Date(account.block.endsAt).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })}`
+        : 'hasta nuevo aviso';
+      const by = account?.block?.tenantName ? ` por ${account.block.tenantName}` : '';
+      return new AppError(
+        'ACCOUNT_BLOCKED',
+        `Tu cuenta está bloqueada${by} ${until} por avisos falsos reiterados. Ante una emergencia llama al 133, 131 o 132.`,
+        { account },
+      );
+    }
+    return new AppError(
+      'ACCOUNT_RESTRICTED',
+      'Tu cuenta está restringida por dos avisos falsos en 90 días: por ahora no puedes enviar reportes urbanos. El SOS sigue funcionando.',
+      { account },
+    );
   }
 
   private async findByClientRef(citizenId: string, clientRef: string) {

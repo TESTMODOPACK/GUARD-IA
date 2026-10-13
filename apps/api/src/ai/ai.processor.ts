@@ -2,7 +2,7 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Job } from 'bullmq';
-import { buildTriage } from '@guardia/shared';
+import { buildTriage, hasCriticalPhrase, type AlertType, type Priority } from '@guardia/shared';
 import { AlertReadService } from '../alerts/alert-read.service';
 import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
@@ -16,6 +16,19 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { AI_PROVIDER, type AiProvider } from './ai.provider';
 import { ALERTS_QUEUE, type ProcessAlertJob } from './ai.queue';
 import { MockAiProvider } from './mock.provider';
+
+/**
+ * Sección 9 y migración 0011: con confianza bajo 25 o con la cuenta restringida (2 avisos falsos en 90 días), la
+ * IA no deja un SOS en HIGH por sí sola: entra en MEDIUM. Excepción: una frase de riesgo vital de las reglas fijas
+ * (alguien herido, un arma, no respira): una emergencia real nunca queda atrás por el historial de la cuenta.
+ */
+export function capPriority(
+  priority: Priority,
+  o: { type: AlertType; text: string; trustScore: number; restricted: boolean },
+): Priority {
+  if (priority !== 'HIGH' || (o.trustScore >= 25 && !o.restricted)) return priority;
+  return hasCriticalPhrase(o.type, o.text) ? priority : 'MEDIUM';
+}
 
 /** Clasificador sin red para cuando la IA no responde (más las reglas fijas de shared). */
 const FALLBACK = new MockAiProvider();
@@ -142,9 +155,12 @@ export class AiProcessor extends WorkerHost {
       model: this.ai.model,
     });
 
-    // Sección 9: bajo 25 de confianza la alerta entra como MEDIUM aunque la IA diga HIGH.
-    const lowTrust = trustScore < 25 && triage.priority === 'HIGH';
-    const priority = lowTrust ? 'MEDIUM' : triage.priority;
+    const priority = capPriority(triage.priority, {
+      type: row.type,
+      text: [transcription, row.userText].filter(Boolean).join('. '),
+      trustScore,
+      restricted: row.citizenRestricted,
+    });
 
     const keptByOperator = await this.dbs.asSystem(async (tx) => {
       // Si el operador ya corrigió la clasificación (p. ej. llamó al vecino mientras la IA corría o
@@ -188,7 +204,9 @@ export class AiProcessor extends WorkerHost {
           priority,
           aiPriority: triage.modelPriority,
           rules: triage.rules,
-          loweredByTrust: lowTrust,
+          // Baja confianza o cuenta restringida (0011) dejaron el SOS en media.
+          loweredByTrust: triage.priority === 'HIGH' && priority === 'MEDIUM',
+          citizenRestricted: row.citizenRestricted,
           keptOperatorCategory: kept,
           confidence: triage.confidence,
           ms: Date.now() - started,
@@ -243,7 +261,12 @@ export class AiProcessor extends WorkerHost {
           aiStatus: 'FAILED',
           // Mensaje genérico para la central; el detalle (rutas, códigos) queda en el log.
           aiError: `Clasificación automática no disponible tras ${attempts} intentos${fallback ? '; se clasificó con las reglas fijas' : ''}`,
-          priority: fallback?.priority ?? row.priority ?? (row.type === 'EMERGENCY_SOS' ? 'HIGH' : 'MEDIUM'),
+          priority: capPriority(fallback?.priority ?? row.priority ?? (row.type === 'EMERGENCY_SOS' ? 'HIGH' : 'MEDIUM'), {
+            type: row.type,
+            text,
+            trustScore: 100,
+            restricted: row.citizenRestricted,
+          }),
           ...(keepCategory
             ? {}
             : {

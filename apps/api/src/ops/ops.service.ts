@@ -6,6 +6,9 @@ import {
   categoriesFor,
   rejectNotice,
   STRIKE_WINDOW_DAYS,
+  BLOCK_PROPOSAL_AT_STRIKES,
+  BLOCK_DAYS,
+  BLOCK_REPEAT_DAYS,
   TERMINAL_OUTCOMES,
   type AlertDetail,
   type AlertEvent,
@@ -123,12 +126,19 @@ export class OpsService {
       await tx.update(alert).set({ status: 'REJECTED', resolvedAt: new Date() }).where(eq(alert.id, alertId));
       let trustDelta = 0;
       let strikeCount: number | null = null;
+      let blockProposed = false;
       // Solo el engaño intencional es falta del vecino (docs/plan-plataforma.md §5b): baja la confianza y
       // queda registrada con la evidencia, por 90 días. Accidental, mal reportado o duplicado no sancionan.
-      if (body.reason === 'FALSE_ALARM') {
-        if ((body.notes?.trim().length ?? 0) < 10) {
+      // Una "prueba" la primera vez solo avisa; la segunda en 90 días en este municipio cuenta como falta.
+      const repeatedTest = body.reason === 'TEST' && (await priorTestRejection(tx, op.tenantId, row.citizenId, alertId));
+      if (body.reason === 'FALSE_ALARM' || repeatedTest) {
+        if (body.reason === 'FALSE_ALARM' && (body.notes?.trim().length ?? 0) < 10) {
           throw new AppError('VALIDATION_ERROR', 'Describe la evidencia del aviso falso (mínimo 10 caracteres)');
         }
+        const note =
+          body.reason === 'FALSE_ALARM'
+            ? body.notes!.trim()
+            : `Segunda alerta de prueba en 90 días.${body.notes?.trim() ? ` ${body.notes.trim()}` : ''}`;
         trustDelta = -TRUST_PENALTY_FALSE_ALARM;
         await tx
           .update(citizen)
@@ -140,12 +150,14 @@ export class OpsService {
             citizenId: row.citizenId,
             tenantId: op.tenantId,
             alertId,
-            note: body.notes!,
+            note,
             decidedBy: op.sub,
             expiresAt: new Date(Date.now() + STRIKE_WINDOW_DAYS * 86_400_000),
           })
           .onConflictDoNothing({ target: citizenStrike.alertId });
         strikeCount = await activeStrikes(tx, row.citizenId);
+        // 3.ª falta (0011): propuesta de bloqueo para el supervisor. Dos personas: quien rechaza propone, otra decide.
+        if (strikeCount >= BLOCK_PROPOSAL_AT_STRIKES) blockProposed = await proposeBlock(tx, op, row.citizenId, alertId, strikeCount);
       }
       await this.cancelOpenDispatches(tx, row, op, 'alerta rechazada');
       await this.events.record(tx, {
@@ -154,7 +166,7 @@ export class OpsService {
         actorType: 'OPERATOR',
         actorId: op.sub,
         kind: 'REJECTED',
-        payload: { reason: body.reason, notes: body.notes ?? null, trustDelta, strikeCount },
+        payload: { reason: body.reason, notes: body.notes ?? null, trustDelta, strikeCount, blockProposed },
       });
       return { detail: await this.reads.detail(tx, alertId), strikeCount };
     }).then((r) => {
@@ -200,7 +212,13 @@ export class OpsService {
         )
         .orderBy(desc(alertEvent.createdAt))
         .limit(10);
+      const [open] = (await tx.execute(sql`
+        SELECT b.status FROM citizen_block b
+         WHERE b.citizen_id = ${row.citizenId}::uuid
+           AND (b.status = 'PROPOSED' OR (b.status = 'ACTIVE' AND (b.ends_at IS NULL OR b.ends_at > now())))
+         LIMIT 1`)) as unknown as { status: 'PROPOSED' | 'ACTIVE' }[];
       return {
+        openBlock: open?.status ?? null,
         activeStrikes: byTenant.reduce((n, t) => n + t.count, 0),
         strikesByTenant: byTenant,
         recentRejections: rejections
@@ -664,3 +682,33 @@ const STATUS_TEXT: Partial<Record<Dispatch['status'], { title: string; body: str
   ON_SITE: { title: 'Unidad en el lugar', body: 'La unidad {unit} llegó a tu ubicación.' },
   CANCELLED: { title: 'Despacho cancelado', body: 'La central canceló el despacho de la unidad {unit}.' },
 };
+
+/** ¿Este vecino ya tuvo una alerta rechazada como "prueba" en los últimos 90 días en este municipio? */
+async function priorTestRejection(tx: Tx, tenantId: string, citizenId: string, alertId: string): Promise<boolean> {
+  const rows = (await tx.execute(sql`
+    SELECT 1 FROM alert_event e
+      JOIN alert a ON a.id = e.alert_id
+     WHERE e.tenant_id = ${tenantId}::uuid AND a.citizen_id = ${citizenId}::uuid AND e.alert_id <> ${alertId}::uuid
+       AND e.kind = 'REJECTED' AND e.payload->>'reason' = 'TEST'
+       AND e.created_at > now() - make_interval(days => ${STRIKE_WINDOW_DAYS})
+     LIMIT 1`)) as unknown as unknown[];
+  return rows.length > 0;
+}
+
+/**
+ * Propuesta de bloqueo (0011) en la misma transacción del rechazo: 30 días, o 6 meses si ya cumplió un bloqueo en
+ * el último año. Si el vecino ya tiene una propuesta o un bloqueo abiertos, no crea otro (índice parcial único).
+ */
+async function proposeBlock(tx: Tx, op: OperatorClaims, citizenId: string, alertId: string, strikes: number): Promise<boolean> {
+  const rows = (await tx.execute(sql`
+    INSERT INTO citizen_block (citizen_id, tenant_id, alert_id, strikes, suggested_days, proposed_by)
+    SELECT ${citizenId}::uuid, ${op.tenantId}::uuid, ${alertId}::uuid, ${strikes}::smallint,
+           CASE WHEN EXISTS (SELECT 1 FROM citizen_block p
+                              WHERE p.citizen_id = ${citizenId}::uuid AND p.status IN ('ACTIVE', 'EXPIRED')
+                                AND p.decided_at > now() - interval '365 days')
+                THEN ${BLOCK_REPEAT_DAYS}::smallint ELSE ${BLOCK_DAYS}::smallint END,
+           ${op.sub}::uuid
+    ON CONFLICT (citizen_id) WHERE status IN ('PROPOSED', 'ACTIVE') DO NOTHING
+    RETURNING id`)) as unknown as { id: string }[];
+  return rows.length > 0;
+}

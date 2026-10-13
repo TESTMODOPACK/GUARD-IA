@@ -57,6 +57,7 @@ export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
     hasAudio: x.hasAudio,
     hasPhoto: x.hasPhoto,
     citizenTrustScore: x.citizenTrustScore,
+    citizenRestricted: row.citizenRestricted,
     incident: x.incident,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),

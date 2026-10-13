@@ -132,6 +132,15 @@ export class PlatformTenantsService {
     const [r] = await this.baseQuery(tx).where(eq(tenant.id, id)).limit(1);
     if (!r) throw new AppError('NOT_FOUND', 'Municipio no encontrado');
     const act = (await this.activity(tx)).get(id);
+    const [misuse] = (await tx.execute(sql`
+      SELECT strikes::int AS "strikesMonth", active_blocks::int AS "activeBlocks",
+             pending_proposals::int AS "pendingProposals", pending_reviews::int AS "pendingReviews"
+        FROM platform_misuse(now() - interval '30 days') WHERE tenant_id = ${id}::uuid`)) as unknown as {
+      strikesMonth: number;
+      activeBlocks: number;
+      pendingProposals: number;
+      pendingReviews: number;
+    }[];
     const [{ readiness }] = (await tx.execute(sql`SELECT tenant_readiness(${id}::uuid) AS readiness`)) as unknown as {
       readiness: { ready: boolean; items: ReadinessItem[] };
     }[];
@@ -174,6 +183,7 @@ export class PlatformTenantsService {
       createdAt: t.createdAt.toISOString(),
       alertsMonth: act?.alerts ?? 0,
       sosMonth: act?.sos ?? 0,
+      misuse: misuse ?? { strikesMonth: 0, activeBlocks: 0, pendingProposals: 0, pendingReviews: 0 },
       openAlerts: act?.open ?? 0,
       readiness: { ready: readiness.ready, items: readiness.items ?? [] },
       // Lo que este usuario puede hacer ahora; la base vuelve a validarlo.

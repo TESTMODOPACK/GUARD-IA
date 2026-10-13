@@ -9,7 +9,7 @@ import {
   DISPATCH_OUTCOME,
   DISPATCH_OUTCOME_HELP,
   formatDateTime,
-  ordinal,
+  strikeConsequence,
   REJECT_REASON,
   REJECT_REASON_HELP,
   REJECT_REASON_ORDER,
@@ -131,6 +131,8 @@ export function RejectDialog({
   const evidenceOk = !falseAlarm || notes.trim().length >= MIN_EVIDENCE;
   const nextStrike = (standing?.activeStrikes ?? 0) + 1;
   const lastTest = standing?.recentRejections.find((r) => r.reason === 'TEST');
+  // Una prueba repetida en 90 días cuenta como aviso falso (la API pone la falta con una nota automática).
+  const countsAsStrike = falseAlarm || (reason === 'TEST' && !!lastTest);
 
   const submit = async () => {
     if (!reason || !evidenceOk) return;
@@ -166,7 +168,12 @@ export function RejectDialog({
                   .join(' · ')}
               </p>
             ) : null}
-            {lastTest ? <p className="text-ink-muted mt-0.5">Ya tuvo un rechazo por prueba: si vuelve a pasar, corresponde aviso falso.</p> : null}
+            {lastTest ? <p className="text-ink-muted mt-0.5">Ya tuvo un rechazo por prueba: otra prueba cuenta como aviso falso.</p> : null}
+            {standing.openBlock ? (
+              <p className="text-medium mt-0.5">
+                {standing.openBlock === 'ACTIVE' ? 'Su cuenta está bloqueada.' : 'Tiene un bloqueo propuesto, pendiente de decisión.'}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -186,11 +193,10 @@ export function RejectDialog({
           ))}
         </fieldset>
 
-        {falseAlarm ? (
+        {countsAsStrike ? (
           <p className="text-xs text-high" data-testid="strike-consequence">
-            {nextStrike >= 3
-              ? `Será su ${ordinal(nextStrike)} falta en 90 días: el vecino recibe el aviso de que su cuenta queda en revisión.`
-              : `Será su ${ordinal(nextStrike)} falta en 90 días: el vecino recibe la ${ordinal(nextStrike)} advertencia y su confianza baja 25 puntos.`}
+            {reason === 'TEST' ? 'Es su segunda prueba en 90 días: cuenta como aviso falso. ' : ''}
+            {strikeConsequence(nextStrike, standing?.openBlock ?? null)}
           </p>
         ) : null}
 

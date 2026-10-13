@@ -143,6 +143,11 @@ export function AlertDetailPanel() {
               {detail.citizenStrikes} {detail.citizenStrikes === 1 ? 'aviso falso' : 'avisos falsos'} en 90 días
             </Tag>
           ) : null}
+          {alert.citizenRestricted ? (
+            <span title="Con 2 avisos falsos en 90 días el SOS entra en prioridad media (sube a alta si hay riesgo vital).">
+              <Tag tone="medium">Cuenta restringida</Tag>
+            </span>
+          ) : null}
         </div>
       </div>
 
