@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   AddNoteSchema,
   CreateUnitSchema,
@@ -70,7 +70,14 @@ export class OpsController {
     @Param('id', zod(UuidSchema)) id: string,
     @Body(zod(ResolveAlertSchema)) body: ResolveAlert,
   ) {
-    return this.ops.resolve(op, id, body.notes);
+    return this.ops.resolve(op, id, body.notes, body.includeGrouped ?? false);
+  }
+
+  /** Sacar la alerta de su grupo: la central decidió que es otra situación. */
+  @Post('alerts/:id/detach')
+  @HttpCode(200)
+  detach(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
+    return this.ops.detach(op, id);
   }
 
   @Post('alerts/:id/notes')

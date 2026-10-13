@@ -148,6 +148,8 @@ export const alert = pgTable('alert', {
   resolvedAt: ts('resolved_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+  // 0004_incidents.sql
+  incidentId: uuid('incident_id'),
 });
 
 export const media = pgTable('media', {
@@ -274,8 +276,32 @@ export const contact = pgTable('contact', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
+// ------------------------------------------------------------- 0004_incidents.sql
+
+/** Grupo de alertas sobre la misma situación. `location` (geography generada) se usa con SQL crudo. */
+export const incident = pgTable('incident', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  type: alertTypeEnum('type').notNull(),
+  category: alertCategoryEnum('category'),
+  lat: doublePrecision('lat').notNull(),
+  lng: doublePrecision('lng').notNull(),
+  alertCount: integer('alert_count').notNull().default(1),
+  citizenCount: integer('citizen_count').notNull().default(1),
+  recurrenceCount: integer('recurrence_count').notNull().default(0),
+  importance: integer('importance').notNull().default(0),
+  importanceReasons: text('importance_reasons').array().notNull().default([]),
+  firstAlertAt: ts('first_alert_at').notNull(),
+  lastAlertAt: ts('last_alert_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
 export const schema = {
   tenant,
+  incident,
   auditLog,
   shift,
   contact,

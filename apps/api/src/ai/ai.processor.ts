@@ -7,6 +7,7 @@ import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
 import { alert, citizen, media, tenant } from '../db/schema';
 import { EventsService } from '../events/events.service';
+import { IncidentsService } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 import { MetricsService } from '../infra/metrics.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -30,6 +31,7 @@ export class AiProcessor extends WorkerHost {
     private readonly reads: AlertReadService,
     private readonly realtime: RealtimeService,
     private readonly metrics: MetricsService,
+    private readonly incidents: IncidentsService,
   ) {
     super();
   }
@@ -201,6 +203,13 @@ export class AiProcessor extends WorkerHost {
 
   private async emitUpdated(alertId: string, tenantId: string | null) {
     if (!tenantId) return;
+    // La IA fijó prioridad, categoría y señales: se agrupa (si no alcanzó al crear la alerta) y se
+    // recalcula la importancia del grupo. Si falla, la alerta se emite igual sin grupo actualizado.
+    try {
+      await this.incidents.attach(alertId);
+    } catch (e) {
+      this.logger.warn(`incidente de ${alertId} sin recalcular: ${(e as Error).message}`);
+    }
     const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
     this.realtime.alertUpdated(tenantId, detail);
   }

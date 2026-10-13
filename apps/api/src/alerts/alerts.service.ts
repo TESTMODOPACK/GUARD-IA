@@ -15,6 +15,7 @@ import { DbService, type Tx } from '../db/db.service';
 import { alert, citizen, tenant, type AlertRow } from '../db/schema';
 import { EventsService } from '../events/events.service';
 import { MetricsService } from '../infra/metrics.service';
+import { IncidentsService } from '../incidents/incidents.service';
 import { RateLimitService } from '../infra/rate-limit.service';
 import { MediaService } from '../media/media.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -63,6 +64,7 @@ export class AlertsService {
     private readonly realtime: RealtimeService,
     private readonly rate: RateLimitService,
     private readonly metrics: MetricsService,
+    private readonly incidents: IncidentsService,
   ) {}
 
   async create(
@@ -179,8 +181,13 @@ export class AlertsService {
     this.metrics.alertsCreated.inc({ type: row.type, status: row.status });
 
     if (row.tenantId) {
+      // Agrupar con reportes de la misma situación ANTES de avisar, para que la central reciba la
+      // alerta ya agrupada y no suene por cada repetido. Ya está confirmada: si esto tarda más de
+      // 300 ms o falla, sale sin grupo y el worker la agrupa después (regla 1: el SOS no espera).
+      await this.groupQuickly(row.id);
       // Paso 2: la central lo ve ahora, antes de cualquier IA.
-      const summary = await this.dbs.asSystem((tx) => this.reads.summary(tx, row));
+      const [fresh] = await this.dbs.asSystem((tx) => tx.select().from(alert).where(eq(alert.id, row.id)).limit(1));
+      const summary = await this.dbs.asSystem((tx) => this.reads.summary(tx, fresh ?? row));
       this.realtime.alertCreated(row.tenantId, summary);
       this.metrics.alertCreateLatency.observe({ type: row.type }, (Date.now() - t0) / 1000);
 
@@ -282,10 +289,21 @@ export class AlertsService {
     }
 
     if (tenantId) {
+      // Una alerta cancelada deja de contar en su grupo.
+      await this.incidents.attach(alertId).catch((e: Error) => this.logger.warn(`recalcular incidente de ${alertId}: ${e.message}`));
       const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
       this.realtime.alertUpdated(tenantId, detail);
     }
     return view;
+  }
+
+  /** Agrupa con tope de 300 ms. Nunca lanza: el worker IA vuelve a intentarlo (attach es idempotente). */
+  private async groupQuickly(alertId: string): Promise<void> {
+    try {
+      await withTimeout(this.incidents.attach(alertId), 300);
+    } catch (e) {
+      this.logger.warn(`agrupación de ${alertId} pendiente (la hace el worker): ${(e as Error).message}`);
+    }
   }
 
   async mine(citizenId: string, limit: number): Promise<CitizenAlert[]> {

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import {
   canTransitionAlert,
   canTransitionDispatch,
@@ -17,6 +17,7 @@ import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
 import { DbService, type Tx } from '../db/db.service';
 import { alert, citizen, dispatch, unit, type AlertRow } from '../db/schema';
 import { EventsService } from '../events/events.service';
+import { IncidentsService, loadIncidentInfos } from '../incidents/incidents.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import type { OperatorClaims } from '../auth/auth.guard';
@@ -41,6 +42,7 @@ export class OpsService {
     private readonly events: EventsService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly incidents: IncidentsService,
   ) {}
 
   list(op: OperatorClaims, q: OpsAlertsQuery) {
@@ -102,7 +104,7 @@ export class OpsService {
   }
 
   async reject(op: OperatorClaims, alertId: string, body: RejectAlert): Promise<AlertDetail> {
-    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+    let detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const row = await this.loadForUpdate(tx, alertId);
       this.assertTransition(row, 'REJECTED');
       await tx.update(alert).set({ status: 'REJECTED', resolvedAt: new Date() }).where(eq(alert.id, alertId));
@@ -125,6 +127,11 @@ export class OpsService {
       });
       return this.reads.detail(tx, alertId);
     });
+    // Una alerta rechazada deja de confirmar su grupo: se recalcula y se emite con el grupo al día.
+    if (detail.incident) {
+      await this.incidents.attach(alertId).catch((e: Error) => this.logger.warn(`incidente de ${alertId}: ${e.message}`));
+      detail = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, alertId));
+    }
     this.realtime.alertUpdated(op.tenantId, detail);
     await this.notifyCitizen(detail, {
       title: 'Tu alerta fue cerrada',
@@ -242,28 +249,87 @@ export class OpsService {
     return d;
   }
 
-  async resolve(op: OperatorClaims, alertId: string, notes?: string): Promise<AlertDetail> {
-    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+  /**
+   * Resolver. Con `includeGrouped`, también se resuelven las demás alertas abiertas del mismo
+   * incidente (el mismo bache reportado por cinco vecinos se cierra una vez) y cada vecino recibe
+   * su aviso. Todo en una transacción: o se cierran todas o ninguna.
+   */
+  async resolve(op: OperatorClaims, alertId: string, notes?: string, includeGrouped = false): Promise<AlertDetail> {
+    const { detail, grouped } = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const row = await this.loadForUpdate(tx, alertId);
       this.assertTransition(row, 'RESOLVED');
-      await tx.update(alert).set({ status: 'RESOLVED', resolvedAt: new Date() }).where(eq(alert.id, alertId));
-      await this.closeOpenDispatches(tx, row, op);
-      await tx
-        .update(citizen)
-        .set({ trustScore: sql`least(100, ${citizen.trustScore} + ${TRUST_REWARD_RESOLVED})` })
-        .where(eq(citizen.id, row.citizenId));
+      await this.resolveRow(tx, row, op, { notes: notes ?? null, trustDelta: TRUST_REWARD_RESOLVED });
+      const grouped: string[] = [];
+      if (includeGrouped && row.incidentId) {
+        const others = await tx
+          .select()
+          .from(alert)
+          .where(and(eq(alert.incidentId, row.incidentId), ne(alert.id, row.id), inArray(alert.status, ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'])))
+          .for('update');
+        for (const m of others) {
+          await this.resolveRow(tx, m, op, { notes: notes ?? null, trustDelta: TRUST_REWARD_RESOLVED, viaAlertId: row.id });
+          grouped.push(m.id);
+        }
+      }
+      return { detail: await this.reads.detail(tx, alertId), grouped };
+    });
+    this.realtime.alertUpdated(op.tenantId, detail);
+    await this.notifyCitizen(detail, { title: 'Caso resuelto', body: 'La central cerró tu alerta. Gracias por reportar.' });
+    for (const id of grouped) {
+      const d = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, id));
+      this.realtime.alertUpdated(op.tenantId, d);
+      await this.notifyCitizen(d, {
+        title: 'Caso resuelto',
+        body: 'La central resolvió el problema que reportaste (también lo reportaron otros vecinos). Gracias.',
+      });
+    }
+    return detail;
+  }
+
+  private async resolveRow(tx: Tx, row: AlertRow, op: OperatorClaims, payload: Record<string, unknown>) {
+    await tx.update(alert).set({ status: 'RESOLVED', resolvedAt: new Date() }).where(eq(alert.id, row.id));
+    await this.closeOpenDispatches(tx, row, op);
+    await tx
+      .update(citizen)
+      .set({ trustScore: sql`least(100, ${citizen.trustScore} + ${TRUST_REWARD_RESOLVED})` })
+      .where(eq(citizen.id, row.citizenId));
+    await this.events.record(tx, {
+      alertId: row.id,
+      tenantId: op.tenantId,
+      actorType: 'OPERATOR',
+      actorId: op.sub,
+      kind: 'RESOLVED',
+      payload,
+    });
+  }
+
+  /**
+   * "Separar del grupo": la alerta no es la misma situación que su incidente. Queda sola y el grupo
+   * anterior se recalcula. Se registra como nota en la línea de tiempo.
+   */
+  async detach(op: OperatorClaims, alertId: string): Promise<AlertDetail> {
+    const { detail, previousPrimary } = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const row = await this.loadForUpdate(tx, alertId);
+      if (!row.incidentId) throw new AppError('CONFLICT', 'La alerta no está agrupada con otras');
+      const previous = row.incidentId;
+      await this.incidents.detachInTx(tx, row);
       await this.events.record(tx, {
         alertId,
         tenantId: op.tenantId,
         actorType: 'OPERATOR',
         actorId: op.sub,
-        kind: 'RESOLVED',
-        payload: { notes: notes ?? null, trustDelta: TRUST_REWARD_RESOLVED },
+        kind: 'NOTE',
+        payload: { text: 'Separada de su grupo: es otra situación.', detachedFrom: previous },
       });
-      return this.reads.detail(tx, alertId);
+      const prev = (await loadIncidentInfos(tx, [previous])).get(previous);
+      return { detail: await this.reads.detail(tx, alertId), previousPrimary: prev?.primaryAlertId ?? null };
     });
     this.realtime.alertUpdated(op.tenantId, detail);
-    await this.notifyCitizen(detail, { title: 'Caso resuelto', body: 'La central cerró tu alerta. Gracias por reportar.' });
+    // El grupo del que salió cambió de tamaño: la central actualiza su tarjeta.
+    if (previousPrimary && previousPrimary !== alertId) {
+      const d = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, previousPrimary));
+      this.realtime.alertUpdated(op.tenantId, d);
+    }
     return detail;
   }
 

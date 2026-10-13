@@ -4,6 +4,7 @@ import type {
   AlertSummary,
   CitizenAlert,
   Dispatch,
+  IncidentInfo,
   MediaPublic,
   Unit,
 } from '@guardia/shared';
@@ -22,6 +23,7 @@ export interface AlertRowExtras {
   hasAudio: boolean;
   hasPhoto: boolean;
   citizenTrustScore: number | null;
+  incident: IncidentInfo | null;
 }
 
 export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
@@ -42,6 +44,7 @@ export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
     hasAudio: x.hasAudio,
     hasPhoto: x.hasPhoto,
     citizenTrustScore: x.citizenTrustScore,
+    incident: x.incident,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };

@@ -39,6 +39,8 @@ export type UpdateDispatch = z.infer<typeof UpdateDispatchSchema>;
 
 export const ResolveAlertSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
+  /** Cerrar también las demás alertas abiertas del mismo incidente (y avisar a cada vecino). */
+  includeGrouped: z.boolean().optional(),
 });
 export type ResolveAlert = z.infer<typeof ResolveAlertSchema>;
 

@@ -18,6 +18,7 @@ import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OpsModule } from './ops/ops.module';
 import { AdminModule } from './admin/admin.module';
+import { IncidentsModule } from './incidents/incidents.service';
 import { PrivacyModule } from './privacy/privacy.module';
 import { RealtimeModule } from './realtime/realtime.module';
 
@@ -72,6 +73,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     OpsModule,
     PrivacyModule,
     AdminModule,
+    IncidentsModule,
   ],
   controllers: [HealthController],
   providers: [RetentionCron, AiOutboxCron],

@@ -11,6 +11,7 @@ import {
 } from '../common/mappers';
 import type { Tx } from '../db/db.service';
 import { alert, alertEvent, citizen, dispatch, media, tenant, unit, type AlertRow } from '../db/schema';
+import { loadIncidentInfos } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 
 export interface ListFilters {
@@ -60,9 +61,18 @@ export class AlertReadService {
 
   async summaries(tx: Tx, rows: AlertRow[]): Promise<AlertSummary[]> {
     const ex = await this.extras(tx, rows);
+    const incidents = await loadIncidentInfos(
+      tx,
+      rows.map((r) => r.incidentId).filter((x): x is string => !!x),
+    );
     return rows.map((r) => {
       const e = ex.get(r.id)!;
-      return toAlertSummary(r, { hasAudio: e.hasAudio, hasPhoto: e.hasPhoto, citizenTrustScore: e.trust });
+      return toAlertSummary(r, {
+        hasAudio: e.hasAudio,
+        hasPhoto: e.hasPhoto,
+        citizenTrustScore: e.trust,
+        incident: r.incidentId ? (incidents.get(r.incidentId) ?? null) : null,
+      });
     });
   }
 
@@ -127,10 +137,12 @@ export class AlertReadService {
       .where(eq(alertEvent.alertId, row.id))
       .orderBy(asc(alertEvent.createdAt));
     const live = mediaRows.filter((m) => !m.deletedAt);
+    const incidentInfo = row.incidentId ? ((await loadIncidentInfos(tx, [row.incidentId])).get(row.incidentId) ?? null) : null;
     return toAlertDetail(row, {
       hasAudio: live.some((m) => m.kind === 'AUDIO'),
       hasPhoto: live.some((m) => m.kind === 'PHOTO'),
       citizenTrustScore: c?.trust ?? null,
+      incident: incidentInfo,
       citizenPhone: c?.phone ?? null,
       citizenName: c?.name ?? null,
       media: await this.mediaSvc.toPublic(mediaRows),

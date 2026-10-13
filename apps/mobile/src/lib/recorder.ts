@@ -17,17 +17,25 @@ export async function prepareMic(): Promise<void> {
 }
 
 /**
- * Prepara y empieza a grabar. Si quedó una sesión preparada (un intento anterior que no llegó a
- * grabar, o una pulsación muy corta), Android rechaza preparar de nuevo con "AudioRecorder has
- * already been prepared": en ese caso se usa la sesión que ya existe.
+ * Prepara y empieza a grabar. Una sesión nativa puede quedar a medias (intento anterior, pulsación
+ * muy corta o la app recargada en desarrollo mientras grababa): Android rechaza preparar de nuevo
+ * ("already been prepared") o grabar (IllegalStateException). En ese caso se cierra la sesión
+ * trabada y se prepara una nueva, una sola vez.
  */
 export async function startRecording(recorder: AudioRecorder): Promise<void> {
   try {
     await recorder.prepareToRecordAsync();
+    recorder.record();
   } catch (e) {
-    if (!/already been prepared/i.test(String((e as Error)?.message ?? e))) throw e;
+    console.warn('grabadora trabada, se reinicia la sesión:', (e as Error)?.message ?? e);
+    try {
+      await recorder.stop();
+    } catch {
+      // Sin sesión que cerrar: seguir.
+    }
+    await recorder.prepareToRecordAsync();
+    recorder.record();
   }
-  recorder.record();
 }
 
 /** Archivo de la grabación con el tipo que acepta la API: .m4a (audio/mp4) en el teléfono, webm en la web. */

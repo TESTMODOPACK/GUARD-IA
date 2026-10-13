@@ -14,6 +14,7 @@ import {
   categoriesFor,
 } from '../enums';
 import { LocationSchema, UuidSchema } from './common';
+import { IncidentInfoSchema } from './incident';
 
 /**
  * Campo `meta` (JSON) del multipart de POST /v1/alerts.
@@ -113,6 +114,8 @@ export const AlertSummarySchema = z.object({
   hasAudio: z.boolean(),
   hasPhoto: z.boolean(),
   citizenTrustScore: z.number().int().nullable(),
+  /** Grupo de alertas sobre la misma situación (migración 0004); null mientras no se agrupa. */
+  incident: IncidentInfoSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

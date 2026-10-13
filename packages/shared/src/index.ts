@@ -2,6 +2,7 @@ export * from './enums';
 export * from './schemas/common';
 export * from './schemas/auth';
 export * from './schemas/alert';
+export * from './schemas/incident';
 export * from './schemas/ops';
 export * from './schemas/ai';
 export * from './schemas/privacy';
