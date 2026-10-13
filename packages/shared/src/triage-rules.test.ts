@@ -134,6 +134,24 @@ describe('reglas fijas', () => {
     expect(t.flags.weapon_mentioned).toBe(true);
   });
 
+  it('"me va a matar" es una amenaza (violencia), no riesgo suicida', () => {
+    expect(matchTriageRules('EMERGENCY_SOS', 'mi ex dice que me va a matar')).not.toContain('SUICIDIO');
+    expect(matchTriageRules('EMERGENCY_SOS', 'mi ex dice que me va a matar')).toContain('VIF');
+    expect(matchTriageRules('EMERGENCY_SOS', 'mi hermano dice que se va a matar')).toContain('SUICIDIO');
+    expect(matchTriageRules('EMERGENCY_SOS', 'ya no aguanto, me quiero matar')).toContain('SUICIDIO');
+  });
+
+  it('una persona armada deja de ser "sospechosa"; una categoría que ya puso otra regla no se pisa', () => {
+    const armed = triage('EMERGENCY_SOS', 'un tipo anda con una pistola amenazando a la gente', {
+      category: 'SOSPECHOSO',
+      subcategory: 'PERSONA_SOSPECHOSA',
+    });
+    expect(armed.category).toBe('VIOLENCIA_AGRESION');
+    expect(armed.subcategory).toBe('DISPAROS');
+    const vif = triage('EMERGENCY_SOS', 'mi pareja me está golpeando y tiene un cuchillo');
+    expect(vif.subcategory).toBe('VIOLENCIA_INTRAFAMILIAR');
+  });
+
   it('nunca baja la prioridad', () => {
     const t = triage('CIVIC_REPORT', 'hay un perro abandonado', { category: 'ANIMAL', priority: 'HIGH' });
     expect(t.priority).toBe('HIGH');

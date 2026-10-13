@@ -17,7 +17,8 @@ import {
  *
  * Corren DESPUÉS de la IA (y del clasificador sin red) y solo pueden subir la urgencia: suben la
  * prioridad, agregan instituciones y marcan señales; nunca bajan nada. La categoría solo la ponen
- * si la IA dejó la genérica ("sin clasificar"), y la subcategoría solo si la IA no puso ninguna.
+ * si la IA dejó la genérica ("sin clasificar") o una que la regla declara en `replaces` (alguien
+ * armado no es solo "sospechoso"), y la subcategoría solo si la IA no puso ninguna.
  *
  * Los patrones se aplican al texto normalizado (minúsculas, sin tildes, ñ → n). Una coincidencia
  * precedida de una negación cercana ("no hay heridos", "sin fuego") no cuenta.
@@ -36,6 +37,8 @@ export interface TriageRule {
   lead?: boolean;
   /** Clasificación por tipo, solo si la IA dejó la genérica o la misma categoría sin subcategoría. */
   set?: Partial<Record<AlertType, { category: AlertCategory; subcategory?: Subcategory }>>;
+  /** Categorías de la IA que esta regla también puede reemplazar (además de la genérica). */
+  replaces?: readonly AlertCategory[];
   flags?: readonly (keyof AiFlags)[];
 }
 
@@ -84,7 +87,8 @@ export const TRIAGE_RULES: readonly TriageRule[] = [
     id: 'SUICIDIO',
     label: 'Riesgo de suicidio',
     pattern:
-      /\b(?:suicid\w*|quitarse la vida|(?:se|me) quiere(?:s)? matar|(?:se|me) va(?:s)? a matar|se (?:quiere|va a) tirar|se corto las venas|ahorcarse)/,
+      // Primera persona o reflexivo: "me quiero matar", "se va a matar". "Me va a matar" es una amenaza de otro (VIF).
+      /\b(?:suicid\w*|quitarse la vida|(?:me quiero|me voy a|se quiere|se va a) (?:matar|tirar)|se corto las venas|ahorcarse)/,
     types: SOS,
     minPriority: 'HIGH',
     agencies: ['SAMU', 'CARABINEROS'],
@@ -123,6 +127,8 @@ export const TRIAGE_RULES: readonly TriageRule[] = [
     agencies: ['CARABINEROS'],
     lead: true,
     set: { EMERGENCY_SOS: { category: 'VIOLENCIA_AGRESION', subcategory: 'DISPAROS' } },
+    // Alguien armado ya no es solo "sospechoso".
+    replaces: ['SOSPECHOSO'],
     flags: ['weapon_mentioned'],
   },
   {
@@ -135,6 +141,7 @@ export const TRIAGE_RULES: readonly TriageRule[] = [
     agencies: ['CARABINEROS'],
     lead: true,
     set: { EMERGENCY_SOS: { category: 'VIOLENCIA_AGRESION', subcategory: 'AGRESION_CON_ARMA' } },
+    replaces: ['SOSPECHOSO'],
     flags: ['weapon_mentioned'],
   },
   {
@@ -302,6 +309,10 @@ export function matchTriageRules(type: AlertType, text: string): string[] {
   return TRIAGE_RULES.filter((r) => r.types.includes(type) && matches(r, t)).map((r) => r.id);
 }
 
+function setsCategory(id: string, type: AlertType): boolean {
+  return !!TRIAGE_RULES.find((r) => r.id === id)?.set?.[type];
+}
+
 export function triageRuleLabel(id: string): string | null {
   return TRIAGE_RULES.find((r) => r.id === id)?.label ?? null;
 }
@@ -337,7 +348,11 @@ export function applyTriageRules(type: AlertType, triage: Triage, text: string):
 
     const set = rule.set?.[type];
     if (set) {
-      if (isGenericCategory(out.category) && set.category !== out.category) {
+      // `replaces` solo corrige a la IA: si otra regla ya clasificó, gana la primera.
+      const replaceable =
+        isGenericCategory(out.category) ||
+        (!!rule.replaces?.includes(out.category) && !out.rules.some((id) => setsCategory(id, type)));
+      if (replaceable && set.category !== out.category) {
         out.category = set.category;
         out.subcategory = set.subcategory ?? null;
         changed = true;

@@ -88,7 +88,7 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     más antigua y sin ocultar ninguna; la importancia informa y regula el sonido, no filtra.
 12. **Agente de clasificación** (migración 0005, `TRIAGE_VERSION` en shared): modelo → `normalizeClassification`
     → `applyTriageRules`; las reglas fijas (`shared/src/triage-rules.ts`) solo suben prioridad, agregan
-    instituciones y marcan señales, y solo reemplazan la categoría genérica. La clasificación del operador
+    instituciones y marcan señales, y solo reemplazan la categoría genérica (o la que declaran en `replaces`). La clasificación del operador
     (`triage_label`) manda: el worker no la pisa al reanalizar. Cambiar el prompt o las reglas es cambiar de
     versión: correr `eval:triage` antes y después; el recall de riesgo vital no puede bajar del 100 %.
     `erase_citizen` borra `ai_triage` (repite lo que dijo el vecino).

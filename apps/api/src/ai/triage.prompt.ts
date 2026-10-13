@@ -24,8 +24,9 @@ Devuelve SOLO el JSON del schema.
 2. subcategory: una de la lista de SU categoría, o null si no se puede saber:
 ${subcategoryLines}
   Precisiones: VIOLENCIA_INTRAFAMILIAR solo si agresor y víctima son pareja, ex pareja o familia (una pelea
-  entre desconocidos es RINA; un abuso o tocación es VIOLENCIA_SEXUAL). ASALTO_EN_CURSO si ocurre ahora
-  (también un turbazo); ROBO_CONSUMADO si ya pasó. ATROPELLO si un vehículo golpea a un peatón o ciclista;
+  entre desconocidos es RINA; un abuso o tocación es VIOLENCIA_SEXUAL). Robo: ROBO_VIVIENDA si entran a una
+  casa (aunque sea ahora); ROBO_VEHICULO si es el auto o algo desde el auto; ASALTO_EN_CURSO si asaltan a
+  personas ahora (también un turbazo); ROBO_CONSUMADO si ya pasó y el ladrón se fue ("me acaban de robar"). ATROPELLO si un vehículo golpea a un peatón o ciclista;
   VOLCAMIENTO si un vehículo se volcó. Venta o consumo de drogas = SOSPECHOSO / DROGAS.
 
 3. priority:
