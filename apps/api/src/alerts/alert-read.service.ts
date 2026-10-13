@@ -12,6 +12,7 @@ import {
 } from '../common/mappers';
 import type { Tx } from '../db/db.service';
 import { alert, alertEvent, citizen, dispatch, media, operator, tenant, triageLabel, unit, type AlertRow } from '../db/schema';
+import { comunaName, geoContext } from '../geo/geo.queries';
 import { loadIncidentInfos } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 
@@ -144,6 +145,7 @@ export class AlertReadService {
     const incidentInfo = row.incidentId ? ((await loadIncidentInfos(tx, [row.incidentId])).get(row.incidentId) ?? null) : null;
     return toAlertDetail(row, {
       triageLabel: await this.triageLabel(tx, row.id),
+      geo: await geoContext(tx, row),
       hasAudio: live.some((m) => m.kind === 'AUDIO'),
       hasPhoto: live.some((m) => m.kind === 'PHOTO'),
       citizenTrustScore: c?.trust ?? null,
@@ -197,6 +199,6 @@ export class AlertReadService {
       .where(and(eq(dispatch.alertId, row.id), inArray(dispatch.status, ['ASSIGNED', 'EN_ROUTE', 'ON_SITE'])))
       .orderBy(desc(dispatch.createdAt))
       .limit(1);
-    return toCitizenAlert(row, tenantName, active ?? null);
+    return toCitizenAlert(row, tenantName, active ?? null, await comunaName(tx, row.comunaCut));
   }
 }

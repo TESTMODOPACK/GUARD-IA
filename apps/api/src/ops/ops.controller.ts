@@ -7,6 +7,7 @@ import {
   ReclassifyAlertSchema,
   ReferAlertSchema,
   RejectAlertSchema,
+  TransferAlertSchema,
   ResolveAlertSchema,
   UpdateDispatchSchema,
   UpdateUnitSchema,
@@ -18,12 +19,14 @@ import {
   type ReclassifyAlert,
   type ReferAlert,
   type RejectAlert,
+  type TransferAlert,
   type ResolveAlert,
   type UpdateDispatch,
   type UpdateUnit,
 } from '@guardia/shared';
 import { Auth, CurrentAuth, Roles, type OperatorClaims } from '../auth/auth.guard';
 import { zod } from '../common/zod-validation.pipe';
+import { TransferService } from '../geo/transfer.service';
 import { OpsService } from './ops.service';
 import { UnitsService } from './units.service';
 
@@ -33,6 +36,7 @@ export class OpsController {
   constructor(
     private readonly ops: OpsService,
     private readonly units: UnitsService,
+    private readonly transfers: TransferService,
   ) {}
 
   @Get('alerts')
@@ -111,6 +115,23 @@ export class OpsController {
     @Body(zod(ReferAlertSchema)) body: ReferAlert,
   ) {
     return this.ops.refer(op, id, body);
+  }
+
+  /** Traspaso manual al municipio donde ocurre el hecho (el agente lo hace solo cuando está claro). */
+  @Post('alerts/:id/transfer')
+  @HttpCode(200)
+  transfer(
+    @CurrentAuth() op: OperatorClaims,
+    @Param('id', zod(UuidSchema)) id: string,
+    @Body(zod(TransferAlertSchema)) body: TransferAlert,
+  ) {
+    return this.transfers.transferByOperator(op, id, body);
+  }
+
+  /** Municipios de Guard-IA a los que se puede traspasar. */
+  @Get('tenants')
+  tenants(@CurrentAuth() op: OperatorClaims) {
+    return this.transfers.tenantOptions(op);
   }
 
   @Post('alerts/:id/notes')

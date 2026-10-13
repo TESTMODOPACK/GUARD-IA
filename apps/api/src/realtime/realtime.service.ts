@@ -4,6 +4,7 @@ import {
   wsRooms,
   type AlertDetail,
   type AlertSummary,
+  type AlertTransferred,
   type CitizenAlert,
   type Dispatch,
   type Unit,
@@ -48,6 +49,11 @@ export class RealtimeService {
 
   unitUpdated(tenantId: string, u: Unit) {
     this.ops?.to(wsRooms.tenant(tenantId)).emit('unit.updated', u);
+  }
+
+  /** La alerta pasó a otro municipio: la central de origen la saca de su cola. */
+  alertTransferred(fromTenantId: string, payload: AlertTransferred) {
+    this.ops?.to(wsRooms.tenant(fromTenantId)).emit('alert.transferred', payload);
   }
 
   citizenAlertStatus(citizenId: string, payload: CitizenAlert) {

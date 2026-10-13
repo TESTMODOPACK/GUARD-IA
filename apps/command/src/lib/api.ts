@@ -27,6 +27,7 @@ import type {
   RejectReason,
   SignedUrl,
   SuggestedAgency,
+  TenantOption,
   TokenPair,
   Unit,
   UnitStatus,
@@ -170,6 +171,9 @@ export const api = {
   reanalyze: (id: string) => request<AlertDetail>(`/ops/alerts/${id}/reanalyze`, { method: 'POST' }),
   reclassify: (id: string, category: AlertCategory, subcategory: string | null) =>
     request<AlertDetail>(`/ops/alerts/${id}/classification`, { method: 'POST', body: json({ category, subcategory }) }),
+  transfer: (id: string, tenantId: string, reason: string) =>
+    request<{ toTenantName: string }>(`/ops/alerts/${id}/transfer`, { method: 'POST', body: json({ tenantId, reason }) }),
+  tenants: () => request<TenantOption[]>('/ops/tenants'),
   refer: (id: string, agencies: SuggestedAgency[], notes?: string) =>
     request<AlertDetail>(`/ops/alerts/${id}/referral`, { method: 'POST', body: json({ agencies, notes }) }),
   note: (id: string, text: string) => request<AlertEvent>(`/ops/alerts/${id}/notes`, { method: 'POST', body: json({ text }) }),

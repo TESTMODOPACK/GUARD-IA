@@ -97,6 +97,14 @@ y señales; después corren reglas fijas de shared (`triage-rules.ts`) que solo 
 `triage_label` con lo que proponía la IA (`AlertDetail.triageLabel`) y eventos `RECLASSIFIED` / `REFERRED`.
 Medición: `pnpm --filter @guardia/api eval:triage` sobre `apps/api/scripts/triage-cases.json`.
 
+Redirección entre municipios (migración 0006, 13-10-2026): tabla nacional `comuna` (PK = CUT entero) y
+`alert.comuna_cut` (la fija el trigger). `AlertDetail.geo` trae la comuna del GPS, la comuna que nombra el
+vecino con el municipio que la atiende y los municipios dentro del margen del GPS; `CitizenAlert.comunaName`.
+El agente traspasa solo (condiciones en `AUTO_TRANSFER`, shared) y la central puede hacerlo a mano:
+`GET /ops/tenants`, `POST /ops/alerts/:id/transfer` `{tenantId, reason}` (solo abiertas sin despacho). WS:
+`alert.transferred` a la central de origen; la de destino recibe `alert.created`. Evento `TRANSFERRED` y
+bitácora `ALERT_TRANSFERRED` en el municipio de origen.
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.

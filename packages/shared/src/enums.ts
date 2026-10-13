@@ -101,6 +101,8 @@ export const AUDIT_KINDS = [
   'CONTACT_CREATED',
   'CONTACT_UPDATED',
   'CONTACT_REMOVED',
+  /** Migración 0006: una alerta pasó a otro municipio (automático por el agente o manual). */
+  'ALERT_TRANSFERRED',
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
@@ -135,6 +137,8 @@ export const ALERT_EVENT_KINDS = [
   'RECLASSIFIED',
   /** Migración 0005: el operador registró a qué instituciones derivó el caso. */
   'REFERRED',
+  /** Migración 0006: la alerta pasó a otro municipio. */
+  'TRANSFERRED',
 ] as const;
 export type AlertEventKind = (typeof ALERT_EVENT_KINDS)[number];
 

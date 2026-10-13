@@ -18,8 +18,19 @@ export interface OpsServerEvents {
   'alert.updated': (alert: AlertDetail) => void;
   'dispatch.updated': (dispatch: Dispatch) => void;
   'unit.updated': (unit: Unit) => void;
+  /** La alerta pasó a otro municipio: la central de origen la saca de su cola (migración 0006). */
+  'alert.transferred': (payload: AlertTransferred) => void;
   /** Respuesta al `since` del handshake: alertas tocadas desde esa fecha. */
   sync: (payload: { since: string; alerts: AlertSummary[] }) => void;
+}
+
+export interface AlertTransferred {
+  alertId: string;
+  toTenantId: string;
+  toTenantName: string;
+  /** true: lo decidió el agente; false: un operador. */
+  auto: boolean;
+  reason: string;
 }
 
 /** Eventos servidor → vecino (namespace /citizen, room citizen:{id}). */

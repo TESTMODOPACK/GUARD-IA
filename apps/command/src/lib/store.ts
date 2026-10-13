@@ -50,6 +50,8 @@ interface State {
   upsertAlert: (a: AnyAlert, opts?: { fresh?: boolean }) => void;
   upsertMany: (list: AnyAlert[], freshIds?: string[]) => void;
   applyDispatch: (d: Dispatch) => void;
+  /** La alerta pasó a otro municipio: sale de la cola (la central ya no la puede leer). */
+  removeAlert: (id: string) => void;
   setUnits: (list: Unit[]) => void;
   upsertUnit: (u: Unit) => void;
   select: (id: string | null) => void;
@@ -151,6 +153,16 @@ export const useStore = create<State>((set, get) => ({
       if (!a || !isDetail(a)) return {};
       const others = a.dispatches.filter((x) => x.id !== d.id);
       return { alerts: { ...s.alerts, [a.id]: { ...a, dispatches: [d, ...others] } } };
+    }),
+
+  removeAlert: (id) =>
+    set((s) => {
+      if (!s.alerts[id]) return {};
+      const alerts = { ...s.alerts };
+      delete alerts[id];
+      const fresh = { ...s.fresh };
+      delete fresh[id];
+      return { alerts, fresh, selectedId: s.selectedId === id ? null : s.selectedId };
     }),
 
   setUnits: (list) => set({ units: Object.fromEntries(list.map((u) => [u.id, u])) }),

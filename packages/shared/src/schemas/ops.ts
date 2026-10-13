@@ -71,6 +71,17 @@ export const ReferAlertSchema = z.object({
 });
 export type ReferAlert = z.infer<typeof ReferAlertSchema>;
 
+/** Traspaso manual a otro municipio de Guard-IA (migración 0006). */
+export const TransferAlertSchema = z.object({
+  tenantId: UuidSchema,
+  reason: z.string().trim().min(3).max(300),
+});
+export type TransferAlert = z.infer<typeof TransferAlertSchema>;
+
+/** Municipios a los que se puede traspasar (GET /ops/tenants). */
+export const TenantOptionSchema = z.object({ id: UuidSchema, name: z.string() });
+export type TenantOption = z.infer<typeof TenantOptionSchema>;
+
 export const AddNoteSchema = z.object({
   text: z.string().trim().min(1).max(2000),
 });

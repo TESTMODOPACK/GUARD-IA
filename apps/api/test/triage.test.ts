@@ -17,6 +17,7 @@ import { loadEnvFiles } from '../src/cli/load-env';
 import { validateEnv } from '../src/config/env';
 import { DbService } from '../src/db/db.service';
 import { EventsService } from '../src/events/events.service';
+import type { TransferService } from '../src/geo/transfer.service';
 import type { MetricsService } from '../src/infra/metrics.service';
 import { IncidentsService } from '../src/incidents/incidents.service';
 import type { MediaService } from '../src/media/media.service';
@@ -70,7 +71,8 @@ d('agente de clasificación', () => {
     const metrics = { aiProcessing: { observe: () => undefined } } as unknown as MetricsService;
     const events = new EventsService();
     ops = new OpsService(dbs, reads, events, realtime, notifications, incidents, alertsSvc);
-    worker = new AiProcessor(env, new MockAiProvider(), dbs, {} as MediaService, events, reads, realtime, metrics, incidents);
+    const transfers = { maybeAutoTransfer: async () => false } as unknown as TransferService;
+    worker = new AiProcessor(env, new MockAiProvider(), dbs, {} as MediaService, events, reads, realtime, metrics, incidents, transfers);
 
     for (const [i, x] of [60, 62].entries()) {
       const [t] = await admin<{ id: string }[]>`
@@ -174,6 +176,22 @@ d('agente de clasificación', () => {
       tx.execute<{ n: number }>(sql`select count(*)::int as n from triage_label`),
     );
     expect([...rows][0].n).toBe(0);
+  });
+
+  it('si la IA falla del todo, igual se clasifica con las reglas fijas (no queda "sin clasificar")', async () => {
+    const id = await sos('hay un incendio grande en la esquina, sale mucho humo');
+    const job = { data: { alertId: id }, attemptsMade: 3, opts: { attempts: 3 }, id: `f-${id}` } as unknown as Job<ProcessAlertJob>;
+    await worker.onFailed(job, new Error('429 cuota agotada'));
+    const r = await row(id);
+    expect(r).toMatchObject({ category: 'INCENDIO', priority: 'HIGH', suggested_agency: 'BOMBEROS' });
+    const [a] = await admin<{ ai_status: string; ai_error: string }[]>`SELECT ai_status, ai_error FROM alert WHERE id = ${id}`;
+    expect(a.ai_status).toBe('FAILED');
+    expect(a.ai_error).toContain('reglas fijas');
+
+    // Sin texto (SOS por botón) queda la falla segura de siempre.
+    const button = await sos(null);
+    await worker.onFailed({ ...job, data: { alertId: button } } as unknown as Job<ProcessAlertJob>, new Error('caída'));
+    expect(await row(button)).toMatchObject({ category: 'OTRO_EMERGENCIA', priority: 'HIGH', ai_triage: null });
   });
 
   it('la supresión del vecino borra el triage y conserva la etiqueta', async () => {

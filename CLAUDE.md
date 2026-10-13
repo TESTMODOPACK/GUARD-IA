@@ -29,6 +29,7 @@ pnpm simulate --text "..."          # flujo e2e sin app móvil; compuerta Fase 1
 pnpm simulate --external-dispatch   # crea un SOS y espera que la central despache
 pnpm --filter @guardia/shared test && pnpm --filter @guardia/api test:db   # tests (RLS contra base real)
 pnpm --filter @guardia/api eval:triage [--provider mock|openai] [--gate]   # agente de clasificación: 65 casos
+pnpm --filter @guardia/api load-comunas --geojson comunas.geojson [--srid 32719]   # 346 comunas (datos públicos)
 cd apps/command && node scripts/ui-gate.mjs   # compuerta Fase 2 en Chromium headless (central corriendo en standalone)
 ```
 
@@ -40,7 +41,7 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   central y app: cualquier cambio de API empieza aquí.
 - `apps/api/src`: `auth/` (OTP, JWT, refresh rotativo), `alerts/` (camino crítico del SOS), `ops/`
   (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock, `triage.prompt.ts`), `realtime/` (Socket.io
-  `/ops` y `/citizen`), `media/` (S3 o disco local), `notifications/` (push Expo), `db/` (Drizzle +
+  `/ops` y `/citizen`), `media/` (S3 o disco local), `geo/` (comunas, traspaso entre municipios), `notifications/` (push Expo), `db/` (Drizzle +
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA), `cli/`
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
@@ -62,7 +63,8 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
 3. **RLS es la frontera.** La API conecta como `guardia_app` sin BYPASSRLS. `tenant_id`, `citizen_id`,
    `lat/lng`, `type` de una alerta y `phone` de un vecino no son actualizables ni en contexto system
    (privilegios por columna en la migración). El ciudadano nunca elige municipio: lo decide el trigger
-   `alert_route_tenant` por geocerca.
+   `alert_route_tenant` por geocerca. La única vía para cambiar el municipio de una alerta es la función
+   `transfer_alert()` (migración 0006, SECURITY DEFINER, auditada): la usan el agente y la central.
 4. **Efectos secundarios antes del `throw`.** Un `throw` dentro de una transacción la revierte. La
    revocación de refresh tokens y el contador de intentos OTP se confirman en su propia transacción
    antes de responder 401. Repite el patrón si agregas lógica parecida.
@@ -91,8 +93,14 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     instituciones y marcan señales, y solo reemplazan la categoría genérica (o la que declaran en `replaces`). La clasificación del operador
     (`triage_label`) manda: el worker no la pisa al reanalizar. Cambiar el prompt o las reglas es cambiar de
     versión: correr `eval:triage` antes y después; el recall de riesgo vital no puede bajar del 100 %.
-    `erase_citizen` borra `ai_triage` (repite lo que dijo el vecino).
-13. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
+    `erase_citizen` borra `ai_triage` (repite lo que dijo el vecino). Si la IA falla del todo, el worker
+    clasifica con el clasificador sin red + reglas (queda `FAILED`, no "sin clasificar").
+13. **Redirección entre municipios** (migración 0006, `geo/`, `AUTO_TRANSFER` en shared): el agente traspasa
+    solo si el vecino nombra una comuna atendida por otro municipio de Guard-IA, el hecho ocurre lejos de él
+    o está a menos de 3 km de esa comuna, la alerta sigue nueva y la central de destino tiene operadores
+    conectados; si no, la central ve la sugerencia y traspasa a mano. Solo alertas abiertas sin despacho.
+    Tras el traspaso: `alert.transferred` a origen, `alert.created` a destino, aviso al vecino.
+14. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
@@ -140,10 +148,12 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 ## Pendiente conocido
 
 - Base de datos: informe en `docs/revision-base-de-datos.md` (dos PK de texto, RLS que no usa índices por
-  municipio, privilegios); correcciones planificadas como `0006_hardening.sql` y `0007_scale.sql`, sin aplicar.
-- Georreferencia: el municipio sale del punto GPS (trigger `alert_route_tenant`). El agente ya extrae lugar y
-  comuna mencionados (`triage.location`), pero falta redirigir a otra municipalidad (hoy `tenant_id` es
-  inmutable, regla 3) y advertir alertas cerca del límite comunal.
+  municipio, privilegios); correcciones planificadas como `0007_hardening.sql` y `0008_scale.sql`, sin aplicar
+  (A3 ya resuelto en 0006). Si `0007` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
+- Comunas: la tabla `comuna` está vacía hasta correr `load-comunas` con el GeoJSON oficial (BCN o IDE Chile).
+  Sin ella, la comuna mencionada se reconoce por el nombre del municipio y la app no sabe decir la comuna.
+- Groq gratis: la cuota diaria de tokens se agota con unas 100 clasificaciones de prueba; para el piloto
+  hace falta el plan pagado o un proveedor con más cuota (si se agota, rige el respaldo por reglas).
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
   ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
   Guard-IA") y se retoma después del piloto.

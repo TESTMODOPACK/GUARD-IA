@@ -66,6 +66,8 @@ export const tenant = pgTable('tenant', {
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   active: boolean('active').notNull().default(true),
   createdAt: ts('created_at').notNull().defaultNow(),
+  // 0006_geo_routing.sql
+  comunaCut: integer('comuna_cut'),
 });
 
 export const citizen = pgTable('citizen', {
@@ -155,6 +157,8 @@ export const alert = pgTable('alert', {
   // 0005_triage.sql
   subcategory: text('subcategory'),
   aiTriage: jsonb('ai_triage').$type<Triage>(),
+  // 0006_geo_routing.sql (la fija el trigger de ruteo; la app no la cambia)
+  comunaCut: integer('comuna_cut'),
 });
 
 export const media = pgTable('media', {
@@ -332,8 +336,21 @@ export const triageLabel = pgTable('triage_label', {
 });
 export type TriageLabelRow = typeof triageLabel.$inferSelect;
 
+// ------------------------------------------------------------- 0006_geo_routing.sql
+
+/** Comunas de Chile (referencia nacional, solo lectura). `boundary` se consulta con SQL crudo. */
+export const comuna = pgTable('comuna', {
+  cut: integer('cut').primaryKey(),
+  name: text('name').notNull(),
+  nameKey: text('name_key').notNull(),
+  regionCut: integer('region_cut').notNull(),
+  regionName: text('region_name').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
 export const schema = {
   tenant,
+  comuna,
   incident,
   triageLabel,
   auditLog,

@@ -67,6 +67,28 @@ export const TriageLabelSchema = z.object({
 });
 export type TriageLabel = z.infer<typeof TriageLabelSchema>;
 
+/**
+ * Dónde cae la alerta y dónde dice el vecino que ocurre (migración 0006). La central lo usa para
+ * ver si corresponde a otro municipio y traspasarla.
+ */
+export const GeoContextSchema = z.object({
+  /** Comuna del punto GPS (null si no hay comunas cargadas). */
+  comuna: z.object({ cut: z.number().int(), name: z.string() }).nullable(),
+  /** Comuna que nombra el vecino, si no es la del GPS; con el municipio de Guard-IA que la atiende. */
+  mentioned: z
+    .object({
+      name: z.string(),
+      cut: z.number().int().nullable(),
+      tenantId: UuidSchema.nullable(),
+      tenantName: z.string().nullable(),
+      distanceM: z.number().int().nullable(),
+    })
+    .nullable(),
+  /** Otros municipios de Guard-IA dentro del margen de error del GPS. */
+  nearby: z.array(z.object({ tenantId: UuidSchema, tenantName: z.string(), distanceM: z.number().int() })),
+});
+export type GeoContext = z.infer<typeof GeoContextSchema>;
+
 export const MediaPublicSchema = z.object({
   id: UuidSchema,
   kind: z.enum(MEDIA_KINDS),
@@ -143,6 +165,7 @@ export const AlertDetailSchema = AlertSummarySchema.extend({
   /** Agente de clasificación: instituciones con motivo, preguntas y reglas aplicadas. */
   triage: TriageSchema.nullable(),
   triageLabel: TriageLabelSchema.nullable(),
+  geo: GeoContextSchema,
   acknowledgedBy: UuidSchema.nullable(),
   resolvedAt: z.iso.datetime().nullable(),
   citizenPhone: z.string().nullable(),
@@ -161,6 +184,8 @@ export const CitizenAlertSchema = z.object({
   category: z.enum(ALERT_CATEGORIES).nullable(),
   status: z.enum(ALERT_STATUSES),
   tenantName: z.string().nullable(),
+  /** Comuna donde está el vecino (sirve aunque su municipio no use Guard-IA). */
+  comunaName: z.string().nullable(),
   activeDispatch: z
     .object({
       unitCode: z.string(),

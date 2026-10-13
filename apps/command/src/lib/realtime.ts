@@ -1,7 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import type { AlertDetail, AlertSummary, Dispatch, ImportanceLevel, Unit } from '@guardia/shared';
+import type { AlertDetail, AlertSummary, AlertTransferred, Dispatch, ImportanceLevel, Unit } from '@guardia/shared';
 import { WS_NAMESPACES } from '@guardia/shared';
 import { api, fetchAllAlerts, getAccessToken, refreshAccessToken } from './api';
 import { API_URL } from './config';
@@ -154,6 +154,11 @@ export function connectRealtime(): void {
     s.touchEvent(d.updatedAt);
   });
   socket.on('unit.updated', (u: Unit) => useStore.getState().upsertUnit(u));
+  socket.on('alert.transferred', (p: AlertTransferred) => {
+    const s = useStore.getState();
+    s.removeAlert(p.alertId);
+    s.notify('ok', `Alerta traspasada a ${p.toTenantName}${p.auto ? ' por el agente' : ''}: ${p.reason}`);
+  });
   socket.on('sync', (p: { since: string; alerts: AlertSummary[] }) => ingest(p.alerts, true));
 }
 

@@ -68,6 +68,10 @@ export function titleFor(a: CitizenAlert): string {
 }
 
 export function textFor(a: CitizenAlert): string {
+  // Fuera de cobertura: si se sabe la comuna, decirla (el vecino entiende por qué y a quién llamar).
+  if (a.status === 'UNROUTED' && a.comunaName) {
+    return `Estás en ${a.comunaName}, que todavía no usa Guard-IA: ninguna central puede atenderte. Llama ahora.`;
+  }
   return (a.type === 'CIVIC_REPORT' && CIVIC_TEXT[a.status]) || STATUS_TEXT[a.status];
 }
 

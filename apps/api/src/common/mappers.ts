@@ -4,6 +4,7 @@ import type {
   AlertSummary,
   CitizenAlert,
   Dispatch,
+  GeoContext,
   IncidentInfo,
   MediaPublic,
   Triage,
@@ -68,6 +69,7 @@ export interface AlertDetailExtras extends AlertRowExtras {
   dispatches: Dispatch[];
   events: AlertEvent[];
   triageLabel: TriageLabel | null;
+  geo: GeoContext;
 }
 
 export function toAlertDetail(row: AlertRow, x: AlertDetailExtras): AlertDetail {
@@ -81,6 +83,7 @@ export function toAlertDetail(row: AlertRow, x: AlertDetailExtras): AlertDetail 
     aiError: row.aiError,
     triage: triageOrNull(row.aiTriage),
     triageLabel: x.triageLabel,
+    geo: x.geo,
     acknowledgedBy: row.acknowledgedBy,
     resolvedAt: isoOrNull(row.resolvedAt),
     citizenPhone: x.citizenPhone,
@@ -150,6 +153,7 @@ export function toCitizenAlert(
   row: AlertRow,
   tenantName: string | null,
   active: { unitCode: string; status: DispatchRow['status']; updatedAt: Date } | null,
+  comunaName: string | null = null,
 ): CitizenAlert {
   return {
     id: row.id,
@@ -158,6 +162,7 @@ export function toCitizenAlert(
     category: row.category,
     status: row.status,
     tenantName,
+    comunaName,
     activeDispatch: active
       ? { unitCode: active.unitCode, status: active.status, updatedAt: iso(active.updatedAt) }
       : null,

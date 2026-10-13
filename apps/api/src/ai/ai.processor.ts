@@ -8,12 +8,17 @@ import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
 import { alert, citizen, media, tenant, triageLabel } from '../db/schema';
 import { EventsService } from '../events/events.service';
+import { TransferService } from '../geo/transfer.service';
 import { IncidentsService } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 import { MetricsService } from '../infra/metrics.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AI_PROVIDER, type AiProvider } from './ai.provider';
 import { ALERTS_QUEUE, type ProcessAlertJob } from './ai.queue';
+import { MockAiProvider } from './mock.provider';
+
+/** Clasificador sin red para cuando la IA no responde (más las reglas fijas de shared). */
+const FALLBACK = new MockAiProvider();
 
 /**
  * Worker del pipeline IA (sección 8). Corre en el mismo proceso que la API en el MVP;
@@ -33,6 +38,7 @@ export class AiProcessor extends WorkerHost {
     private readonly realtime: RealtimeService,
     private readonly metrics: MetricsService,
     private readonly incidents: IncidentsService,
+    private readonly transfers: TransferService,
   ) {
     super();
   }
@@ -192,7 +198,13 @@ export class AiProcessor extends WorkerHost {
     });
     if (keptByOperator) this.logger.debug(`alerta ${alertId}: se mantiene la clasificación del operador`);
     this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'done' }, (Date.now() - started) / 1000);
-    await this.emitUpdated(alertId, row.tenantId);
+    // Redirección por georreferencia: si el hecho ocurre en otra comuna de Guard-IA, el agente la
+    // traspasa (con las condiciones de AUTO_TRANSFER) y el traspaso emite a ambas centrales.
+    const moved = await this.transfers.maybeAutoTransfer(alertId, triage).catch((e: Error) => {
+      this.logger.warn(`alerta ${alertId}: traspaso automático falló: ${e.message}`);
+      return false;
+    });
+    if (!moved) await this.emitUpdated(alertId, row.tenantId);
   }
 
   /** Último intento fallido: falla segura. Un SOS sin clasificar es HIGH y se muestra igual. */
@@ -210,15 +222,36 @@ export class AiProcessor extends WorkerHost {
     const tenantId = await this.dbs.asSystem(async (tx) => {
       const [row] = await tx.select().from(alert).where(eq(alert.id, alertId)).limit(1);
       if (!row) return null;
+      // Sin IA (caída, sin cuota) igual se clasifica lo que se pueda: el clasificador sin red y las
+      // reglas fijas no necesitan red. La alerta queda FAILED (la central sabe que no hubo IA) pero
+      // no "sin clasificar" si el vecino escribió o alcanzó a transcribirse algo.
+      const text = [row.transcription, row.userText].filter((t) => t?.trim()).join('. ');
+      const fallback = text
+        ? buildTriage(
+            row.type,
+            await FALLBACK.classify({ type: row.type, transcription: row.transcription, userText: row.userText, chosenCategory: row.category, localTime: '' }),
+            text,
+            { provider: FALLBACK.name, model: null },
+          )
+        : null;
+      const [label] = await tx.select({ category: triageLabel.category }).from(triageLabel).where(eq(triageLabel.alertId, alertId)).limit(1);
+      const keepCategory = !!label?.category;
       await tx
         .update(alert)
         .set({
           aiStatus: 'FAILED',
           // Mensaje genérico para la central; el detalle (rutas, códigos) queda en el log.
-          aiError: `Clasificación automática no disponible tras ${attempts} intentos`,
-          priority: row.priority ?? (row.type === 'EMERGENCY_SOS' ? 'HIGH' : 'MEDIUM'),
-          category: row.category ?? (row.type === 'EMERGENCY_SOS' ? 'OTRO_EMERGENCIA' : 'OTRO_URBANO'),
-          suggestedAgency: row.suggestedAgency ?? (row.type === 'EMERGENCY_SOS' ? 'SEGURIDAD_MUNICIPAL' : 'OBRAS_ASEO'),
+          aiError: `Clasificación automática no disponible tras ${attempts} intentos${fallback ? '; se clasificó con las reglas fijas' : ''}`,
+          priority: fallback?.priority ?? row.priority ?? (row.type === 'EMERGENCY_SOS' ? 'HIGH' : 'MEDIUM'),
+          ...(keepCategory
+            ? {}
+            : {
+                category: fallback?.category ?? row.category ?? (row.type === 'EMERGENCY_SOS' ? 'OTRO_EMERGENCIA' : 'OTRO_URBANO'),
+                subcategory: fallback?.subcategory ?? row.subcategory,
+              }),
+          suggestedAgency:
+            fallback?.agencies[0].agency ?? row.suggestedAgency ?? (row.type === 'EMERGENCY_SOS' ? 'SEGURIDAD_MUNICIPAL' : 'OBRAS_ASEO'),
+          ...(fallback ? { aiTriage: fallback, aiFlags: fallback.flags } : {}),
         })
         .where(eq(alert.id, alertId));
       await this.events.record(tx, {
@@ -226,7 +259,12 @@ export class AiProcessor extends WorkerHost {
         tenantId: row.tenantId,
         actorType: 'AI',
         kind: 'AI_FAILED',
-        payload: { provider: this.ai.name, errorClass: error.name, attempts },
+        payload: {
+          provider: this.ai.name,
+          errorClass: error.name,
+          attempts,
+          ...(fallback ? { fallback: 'reglas', category: fallback.category, priority: fallback.priority, rules: fallback.rules } : {}),
+        },
       });
       return row.tenantId;
     });

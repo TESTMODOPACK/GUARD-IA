@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin } from 'lucide-react';
 import {
   DEFAULT_QUESTIONS,
@@ -12,6 +12,7 @@ import {
   type AlertDetail,
   type AlertSummary,
   type SuggestedAgency,
+  type TenantOption,
 } from '@guardia/shared';
 import { api } from '@/lib/api';
 import { AGENCY, agencyList, CATEGORY, classificationLabel, formatTime, subcategoryLabel } from '@/lib/labels';
@@ -26,7 +27,9 @@ import { Button, Dialog, Field, inputClass, Tag, textareaClass } from './ui';
 export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: AlertDetail | null }) {
   const upsertAlert = useStore((s) => s.upsertAlert);
   const notify = useStore((s) => s.notify);
+  const removeAlert = useStore((s) => s.removeAlert);
   const [dialog, setDialog] = useState<'refer' | 'reclassify' | null>(null);
+  const [transfer, setTransfer] = useState<{ tenantId: string | null; reason: string } | null>(null);
 
   const triage = detail?.triage ?? null;
   const label = detail?.triageLabel ?? null;
@@ -39,6 +42,10 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
       : [];
   const rules = (triage?.rules ?? []).map((id) => triageRuleLabel(id)).filter((x): x is string => !!x);
   const place = triage?.location;
+  const geo = detail?.geo ?? null;
+  const mentioned = geo?.mentioned ?? null;
+  // Solo lo que nadie ha despachado todavía (lo mismo que exige transfer_alert en la base).
+  const canTransfer = !!detail && ['PENDING', 'ACKNOWLEDGED'].includes(alert.status) && detail.dispatches.length === 0;
 
   const save = async (fn: () => Promise<AlertDetail>, ok: string) => {
     const d = await fn();
@@ -86,20 +93,52 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
         </p>
       ) : null}
 
-      {place && (place.mentioned || place.comuna || place.elsewhere) ? (
-        <div className="mt-3 rounded-ctl bg-bg/60 border border-line px-2.5 py-2 text-sm" data-testid="triage-place">
-          <p className="flex items-start gap-1.5">
-            <MapPin size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
-            <span>
-              {place.mentioned ? <>Lugar mencionado: {place.mentioned}</> : 'El vecino no da una dirección'}
-              {place.comuna ? <> · comuna {place.comuna}</> : null}
+      <div className="mt-3 rounded-ctl bg-bg/60 border border-line px-2.5 py-2 text-sm space-y-1" data-testid="triage-place">
+        <p className="flex items-start gap-1.5">
+          <MapPin size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+          <span>
+            {place?.mentioned ? <>Lugar mencionado: {place.mentioned}</> : 'El vecino no da una dirección'}
+            {geo?.comuna ? <span className="text-ink-muted"> · GPS en {geo.comuna.name}</span> : null}
+          </span>
+        </p>
+        {place?.elsewhere ? (
+          <p className="text-xs text-medium">El hecho ocurre en otro lugar: el punto del mapa es dónde está el vecino.</p>
+        ) : null}
+        {mentioned ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-medium">
+              Ocurre en {mentioned.name}
+              {mentioned.tenantName ? ` · la atiende ${mentioned.tenantName}` : ', comuna que no usa Guard-IA: derivar por teléfono'}
             </span>
-          </p>
-          {place.elsewhere ? (
-            <p className="mt-1 text-xs text-medium">El hecho ocurre en otro lugar: el punto del mapa es dónde está el vecino.</p>
-          ) : null}
-        </div>
-      ) : null}
+            {canTransfer && mentioned.tenantId ? (
+              <Button
+                variant="quiet"
+                className="h-7 px-2 text-xs"
+                onClick={() => setTransfer({ tenantId: mentioned.tenantId, reason: `El vecino indica que ocurre en ${mentioned.name}` })}
+                data-testid="action-transfer-mentioned"
+              >
+                Traspasar a {mentioned.tenantName}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {(geo?.nearby ?? []).map((n) => (
+          <div key={n.tenantId} className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-ink-muted">
+              {n.distanceM === 0 ? 'Dentro del margen del GPS' : `A ${n.distanceM} m`} del límite con {n.tenantName}
+            </span>
+            {canTransfer && n.tenantId !== mentioned?.tenantId ? (
+              <Button
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setTransfer({ tenantId: n.tenantId, reason: `El vecino está en el límite con ${n.tenantName}` })}
+              >
+                Traspasar
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
 
       <div className="mt-3">
         <h4 className="text-xs text-ink-muted mb-1">Preguntas para el vecino</h4>
@@ -117,7 +156,24 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
         <Button variant="ghost" className="h-8 text-xs" onClick={() => setDialog('reclassify')} data-testid="action-reclassify">
           Corregir clasificación
         </Button>
+        {canTransfer ? (
+          <Button variant="ghost" className="h-8 text-xs" onClick={() => setTransfer({ tenantId: null, reason: '' })} data-testid="action-transfer">
+            Traspasar a otro municipio…
+          </Button>
+        ) : null}
       </div>
+
+      {transfer ? (
+        <TransferDialog
+          initial={transfer}
+          onClose={() => setTransfer(null)}
+          onConfirm={async (tenantId, reason) => {
+            const r = await api.transfer(alert.id, tenantId, reason);
+            removeAlert(alert.id);
+            notify('ok', `Alerta traspasada a ${r.toTenantName}`);
+          }}
+        />
+      ) : null}
 
       {dialog === 'refer' ? (
         <ReferDialog
@@ -136,6 +192,98 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
         />
       ) : null}
     </section>
+  );
+}
+
+function TransferDialog({
+  initial,
+  onConfirm,
+  onClose,
+}: {
+  initial: { tenantId: string | null; reason: string };
+  onConfirm: (tenantId: string, reason: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [options, setOptions] = useState<TenantOption[] | null>(null);
+  const [tenantId, setTenantId] = useState(initial.tenantId ?? '');
+  const [reason, setReason] = useState(initial.reason);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .tenants()
+      .then((l) => {
+        if (!live) return;
+        setOptions(l);
+        setTenantId((t) => t || l[0]?.id || '');
+      })
+      .catch((e: Error) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm(tenantId, reason.trim());
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog title="Traspasar a otro municipio" onClose={onClose} busy={busy}>
+      <div className="space-y-4">
+        <Field label="Municipio donde ocurre el hecho">
+          <select className={inputClass} value={tenantId} onChange={(e) => setTenantId(e.target.value)} data-testid="transfer-tenant">
+            {(options ?? []).map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Motivo (lo verá la otra central)">
+          <textarea
+            className={textareaClass}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Ej.: el vecino confirma que el incendio es en Bajos de Mena"
+          />
+        </Field>
+        <p className="text-xs text-ink-muted">
+          La alerta sale de esta central y llega como nueva a la otra; el vecino recibe aviso. Queda en la bitácora.
+        </p>
+        {error ? (
+          <p role="alert" className="text-sm text-high">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          variant="primary"
+          onClick={submit}
+          busy={busy}
+          disabled={!tenantId || reason.trim().length < 3}
+          data-testid="transfer-confirm"
+        >
+          Traspasar
+        </Button>
+      </div>
+    </Dialog>
   );
 }
 

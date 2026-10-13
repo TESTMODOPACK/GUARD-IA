@@ -420,6 +420,9 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
         ? `Confirmada: ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`
         : `${classificationLabel(p.from as AlertCategory | null, p.fromSubcategory as string | null)} → ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`;
       break;
+    case 'TRANSFERRED':
+      text = `${p.auto ? 'Automático, por el agente: ' : ''}${p.reason ?? ''}`;
+      break;
     case 'REFERRED':
       text = `${agencyList((Array.isArray(payload.agencies) ? payload.agencies : []) as SuggestedAgency[])}${p.notes ? ` · ${p.notes}` : ''}`;
       break;

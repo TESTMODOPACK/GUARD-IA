@@ -189,6 +189,7 @@ export const EVENT_KIND: Record<AlertEventKind, string> = {
   PUSH_SENT: 'Aviso enviado al vecino',
   RECLASSIFIED: 'Clasificación revisada',
   REFERRED: 'Derivado a otras instituciones',
+  TRANSFERRED: 'Traspaso entre municipios',
 };
 
 export const ROLE: Record<OperatorRole, string> = {
@@ -243,6 +244,7 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   CONTACT_CREATED: 'Agregó un contacto',
   CONTACT_UPDATED: 'Editó un contacto',
   CONTACT_REMOVED: 'Desactivó un contacto',
+  ALERT_TRANSFERRED: 'Traspasó una alerta a otro municipio',
 };
 
 export const IMPORTANCE: Record<ImportanceLevel, string> = {
