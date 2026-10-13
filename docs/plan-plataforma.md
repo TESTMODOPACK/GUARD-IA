@@ -277,8 +277,16 @@ revisión, anular faltas. Falta de PT: la app de terreno.
 Etapa 2a hecha (migración 0009, endurecimiento de la base, informe en `docs/revision-base-de-datos.md`): sin PK de
 texto, índices y `tenant_id` explícito por municipio, privilegios mínimos (cada migración nueva declara sus
 `GRANT`), RLS en `tenant` con la vista `tenant_directory`, FK compuestas por municipio y purga de tokens y
-códigos vencidos. Sigue la 2b: consola de plataforma (`0010_platform.sql`, `apps/platform`). El particionado
-queda como `0011_scale.sql`.
+códigos vencidos. El particionado queda como `0011_scale.sql`.
+
+Etapa 2b hecha (migración 0010, P1): consola aparte (`apps/platform`, dominio propio en Caddy) con usuarios de
+plataforma y segundo factor TOTP, sesiones cortas y bloqueo por intentos; regiones de norte a sur y provincias;
+mapa de Chile y de cada región coloreado por estado; búsqueda de comunas; alta de municipio desde su comuna (toma el
+límite oficial); lista de puesta en marcha validada en la base; activar, suspender (no corta el SOS) y dar de baja
+(solo superadministrador, sin alertas abiertas); modo prueba por teléfonos de prueba; administrador municipal con
+contraseña temporal y restablecimiento; bitácora de plataforma y registro en la bitácora del municipio; demanda no
+atendida por comuna. Queda de P1: estado "En negociación" con responsable comercial (RF-1.5), QR del segundo factor,
+acceso de soporte (RF-4.4). Sigue la etapa 3 (resto del uso indebido) o P2 (errores y salud).
 
 ## 6. Modelo de datos propuesto
 

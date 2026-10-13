@@ -7,6 +7,7 @@ import type {
   CitizenPublic,
   DeviceUpsert,
   OperatorPublic,
+  TenantStatus,
   TokenPair,
 } from '@guardia/shared';
 import { AppError } from '../common/app-error';
@@ -168,12 +169,14 @@ export class AuthService {
     if (!op || !ok) throw new AppError('UNAUTHORIZED', 'Credenciales inválidas');
 
     return this.dbs.asSystem(async (tx) => {
+      const [t] = await tx.select({ name: tenant.name, status: tenant.status }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
+      // Municipio dado de baja (0010): sus cuentas ya no entran.
+      if (!t || t.status === 'TERMINATED') throw new AppError('UNAUTHORIZED', 'El municipio ya no usa Guard-IA');
       await tx.update(operator).set({ lastLoginAt: new Date() }).where(eq(operator.id, op.id));
       await this.audit.record(tx, { tenantId: op.tenantId, actorId: op.id, kind: 'LOGIN', targetId: op.id, payload: { ip } });
-      const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
       const claims: AccessClaims = { kind: 'operator', sub: op.id, tenantId: op.tenantId, role: op.role };
       const { refreshId: _id, ...pair } = await this.tokens.issuePair(tx, claims);
-      return { ...pair, operator: toOperatorPublic(op, t?.name ?? '') };
+      return { ...pair, operator: toOperatorPublic(op, t.name, t.status) };
     });
   }
 
@@ -205,6 +208,8 @@ export class AuthService {
       .where(and(eq(operator.id, subjectId), eq(operator.active, true)))
       .limit(1);
     if (!op) throw new AppError('UNAUTHORIZED', 'Operador no disponible');
+    const [t] = await tx.select({ status: tenant.status }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
+    if (!t || t.status === 'TERMINATED') throw new AppError('UNAUTHORIZED', 'El municipio ya no usa Guard-IA');
     return { kind: 'operator', sub: op.id, tenantId: op.tenantId, role: op.role };
   }
 
@@ -233,7 +238,7 @@ function toCitizenPublic(c: typeof citizen.$inferSelect): CitizenPublic {
   };
 }
 
-function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string): OperatorPublic {
+function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string, tenantStatus: TenantStatus): OperatorPublic {
   return {
     id: o.id,
     tenantId: o.tenantId,
@@ -242,5 +247,6 @@ function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string): 
     name: o.name,
     role: o.role,
     mustChangePassword: o.mustChangePassword,
+    tenantStatus,
   };
 }

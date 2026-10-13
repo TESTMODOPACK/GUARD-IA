@@ -10,6 +10,7 @@ export * from './geo';
 export * from './citizen-notices';
 export * from './schemas/privacy';
 export * from './schemas/admin';
+export * from './schemas/platform';
 export * from './ws-events';
 
 /** Ventana en la que el vecino puede cancelar su propia alerta. */

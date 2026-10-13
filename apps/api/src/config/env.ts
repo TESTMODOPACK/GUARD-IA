@@ -30,6 +30,20 @@ const EnvSchema = z.object({
    */
   JWT_OPERATOR_REFRESH_TTL_SECONDS: z.coerce.number().int().default(13 * 3600),
 
+  /**
+   * Consola de plataforma (0010). Secreto propio para sus JWT (distinto del de vecinos y operadores) y llave
+   * para cifrar los secretos TOTP. Sin ellos, /v1/platform responde 404 (desarrollo); en producción son
+   * obligatorios.
+   */
+  PLATFORM_JWT_SECRET: z.string().min(32).optional(),
+  PLATFORM_ENCRYPTION_KEY: z.string().min(32).optional(),
+  /** Access de la consola: 15 min. La sesión se cae tras 30 min sin uso o 8 h desde el ingreso. */
+  PLATFORM_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(15 * 60),
+  PLATFORM_SESSION_IDLE_SECONDS: z.coerce.number().int().min(300).max(24 * 3600).default(30 * 60),
+  PLATFORM_SESSION_MAX_SECONDS: z.coerce.number().int().min(900).max(24 * 3600).default(8 * 3600),
+  /** Nombre que muestra la app de autenticación junto al correo. */
+  PLATFORM_TOTP_ISSUER: z.string().min(2).max(40).default('Guard-IA'),
+
   /** console | twilio */
   SMS_PROVIDER: z.enum(['console', 'twilio']).default('console'),
   TWILIO_ACCOUNT_SID: z.string().optional(),
@@ -118,6 +132,11 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (env.LOCAL_STORAGE_SECRET.startsWith('dev-only')) problems.push('LOCAL_STORAGE_SECRET tiene el valor por defecto');
     if (env.STORAGE_DRIVER === 's3' && env.S3_ENDPOINT?.startsWith('http://') && !env.S3_PUBLIC_ENDPOINT) {
       problems.push('S3_ENDPOINT es interno (http): define S3_PUBLIC_ENDPOINT o la central no podrá abrir audio ni fotos');
+    }
+    if (!env.PLATFORM_JWT_SECRET || !env.PLATFORM_ENCRYPTION_KEY) {
+      problems.push('PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY son obligatorias (consola de plataforma)');
+    } else if (env.PLATFORM_JWT_SECRET === env.JWT_ACCESS_SECRET || env.PLATFORM_ENCRYPTION_KEY === env.PLATFORM_JWT_SECRET) {
+      problems.push('PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY deben ser distintas entre sí y de JWT_ACCESS_SECRET');
     }
     if (problems.length) throw new Error(`Configuración inválida para producción:\n  - ${problems.join('\n  - ')}`);
   }

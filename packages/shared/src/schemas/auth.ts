@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OPERATOR_ROLES } from '../enums';
+import { OPERATOR_ROLES, TENANT_STATUSES } from '../enums';
 import { PhoneSchema, UuidSchema } from './common';
 
 export const OtpRequestSchema = z.object({
@@ -62,6 +62,8 @@ export const OperatorPublicSchema = z.object({
   role: z.enum(OPERATOR_ROLES),
   /** Cuenta nueva o contraseña restablecida: la central pide cambiarla antes de operar. */
   mustChangePassword: z.boolean(),
+  /** Estado del municipio (0010): la central avisa si está suspendido. */
+  tenantStatus: z.enum(TENANT_STATUSES),
 });
 export type OperatorPublic = z.infer<typeof OperatorPublicSchema>;
 

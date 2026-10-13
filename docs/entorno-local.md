@@ -23,7 +23,7 @@ En `.env` de desarrollo: `AI_PROVIDER=mock` (sin clave de OpenAI), `SMS_PROVIDER
 
 ```bash
 pnpm infra:wsl        # terminal 1: levanta Postgres y Redis y mantiene WSL encendido
-pnpm dev              # terminal 2: API en :3000 y central en :3001
+pnpm dev              # terminal 2: API en :3000, central en :3001 y consola de plataforma en :3002
 ```
 
 Comprobar: `curl localhost:3000/v1/health` → `{"ok":true,"db":true,"redis":true,…}`.

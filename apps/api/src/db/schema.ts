@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  bigint,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -26,8 +28,11 @@ import {
   DISPATCH_STATUSES,
   MEDIA_KINDS,
   OPERATOR_ROLES,
+  PLATFORM_ACTIONS,
+  PLATFORM_ROLES,
   PRIORITIES,
   SUGGESTED_AGENCIES,
+  TENANT_STATUSES,
   UNIT_KINDS,
   UNIT_STATUSES,
   type SuggestedAgency,
@@ -57,6 +62,9 @@ export const actorTypeEnum = pgEnum('actor_type', ACTOR_TYPES);
 export const mediaKindEnum = pgEnum('media_kind', MEDIA_KINDS);
 export const alertEventKindEnum = pgEnum('alert_event_kind', ALERT_EVENT_KINDS);
 export const tokenKindEnum = pgEnum('token_kind', ['CITIZEN', 'OPERATOR']);
+export const tenantStatusEnum = pgEnum('tenant_status', TENANT_STATUSES);
+export const platformRoleEnum = pgEnum('platform_role', PLATFORM_ROLES);
+export const platformActionEnum = pgEnum('platform_action', PLATFORM_ACTIONS);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -68,10 +76,26 @@ export const tenant = pgTable('tenant', {
   timezone: text('timezone').notNull().default('America/Santiago'),
   audioRetentionDays: integer('audio_retention_days').notNull().default(90),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
-  active: boolean('active').notNull().default(true),
   createdAt: ts('created_at').notNull().defaultNow(),
   // 0006_geo_routing.sql
   comunaCut: integer('comuna_cut'),
+  // 0010_platform.sql: el estado manda; `active` (ACTIVE o SUSPENDED) es generada.
+  status: tenantStatusEnum('status').notNull().default('ACTIVE'),
+  active: boolean('active').generatedAlwaysAs(sql`status IN ('ACTIVE', 'SUSPENDED')`),
+  legalName: text('legal_name'),
+  rut: text('rut'),
+  address: text('address'),
+  techContactName: text('tech_contact_name'),
+  techContactEmail: text('tech_contact_email'),
+  techContactPhone: text('tech_contact_phone'),
+  billingContactName: text('billing_contact_name'),
+  billingContactEmail: text('billing_contact_email'),
+  contractSignedAt: date('contract_signed_at', { mode: 'string' }),
+  dpaSignedAt: date('dpa_signed_at', { mode: 'string' }),
+  statusReason: text('status_reason'),
+  statusChangedAt: ts('status_changed_at').notNull().defaultNow(),
+  goLiveAt: ts('go_live_at'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
 export const citizen = pgTable('citizen', {
@@ -265,6 +289,8 @@ export const auditLog = pgTable('audit_log', {
   targetId: uuid('target_id'),
   payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: ts('created_at').notNull().defaultNow(),
+  // 0010: acciones del equipo Guard-IA en el municipio (el municipio ve "Equipo Guard-IA").
+  platformActorId: uuid('platform_actor_id'),
 });
 
 export const shift = pgTable('shift', {
@@ -369,6 +395,8 @@ export const comuna = pgTable('comuna', {
   regionCut: integer('region_cut').notNull(),
   regionName: text('region_name').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+  // 0010: CUT de la provincia = CUT de la comuna / 100 (generada). boundary_simple se lee con SQL crudo.
+  provinciaCut: smallint('provincia_cut').generatedAlwaysAs(sql`(cut / 100)::smallint`),
 });
 
 // ------------------------------------------------------------- 0008_misuse_field.sql
@@ -397,7 +425,89 @@ export const citizenStrike = pgTable('citizen_strike', {
   annulReason: text('annul_reason'),
 });
 
+// ------------------------------------------------------------- 0010_platform.sql
+
+export const region = pgTable('region', {
+  cut: smallint('cut').primaryKey(),
+  name: text('name').notNull(),
+  roman: text('roman').notNull(),
+  sortOrder: smallint('sort_order').notNull(),
+});
+
+export const provincia = pgTable('provincia', {
+  cut: smallint('cut').primaryKey(),
+  regionCut: smallint('region_cut')
+    .notNull()
+    .references(() => region.cut),
+  name: text('name').notNull(),
+});
+
+export const tenantTestPhone = pgTable('tenant_test_phone', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  phone: text('phone').notNull(),
+  label: text('label').notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const platformUser = pgTable('platform_user', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  role: platformRoleEnum('role').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  mustChangePassword: boolean('must_change_password').notNull().default(true),
+  passwordChangedAt: ts('password_changed_at'),
+  totpSecretEnc: text('totp_secret_enc'),
+  totpPendingEnc: text('totp_pending_enc'),
+  totpEnabledAt: ts('totp_enabled_at'),
+  totpLastStep: bigint('totp_last_step', { mode: 'number' }),
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  lockedUntil: ts('locked_until'),
+  active: boolean('active').notNull().default(true),
+  lastLoginAt: ts('last_login_at'),
+  createdBy: uuid('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const platformSession = pgTable('platform_session', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => platformUser.id),
+  tokenHash: text('token_hash').notNull().unique(),
+  startedAt: ts('started_at').notNull(),
+  expiresAt: ts('expires_at').notNull(),
+  revokedAt: ts('revoked_at'),
+  replacedBy: uuid('replaced_by'),
+  ip: text('ip'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const platformAuditLog = pgTable('platform_audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorId: uuid('actor_id').references(() => platformUser.id),
+  action: platformActionEnum('action').notNull(),
+  tenantId: uuid('tenant_id').references(() => tenant.id),
+  comunaCut: integer('comuna_cut'),
+  targetId: uuid('target_id'),
+  reason: text('reason'),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  ip: text('ip'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
 export const schema = {
+  region,
+  provincia,
+  tenantTestPhone,
+  platformUser,
+  platformSession,
+  platformAuditLog,
   tenant,
   citizenStrike,
   comuna,
@@ -427,3 +537,4 @@ export type OperatorRow = typeof operator.$inferSelect;
 export type MediaRow = typeof media.$inferSelect;
 export type AlertEventRow = typeof alertEvent.$inferSelect;
 export type TenantRow = typeof tenant.$inferSelect;
+export type PlatformUserRow = typeof platformUser.$inferSelect;

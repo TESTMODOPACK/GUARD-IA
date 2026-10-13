@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import type { OperatorRole } from '@guardia/shared';
 import { DbService } from '../db/db.service';
-import { operator } from '../db/schema';
+import { operator, tenant } from '../db/schema';
 
 export interface OperatorStatus {
   tenantId: string;
@@ -35,11 +35,16 @@ export class OperatorStatusService {
           role: operator.role,
           active: operator.active,
           mustChangePassword: operator.mustChangePassword,
+          tenantStatus: tenant.status,
         })
         .from(operator)
+        .innerJoin(tenant, eq(tenant.id, operator.tenantId))
         .where(eq(operator.id, operatorId))
         .limit(1);
-      return o ?? null;
+      if (!o) return null;
+      const { tenantStatus, ...rest } = o;
+      // Municipio dado de baja (0010): sus cuentas dejan de entrar como si estuvieran desactivadas.
+      return { ...rest, active: rest.active && tenantStatus !== 'TERMINATED' };
     });
     this.cache.set(operatorId, { at: Date.now(), value });
     return value;
@@ -48,5 +53,10 @@ export class OperatorStatusService {
   /** Llamar DESPUÉS del commit que cambió la cuenta. */
   invalidate(operatorId: string): void {
     this.cache.delete(operatorId);
+  }
+
+  /** Tras cambiar el estado de un municipio: afecta a todas sus cuentas. */
+  invalidateAll(): void {
+    this.cache.clear();
   }
 }

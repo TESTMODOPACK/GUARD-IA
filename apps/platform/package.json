@@ -1,0 +1,37 @@
+{
+  "name": "@guardia/platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guard-IA Plataforma: consola del equipo Guard-IA (regiones, comunas y municipios)",
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit && eslint . --max-warnings 0",
+    "test": "echo \"sin tests unitarios en platform; la API cubre la lógica (test/platform.test.ts)\""
+  },
+  "dependencies": {
+    "@guardia/shared": "workspace:*",
+    "leaflet": "1.9.4",
+    "lucide-react": "1.55.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-leaflet": "5.0.0",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/leaflet": "1.9.22",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  }
+}

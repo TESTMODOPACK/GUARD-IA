@@ -15,6 +15,7 @@ import type {
   RejectReason,
   Subcategory,
   SuggestedAgency,
+  TenantStatus,
   UnitStatus,
 } from '@guardia/shared';
 
@@ -282,6 +283,15 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   CONTACT_UPDATED: 'Editó un contacto',
   CONTACT_REMOVED: 'Desactivó un contacto',
   ALERT_TRANSFERRED: 'Traspasó una alerta a otro municipio',
+  TENANT_STATUS_CHANGED: 'Cambió el estado del municipio en Guard-IA',
+};
+
+/** Aviso fijo bajo la barra superior según el estado del municipio (0010). Activo: sin aviso. */
+export const TENANT_STATUS_NOTICE: Partial<Record<TenantStatus, string>> = {
+  ONBOARDING:
+    'Municipio en implementación: solo llegan a esta central las alertas de los teléfonos de prueba. Los vecinos aún ven "fuera de cobertura".',
+  SUSPENDED:
+    'Servicio suspendido por Guard-IA: los SOS y reportes siguen llegando con normalidad, pero no se pueden crear cuentas nuevas. Contacta a Guard-IA.',
 };
 
 export const IMPORTANCE: Record<ImportanceLevel, string> = {

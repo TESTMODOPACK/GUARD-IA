@@ -53,6 +53,11 @@ export class OperatorsService {
     const passwordHash = await hashPassword(temp);
     try {
       const row = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+        // Municipio suspendido (RF-3.5): el SOS y la central siguen; lo no crítico, como cuentas nuevas, no.
+        const [t] = await tx.select({ status: tenant.status }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
+        if (t?.status === 'SUSPENDED') {
+          throw new AppError('FORBIDDEN', 'El municipio está suspendido: no se pueden crear cuentas nuevas. Contacta a Guard-IA');
+        }
         const [r] = await tx
           .insert(operator)
           .values({
@@ -177,7 +182,7 @@ export class OperatorsService {
         .where(eq(operator.id, op.sub))
         .returning();
       await this.audit.record(tx, { tenantId: op.tenantId, actorId: op.sub, kind: 'PASSWORD_CHANGED', targetId: op.sub });
-      const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
+      const [t] = await tx.select({ name: tenant.name, status: tenant.status }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
       return {
         id: r.id,
         tenantId: r.tenantId,
@@ -186,6 +191,7 @@ export class OperatorsService {
         name: r.name,
         role: r.role,
         mustChangePassword: false,
+        tenantStatus: t?.status ?? 'ACTIVE',
       } satisfies OperatorPublic;
     });
     this.status.invalidate(op.sub);

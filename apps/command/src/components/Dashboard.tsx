@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, logout } from '@/lib/api';
+import { TENANT_STATUS_NOTICE } from '@/lib/labels';
 import { connectRealtime, disconnectRealtime } from '@/lib/realtime';
 import { loadSession, onSessionChange, type Session } from '@/lib/session';
 import { unlockAudio } from '@/lib/sound';
@@ -81,6 +82,11 @@ export function Dashboard() {
           void logout();
         }}
       />
+      {session.operator.tenantStatus && TENANT_STATUS_NOTICE[session.operator.tenantStatus] ? (
+        <div role="status" className="shrink-0 px-4 py-1.5 text-sm border-b border-line bg-surface-2 text-medium">
+          {TENANT_STATUS_NOTICE[session.operator.tenantStatus]}
+        </div>
+      ) : null}
       <main className="flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_440px]">
         <AlertQueue />
         <div className="relative min-h-0 xl:block">

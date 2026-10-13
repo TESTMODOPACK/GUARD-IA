@@ -117,12 +117,28 @@ services:
     expose:
       - "3001"
 
+  # Consola de plataforma (equipo Guard-IA): imagen y dominio propios, separada de la central. Si cae,
+  # el SOS y la central siguen.
+  platform:
+    build:
+      context: ..
+      dockerfile: apps/platform/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?define PUBLIC_API_URL}
+    image: guardia-platform:local
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3002"
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
       - api
       - command
+      - platform
     ports:
       - "80:80"
       - "443:443"
@@ -130,6 +146,7 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN:?define API_DOMAIN}
       CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:-central.example.cl}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?define PLATFORM_DOMAIN}
       MEDIA_DOMAIN: ${MEDIA_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

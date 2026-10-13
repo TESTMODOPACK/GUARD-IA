@@ -112,6 +112,22 @@ El agente traspasa solo (condiciones en `AUTO_TRANSFER`, shared) y la central pu
 `alert.transferred` a la central de origen; la de destino recibe `alert.created`. Evento `TRANSFERRED` y
 bitácora `ALERT_TRANSFERRED` en el municipio de origen.
 
+Consola de plataforma (migración 0010, 13-10-2026; `docs/plan-plataforma.md` fase P1). Tokens propios
+(`PLATFORM_JWT_SECRET`, emisor `guard-ia-platform`) y guard propio: un token de vecino u operador no sirve aquí.
+Ingreso en dos pasos: `POST /platform/auth/login` `{email, password}` → `{step: 'totp'|'enroll', challengeToken,
+secret?, otpauthUri?}`; `POST /platform/auth/totp` `{challengeToken, code}` → sesión; `POST /platform/auth/refresh`
+y `/logout` como los de la central (refresh rotativo; vence a los 30 min sin uso y a las 8 h). `GET /platform/me`,
+`POST /platform/me/password` (12+ caracteres). Lectura (cualquier rol): `GET /platform/regions`, `/regions/:cut`,
+`/regions/:cut/map`, `/map` (GeoJSON simplificado), `/comunas?q=`, `/tenants`, `/tenants/:id` (ficha, lista de
+puesta en marcha, administradores, teléfonos de prueba, cifras de 30 días), `/audit?tenantId&cursor`. Cambios
+(SUPERADMIN, IMPLEMENTATION): `POST /platform/tenants` `{comunaCut, …ficha}` (alta en `ONBOARDING`), `PATCH
+/platform/tenants/:id`, `POST /platform/tenants/:id/status` `{status, reason, confirmName}` (dar de baja: solo
+SUPERADMIN), `POST /platform/tenants/:id/admins`, `POST /platform/tenants/:id/admins/:adminId/reset`, `POST|DELETE
+/platform/tenants/:id/test-phones[/:phoneId]`. Equipo (SUPERADMIN): `GET|POST /platform/users`, `PATCH
+/platform/users/:id`, `POST /platform/users/:id/reset`. `OperatorPublic.tenantStatus` deja que la central avise si
+el municipio está en implementación o suspendido; la bitácora del municipio muestra las acciones de la plataforma
+como "Equipo Guard-IA" (`TENANT_STATUS_CHANGED`, `OPERATOR_CREATED`, `PASSWORD_RESET`).
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.

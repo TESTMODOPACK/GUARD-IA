@@ -125,6 +125,8 @@ export const AUDIT_KINDS = [
   'CONTACT_REMOVED',
   /** Migración 0006: una alerta pasó a otro municipio (automático por el agente o manual). */
   'ALERT_TRANSFERRED',
+  /** Migración 0010: la plataforma activó, suspendió o dio de baja el municipio. */
+  'TENANT_STATUS_CHANGED',
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
@@ -199,3 +201,62 @@ export function canTransitionAlert(from: AlertStatus, to: AlertStatus): boolean 
 export function canTransitionDispatch(from: DispatchStatus, to: DispatchStatus): boolean {
   return DISPATCH_TRANSITIONS[from].includes(to);
 }
+
+// ------------------------------------------------------------------ plataforma (migración 0010)
+
+/** Estado del municipio en Guard-IA (tipo tenant_status). */
+export const TENANT_STATUSES = ['ONBOARDING', 'ACTIVE', 'SUSPENDED', 'TERMINATED'] as const;
+export type TenantStatus = (typeof TENANT_STATUSES)[number];
+
+/** Espejo de set_tenant_status() en la base, que es quien decide. */
+export const TENANT_TRANSITIONS: Record<TenantStatus, readonly TenantStatus[]> = {
+  ONBOARDING: ['ACTIVE', 'TERMINATED'],
+  ACTIVE: ['SUSPENDED', 'TERMINATED'],
+  SUSPENDED: ['ACTIVE', 'TERMINATED'],
+  TERMINATED: [],
+};
+
+/** Estado de una comuna en la consola: sin municipio en Guard-IA, o el estado de su municipio. */
+export const COMUNA_SERVICE_STATUSES = ['AVAILABLE', ...TENANT_STATUSES] as const;
+export type ComunaServiceStatus = (typeof COMUNA_SERVICE_STATUSES)[number];
+
+/** Roles del equipo Guard-IA (tipo platform_role). */
+export const PLATFORM_ROLES = ['SUPERADMIN', 'IMPLEMENTATION', 'FINANCE', 'SUPPORT'] as const;
+export type PlatformRole = (typeof PLATFORM_ROLES)[number];
+
+/** Bitácora de plataforma (tipo platform_action). */
+export const PLATFORM_ACTIONS = [
+  'LOGIN',
+  'LOGIN_FAILED',
+  'LOGOUT',
+  'LOCKED',
+  'TOTP_ENROLLED',
+  'PASSWORD_CHANGED',
+  'USER_CREATED',
+  'USER_UPDATED',
+  'USER_RESET',
+  'TENANT_CREATED',
+  'TENANT_UPDATED',
+  'TENANT_STATUS_CHANGED',
+  'TENANT_ADMIN_CREATED',
+  'TENANT_ADMIN_RESET',
+  'TEST_PHONE_ADDED',
+  'TEST_PHONE_REMOVED',
+] as const;
+export type PlatformAction = (typeof PLATFORM_ACTIONS)[number];
+
+/** Lista de puesta en marcha (tenant_readiness() en la base fija los mínimos). */
+export const READINESS_KEYS = [
+  'ADMIN_READY',
+  'OPERATORS',
+  'CONTACT_CARABINEROS',
+  'CONTACT_SAMU',
+  'CONTACT_BOMBEROS',
+  'CONTACT_MUNICIPAL',
+  'UNITS',
+  'SHIFTS_FIRST_WEEK',
+  'CONTRACT_SIGNED',
+  'DPA_SIGNED',
+  'E2E_TEST',
+] as const;
+export type ReadinessKey = (typeof READINESS_KEYS)[number];

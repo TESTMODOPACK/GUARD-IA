@@ -30,7 +30,9 @@ const d = enabled ? describe : describe.skip;
 const box = (x0: number) =>
   JSON.stringify({ type: 'MultiPolygon', coordinates: [[[[x0, -40], [x0 + 1, -40], [x0 + 1, -39], [x0, -39], [x0, -40]]]] });
 // A: lng −100…−99 · B: −99…−98 (vecinos) · C: −98…−97 (comuna sin Guard-IA) · D: −96…−95 (municipio sin comuna cargada)
-const CUTS = { A: 99001, B: 99002, C: 99003 };
+// CUT libres dentro de una provincia real (161, Diguillín: sus comunas van de 16101 a 16109): desde 0010 la
+// provincia de cada comuna es una FK (CUT / 100).
+const CUTS = { A: 16191, B: 16192, C: 16193 };
 const LAT = -39.5;
 
 d('georreferencia y redirección', () => {

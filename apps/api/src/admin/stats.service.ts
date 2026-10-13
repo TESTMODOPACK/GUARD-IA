@@ -209,7 +209,10 @@ export class StatsService {
           payload: Record<string, unknown>;
         }>(
           tx,
-          sql`SELECT l.id, l.created_at::text AS created_at, l.kind, o.name AS actor_name, l.target_id, l.payload
+          // Acciones de la consola de plataforma (0010): el municipio no lee platform_user; ve "Equipo Guard-IA".
+          sql`SELECT l.id, l.created_at::text AS created_at, l.kind,
+                     COALESCE(o.name, CASE WHEN l.platform_actor_id IS NOT NULL THEN 'Equipo Guard-IA' END) AS actor_name,
+                     l.target_id, l.payload
               FROM audit_log l LEFT JOIN operator o ON o.id = l.actor_id
               WHERE l.tenant_id = ${T}
               ${after ? sql`AND (l.created_at, l.id) < (${after.ts}::timestamptz, ${after.id}::uuid)` : sql``}

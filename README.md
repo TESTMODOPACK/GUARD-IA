@@ -18,6 +18,7 @@ central de monitoreo con triage por IA. Documento de arquitectura (Fase 0): `doc
 ```
 apps/api            Guard-IA Core: REST + Socket.io + worker IA (mismo proceso)
 apps/command        Guard-IA Command: central de monitoreo (Next.js 16, react-leaflet, Tailwind 4)
+apps/platform       Guard-IA Plataforma: consola del equipo Guard-IA (regiones, comunas, municipios), dominio propio
 packages/shared     enums, schemas zod y eventos WS compartidos por API, central y app
 infra/              docker-compose.yml, Caddyfile, backup.sh, .env.production.example
 docs/               arquitectura y decisiones
@@ -71,6 +72,20 @@ node scripts/ui-gate.mjs            # usa @sparticuz/chromium; con Chrome instal
 ```
 
 Deja capturas en `apps/command/screenshots/`.
+
+### Consola de plataforma (apps/platform)
+
+Para el equipo Guard-IA: comunas por región, alta de municipios desde su comuna, puesta en marcha, activar,
+suspender y dar de baja, administrador municipal, teléfonos de prueba y bitácora (`docs/plan-plataforma.md`).
+Requiere `PLATFORM_JWT_SECRET` y `PLATFORM_ENCRYPTION_KEY` en `.env` (sin ellas `/v1/platform` responde 404).
+
+```bash
+pnpm --filter @guardia/api platform:user --email persona@ejemplo.cl --name "Nombre Apellido"   # primer superadministrador
+pnpm --filter @guardia/platform dev    # http://localhost:3002
+```
+
+El comando imprime una contraseña temporal una sola vez. Al entrar, la consola muestra la clave del segundo factor
+(TOTP) para cargarla en una app de autenticación y luego pide definir una contraseña propia (12+ caracteres).
 
 ## Tests
 
@@ -136,7 +151,8 @@ sin firma vigente no se lee nada).
 ## Despliegue (Fase 4, ya preparado)
 
 ```bash
-cd infra && cp .env.production.example .env   # completar (3 dominios: API, central y media)
-docker compose up -d --build                  # db, redis, minio, migrate, api, command, caddy
+cd infra && cp .env.production.example .env   # completar (4 dominios: API, central, consola y media)
+docker compose up -d --build                  # db, redis, minio, migrate, api, command, platform, caddy
+docker compose run --rm api node dist/cli/platform-user.js --email persona@ejemplo.cl --name "Nombre"   # primer superadministrador
 docker compose run --rm api node dist/cli/seed.js --name "Municipalidad de X" --slug x --geojson /ruta/limite.geojson
 ```

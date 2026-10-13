@@ -45,6 +45,23 @@
 	}
 }
 
+# Consola de plataforma (equipo Guard-IA): dominio propio. CSP más estricta que la central: sin MEDIA_DOMAIN
+# (la consola no abre audio ni fotos) y sin WebSocket.
+{$PLATFORM_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy platform:3002
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-Robots-Tag "noindex, nofollow"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://{$API_DOMAIN}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
 # La central Next.js.
 {$CENTRAL_DOMAIN} {
 	encode zstd gzip

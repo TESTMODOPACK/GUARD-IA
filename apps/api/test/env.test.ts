@@ -6,6 +6,7 @@ const base = {
   REDIS_URL: 'redis://localhost:6379',
   JWT_ACCESS_SECRET: 'x'.repeat(40),
 };
+const PLATFORM = { PLATFORM_JWT_SECRET: 'y'.repeat(40), PLATFORM_ENCRYPTION_KEY: 'z'.repeat(40) };
 
 describe('validateEnv', () => {
   it('degrada a mock sin OPENAI_API_KEY', () => {
@@ -26,11 +27,20 @@ describe('validateEnv', () => {
   });
 
   it('rechaza producción con MinIO interno sin dirección pública', () => {
-    const prod = { ...base, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    const prod = { ...base, ...PLATFORM, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
     expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000' })).toThrow(/S3_PUBLIC_ENDPOINT/);
     expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000', S3_PUBLIC_ENDPOINT: 'https://media.example.cl' })).not.toThrow();
     // S3 de un proveedor (sin endpoint propio): la URL firmada ya es pública.
     expect(() => validateEnv(prod)).not.toThrow();
+  });
+
+  it('en producción exige los secretos de la consola de plataforma, distintos entre sí y del de la API', () => {
+    const prod = { ...base, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    expect(() => validateEnv(prod)).toThrow(/PLATFORM_JWT_SECRET/);
+    expect(() => validateEnv({ ...prod, ...PLATFORM, PLATFORM_JWT_SECRET: base.JWT_ACCESS_SECRET })).toThrow(/distintas/);
+    expect(() => validateEnv({ ...prod, ...PLATFORM })).not.toThrow();
+    // En desarrollo son opcionales: sin ellas la consola responde 404.
+    expect(validateEnv(base).PLATFORM_JWT_SECRET).toBeUndefined();
   });
 
   it('trata `VAR=` vacía (env_file) como no definida', () => {

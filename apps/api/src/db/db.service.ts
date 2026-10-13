@@ -14,7 +14,9 @@ import { schema, type Schema } from './schema';
 export type DbContext =
   | { role: 'system' }
   | { role: 'citizen'; citizenId: string }
-  | { role: 'operator'; tenantId: string; operatorId: string };
+  | { role: 'operator'; tenantId: string; operatorId: string }
+  /** Consola de plataforma (0010): ve municipios y comunas, nunca vecinos ni alertas. */
+  | { role: 'platform'; userId: string };
 
 export type Db = PostgresJsDatabase<Schema>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -84,6 +86,10 @@ export class DbService implements OnModuleDestroy {
 
   asOperator<T>(tenantId: string, operatorId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
     return this.withContext({ role: 'operator', tenantId, operatorId }, fn);
+  }
+
+  asPlatform<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+    return this.withContext({ role: 'platform', userId }, fn);
   }
 
   async ping(): Promise<boolean> {

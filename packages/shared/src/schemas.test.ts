@@ -4,7 +4,13 @@ import {
   CreateAlertMetaSchema,
   canTransitionAlert,
   canTransitionDispatch,
+  ChangeTenantStatusSchema,
+  isValidRut,
+  normalizeRut,
   OtpVerifySchema,
+  PlatformChangePasswordSchema,
+  RutSchema,
+  TENANT_TRANSITIONS,
 } from './index';
 
 describe('CreateAlertMetaSchema', () => {
@@ -97,5 +103,25 @@ describe('OtpVerifySchema', () => {
     expect(OtpVerifySchema.safeParse({ phone: '+56912345678', code: '123456' }).success).toBe(true);
     expect(OtpVerifySchema.safeParse({ phone: '912345678', code: '123456' }).success).toBe(false);
     expect(OtpVerifySchema.safeParse({ phone: '+56912345678', code: '12' }).success).toBe(false);
+  });
+});
+
+describe('RUT y municipios (plataforma)', () => {
+  it('normaliza y valida el dígito verificador', () => {
+    expect(RutSchema.parse('12.345.678-5')).toBe('12345678-5');
+    expect(RutSchema.parse('11111111-1')).toBe('11111111-1');
+    expect(RutSchema.safeParse('12.345.678-9').success).toBe(false);
+    expect(isValidRut('9999999-K')).toBe(isValidRut(normalizeRut('9.999.999-k')));
+  });
+
+  it('el estado del municipio solo avanza por las transiciones de la base', () => {
+    expect(TENANT_TRANSITIONS.ONBOARDING).toEqual(['ACTIVE', 'TERMINATED']);
+    expect(TENANT_TRANSITIONS.TERMINATED).toEqual([]);
+    expect(ChangeTenantStatusSchema.safeParse({ status: 'SUSPENDED', reason: 'mora', confirmName: 'Providencia' }).success).toBe(false);
+  });
+
+  it('la contraseña de plataforma pide 12 caracteres', () => {
+    expect(PlatformChangePasswordSchema.safeParse({ currentPassword: 'x', newPassword: 'corta12345' }).success).toBe(false);
+    expect(PlatformChangePasswordSchema.safeParse({ currentPassword: 'x', newPassword: 'una-clave-larga' }).success).toBe(true);
   });
 });

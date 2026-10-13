@@ -16,6 +16,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | 2 | `apps/command` (central Next.js 16) | cerrada: revisada, simulador y `ui-gate.mjs` verdes contra base real (12-10-2026) |
 | 3 | `apps/mobile` (Expo SDK 57, Expo Router) | implementada (3a–3f), probada en web contra la API real; falta Android real y push (development build) |
 | 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
+| P1 | Consola de plataforma (`apps/platform`, migración 0010) | implementada y probada en local (13-10-2026) |
 
 ## Comandos
 
@@ -25,6 +26,8 @@ cp .env.example .env                # editar JWT_ACCESS_SECRET (32+), OPENAI_API
 pnpm migrate && pnpm seed           # requiere Postgres 16 + PostGIS y Redis (o docker compose -f infra/docker-compose.yml up db redis)
 pnpm --filter @guardia/api dev      # API en :3000
 pnpm --filter @guardia/command dev  # central en :3001
+pnpm --filter @guardia/platform dev # consola de plataforma en :3002 (requiere PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY)
+pnpm --filter @guardia/api platform:user --email x@y.cl --name "..." [--role SUPERADMIN]   # crea o restablece una cuenta de la consola
 pnpm simulate --text "..."          # flujo e2e sin app móvil; compuerta Fase 1 (alert.created < 1 s)
 pnpm simulate --external-dispatch   # crea un SOS y espera que la central despache
 pnpm --filter @guardia/shared test && pnpm --filter @guardia/api test:db   # tests (RLS contra base real)
@@ -49,7 +52,11 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   `admin/AdminShell`). Páginas: `/` central, `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
   `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
-- `infra/`: docker-compose (db, redis, minio, migrate, api, command, caddy), Caddyfile, backup.sh.
+- `apps/api/src/platform/`: consola de plataforma (TOTP propio sin dependencias, tokens y sesiones propias,
+  guard propio, regiones y comunas, municipios, equipo, bitácora). `apps/platform/src`: `lib/` (api, sesión en
+  sessionStorage, labels), `components/` (Shell, ComunaMap, TenantDialogs). Páginas: `/` Chile, `/region/[cut]`,
+  `/municipio/[id]`, `/municipios`, `/usuarios`, `/bitacora`, `/login`, `/cambiar-clave`.
+- `infra/`: docker-compose (db, redis, minio, migrate, api, command, platform, caddy), Caddyfile, backup.sh.
 
 ## Reglas que no se rompen
 
@@ -114,7 +121,19 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     (`dispatch.outcome`); "era otra situación" corrige la categoría como clasificación de terreno
     (`triage_label.field_*`) y "falsa alarma confirmada" permite rechazar una alerta ya despachada.
 15. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
-    `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
+    `SMS_PROVIDER=console`, secretos por defecto y la falta de `PLATFORM_JWT_SECRET`/`PLATFORM_ENCRYPTION_KEY`
+    (distintos entre sí y del de la API). No lo relajes.
+16. **Plataforma** (migración 0010, `docs/plan-plataforma.md` P1): contexto RLS `platform` (`DbService.asPlatform`)
+    que ve municipios, comunas y sus tablas, y de las cuentas del municipio solo las de ADMIN; nunca alertas,
+    vecinos ni casos: las cifras salen de funciones SECURITY DEFINER que devuelven conteos
+    (`platform_tenant_activity`, `platform_unserved`, `tenant_readiness`). El estado del municipio
+    (`tenant.status`; `active` es generada = ACTIVE o SUSPENDED) solo cambia con `set_tenant_status()`, que valida
+    transiciones, la lista de puesta en marcha y que no haya alertas abiertas al dar de baja; el alta solo con
+    `create_tenant()`. ONBOARDING solo rutea teléfonos de prueba (`tenant_test_phone`); SUSPENDED nunca corta el
+    SOS (solo bloquea cuentas nuevas); TERMINATED deja la comuna fuera de cobertura y sus cuentas sin acceso.
+    Toda acción escribe `platform_audit_log` en la misma transacción y, si toca un municipio, también su
+    `audit_log` con `platform_actor_id` (la central lo muestra como "Equipo Guard-IA"). Tokens, secreto y
+    sesiones de la consola no se mezclan con los de vecinos y operadores; segundo factor TOTP obligatorio.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
@@ -174,6 +193,10 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   unidad en terreno que informa resultados). Etapa 1 hecha (13-10-2026): motivos de rechazo, faltas y
   advertencias, resultado en terreno desde la central. Siguen P1 (consola; decidir si va en dominio propio), resto
   de PU (restricción, bloqueo con aprobación, "Estado de tu cuenta"), app de terreno y P2; decisiones en §9.
+- Consola de plataforma (P1) sin hacer aún: QR para el segundo factor (hoy la clave se escribe a mano o se abre
+  el enlace `otpauth://` en el teléfono; un QR requiere agregar una librería), estado "En negociación" y asignación
+  comercial (RF-1.5), acceso de soporte (RF-4.4), avisos por correo al suspender. La primera alerta tras 30 s sin
+  uso paga la conexión nueva del pool y la primera ejecución del trigger de ruteo (~100 ms); en caliente, < 10 ms.
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
   ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
   Guard-IA") y se retoma después del piloto.

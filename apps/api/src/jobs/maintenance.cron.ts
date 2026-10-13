@@ -26,7 +26,14 @@ export class MaintenanceCron {
         DELETE FROM otp_code WHERE id IN (
           SELECT id FROM otp_code WHERE expires_at < now() - interval '1 hour'
            ORDER BY expires_at LIMIT 5000 FOR UPDATE SKIP LOCKED)`);
-      if (tokens + codes > 0) this.logger.log(`Purga: ${tokens} refresh tokens y ${codes} códigos de ingreso vencidos`);
+      // Sesiones de la consola de plataforma (0010): mismo criterio que los refresh tokens.
+      const sessions = await this.purgeBatch(sql`
+        DELETE FROM platform_session WHERE id IN (
+          SELECT id FROM platform_session WHERE expires_at < now() - interval '1 day'
+           ORDER BY expires_at LIMIT 5000 FOR UPDATE SKIP LOCKED)`);
+      if (tokens + codes + sessions > 0) {
+        this.logger.log(`Purga: ${tokens} refresh tokens, ${codes} códigos de ingreso y ${sessions} sesiones de plataforma vencidos`);
+      }
     } catch (e) {
       this.logger.warn(`Purga de mantenimiento falló: ${(e as Error).message}`);
     }
