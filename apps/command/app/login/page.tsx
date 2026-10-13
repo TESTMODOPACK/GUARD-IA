@@ -24,7 +24,7 @@ export default function LoginPage() {
     try {
       const r = await api.login(email.trim(), password);
       saveSession(r);
-      router.replace('/');
+      router.replace(r.operator.mustChangePassword ? '/cambiar-clave' : '/');
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(

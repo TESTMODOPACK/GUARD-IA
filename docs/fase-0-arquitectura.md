@@ -44,7 +44,8 @@ Gateway y worker corren en el mismo proceso Node en el MVP; Redis los desacopla.
 ## 4. Modelo de datos
 
 Tablas: `tenant`, `citizen`, `device`, `operator`, `unit`, `alert`, `media`, `dispatch`, `alert_event`,
-`otp_code`, `refresh_token` (esta última se agregó en Fase 1). Detalle de columnas en
+`otp_code`, `refresh_token` (esta última se agregó en Fase 1), y desde la migración 0003 `audit_log` (bitácora
+del sistema, solo inserción), `shift` (turnos programados y reales) y `contact` (directorio por municipio). Detalle de columnas en
 `apps/api/src/db/migrations/0001_init.sql`; enums en `packages/shared/src/enums.ts`.
 
 RLS: la API conecta como `guardia_app` (sin `BYPASSRLS`); cada transacción ejecuta `SET LOCAL app.role`,
@@ -75,6 +76,13 @@ Ciudadano (JWT `citizen`): `POST /auth/otp/request`, `POST /auth/otp/verify`, `P
 Central (JWT `operator`): `POST /ops/auth/login`, `GET /ops/alerts`, `GET /ops/alerts/:id`,
 `POST /ops/alerts/:id/ack|reject|dispatch|resolve|notes`, `PATCH /ops/dispatches/:id`,
 `GET|POST /ops/units`, `PATCH /ops/units/:id`, `GET /ops/media/:id/url`.
+
+Administración de la central (migración 0003, 12-10-2026): `GET|POST /ops/operators`, `PATCH /ops/operators/:id`,
+`POST /ops/operators/:id/reset-password` (ADMIN; listar también SUPERVISOR); `POST /ops/me/password` (cualquiera,
+incluso con contraseña temporal); `GET /ops/shifts?from&to`, `GET /ops/shifts/status`, `POST /ops/shifts/start|end`
+(todos), `POST /ops/shifts`, `DELETE /ops/shifts/:id` (ADMIN, SUPERVISOR); `GET /ops/contacts` (todos),
+`POST /ops/contacts`, `PATCH|DELETE /ops/contacts/:id` (ADMIN, SUPERVISOR); `GET /ops/admin/overview?range`,
+`GET /ops/admin/activity?source=cases|system&cursor` (ADMIN, SUPERVISOR).
 
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 

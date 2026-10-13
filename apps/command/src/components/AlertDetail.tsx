@@ -22,6 +22,7 @@ import {
 import { isDetail, useStore } from '@/lib/store';
 import { useNow } from './AlertQueue';
 import { AudioPlayer } from './AudioPlayer';
+import { ContactsHint } from './ContactsHint';
 import { DispatchDialog, RejectDialog, ResolveDialog } from './Dialogs';
 import { Button, PriorityDot, Spinner, Tag, textareaClass } from './ui';
 
@@ -147,6 +148,8 @@ export function AlertDetailPanel() {
             </Button>
           ) : null}
         </div>
+
+        <ContactsHint agency={alert.suggestedAgency} type={alert.type} />
 
         {/* Audio y foto */}
         {!detail ? (

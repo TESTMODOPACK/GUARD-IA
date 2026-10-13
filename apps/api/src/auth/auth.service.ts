@@ -162,7 +162,7 @@ export class AuthService {
     if (op && !ok) {
       // El intento fallido se confirma en su propia transacción antes del throw (regla 4).
       await this.dbs.asSystem((tx) =>
-        this.audit.record(tx, { tenantId: op.tenantId, actorId: null, kind: 'LOGIN_FAILED', targetId: op.id, payload: { ip } }),
+        this.audit.record(tx, { tenantId: op.tenantId, actorId: null, kind: 'LOGIN_FAILED', targetId: op.id, payload: { ip, email: op.email } }),
       );
     }
     if (!op || !ok) throw new AppError('UNAUTHORIZED', 'Credenciales inválidas');

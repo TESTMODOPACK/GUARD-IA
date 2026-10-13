@@ -35,13 +35,13 @@ export function Dashboard() {
 
   // Guardia de sesión en cliente.
   useEffect(() => {
-    const s = loadSession();
-    setSession(s);
-    if (!s) router.replace('/login');
-    return onSessionChange((next) => {
-      setSession(next);
-      if (!next) router.replace('/login');
-    });
+    const apply = (s: Session | null) => {
+      setSession(s);
+      if (!s) router.replace('/login');
+      else if (s.operator.mustChangePassword) router.replace('/cambiar-clave');
+    };
+    apply(loadSession());
+    return onSessionChange(apply);
   }, [router]);
 
   // WebSocket. Al conectar (y en cada reconexión) carga activas y unidades por REST, con reintento.
@@ -75,6 +75,7 @@ export function Dashboard() {
       <TopBar
         tenantName={session.operator.tenantName}
         operatorName={session.operator.name}
+        role={session.operator.role}
         onLogout={() => {
           disconnectRealtime();
           void logout();

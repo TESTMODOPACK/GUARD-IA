@@ -41,9 +41,11 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock), `realtime/` (Socket.io
   `/ops` y `/citizen`), `media/` (S3 o disco local), `notifications/` (push Expo), `db/` (Drizzle +
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA), `cli/`
-  (migrate, seed). `scripts/simulate.ts` es el simulador.
+  (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
-  (TopBar, AlertQueue, MapView, AlertDetail, Dialogs, UnitsBar, Dashboard). `scripts/ui-gate.mjs` es la
+  (TopBar, AlertQueue, MapView, AlertDetail, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
+  `admin/AdminShell`). Páginas: `/` central, `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
+  `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
 - `infra/`: docker-compose (db, redis, minio, migrate, api, command, caddy), Caddyfile, backup.sh.
 
@@ -74,7 +76,11 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
 9. **Central**: selectores de zustand devuelven primitivos o referencias estables; derivar listas con
    `useMemo`. Contenido del vecino (transcripción, texto, notas) siempre como texto, nunca HTML.
    Vocabulario de la UI en `src/lib/labels.ts`; una sola palabra por concepto.
-10. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
+10. **Administración**: el guard toma rol y estado del operador desde la base (`OperatorStatusService`,
+    caché 30 s; invalidar tras cambiar una cuenta), no del JWT. Toda acción de administración escribe
+    `audit_log` en la MISMA transacción (`AuditService.record(tx, …)`); `audit_log` es de solo inserción.
+    Contraseña temporal → solo `@AllowPendingPassword()` pasa. Los contactos se desactivan, no se borran.
+11. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)

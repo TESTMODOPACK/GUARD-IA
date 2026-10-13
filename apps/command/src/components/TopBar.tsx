@@ -1,8 +1,11 @@
 'use client';
 
-import { Volume2, VolumeX, LogOut } from 'lucide-react';
+import type { OperatorRole } from '@guardia/shared';
+import { BookUser, CalendarClock, LayoutDashboard, LogOut, Volume2, VolumeX } from 'lucide-react';
+import Link from 'next/link';
 import type { TypeFilter } from '@/lib/store';
 import { useStore } from '@/lib/store';
+import { ShiftControl } from './ShiftControl';
 import { Button } from './ui';
 
 const FILTERS: { value: TypeFilter; label: string }[] = [
@@ -11,7 +14,17 @@ const FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'CIVIC_REPORT', label: 'Urbano' },
 ];
 
-export function TopBar({ tenantName, operatorName, onLogout }: { tenantName: string; operatorName: string; onLogout: () => void }) {
+export function TopBar({
+  tenantName,
+  operatorName,
+  role,
+  onLogout,
+}: {
+  tenantName: string;
+  operatorName: string;
+  role: OperatorRole;
+  onLogout: () => void;
+}) {
   const connection = useStore((s) => s.connection);
   const typeFilter = useStore((s) => s.typeFilter);
   const setTypeFilter = useStore((s) => s.setTypeFilter);
@@ -59,7 +72,22 @@ export function TopBar({ tenantName, operatorName, onLogout }: { tenantName: str
         <Button variant="ghost" aria-label={sound ? 'Silenciar avisos' : 'Activar avisos'} onClick={() => setSound(!sound)} className="h-8 px-2">
           {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </Button>
-        <span className="text-sm text-ink-muted hidden md:inline">{operatorName}</span>
+        <ShiftControl />
+        <Link href="/directorio" aria-label="Directorio de contactos" title="Directorio de contactos" className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
+          <BookUser size={16} />
+        </Link>
+        {role === 'ADMIN' || role === 'SUPERVISOR' ? (
+          <Link href="/admin" aria-label="Administración" title="Administración: panel, usuarios, turnos y bitácora" className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
+            <LayoutDashboard size={16} />
+          </Link>
+        ) : (
+          <Link href="/admin/turnos" aria-label="Turnos" title="Turnos" className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
+            <CalendarClock size={16} />
+          </Link>
+        )}
+        <Link href="/cambiar-clave" className="text-sm text-ink-muted hidden md:inline hover:text-ink" title="Cambiar contraseña">
+          {operatorName}
+        </Link>
         <Button variant="ghost" aria-label="Cerrar sesión" onClick={onLogout} className="h-8 px-2">
           <LogOut size={16} />
         </Button>

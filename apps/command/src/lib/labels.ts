@@ -4,7 +4,10 @@ import type {
   AlertEventKind,
   AlertSource,
   AlertStatus,
+  AuditKind,
+  ContactCategory,
   DispatchStatus,
+  OperatorRole,
   Priority,
   RejectReason,
   SuggestedAgency,
@@ -101,6 +104,69 @@ export const EVENT_KIND: Record<AlertEventKind, string> = {
   CANCELLED: 'Cancelada por el vecino',
   PUSH_SENT: 'Aviso enviado al vecino',
 };
+
+export const ROLE: Record<OperatorRole, string> = {
+  ADMIN: 'Administrador',
+  SUPERVISOR: 'Supervisor',
+  OPERATOR: 'Operador',
+};
+
+export const ROLE_HELP: Record<OperatorRole, string> = {
+  ADMIN: 'Todo, incluidos usuarios',
+  SUPERVISOR: 'Turnos, directorio, unidades y panel',
+  OPERATOR: 'Atiende alertas y marca su turno',
+};
+
+export const CONTACT_CATEGORY: Record<ContactCategory, string> = {
+  CARABINEROS: 'Carabineros',
+  PDI: 'PDI',
+  SAMU: 'SAMU',
+  BOMBEROS: 'Bomberos',
+  SALUD: 'Salud (CESFAM, hospital)',
+  MUNICIPAL: 'Municipalidad',
+  SERVICIOS_BASICOS: 'Servicios básicos (luz, agua, gas)',
+  JUNTA_VECINOS: 'Junta de vecinos',
+  EMERGENCIA_MUNICIPAL: 'Emergencia municipal',
+  OTRO: 'Otro',
+};
+
+/** Contactos que sirven para derivar según la institución que sugiere la IA o el tipo de caso. */
+export const CONTACTS_FOR_AGENCY: Record<SuggestedAgency, ContactCategory[]> = {
+  CARABINEROS: ['CARABINEROS', 'PDI'],
+  SAMU: ['SAMU', 'SALUD'],
+  BOMBEROS: ['BOMBEROS'],
+  SEGURIDAD_MUNICIPAL: ['EMERGENCIA_MUNICIPAL', 'MUNICIPAL', 'JUNTA_VECINOS'],
+  OBRAS_ASEO: ['MUNICIPAL', 'SERVICIOS_BASICOS'],
+};
+
+export const AUDIT_KIND: Record<AuditKind, string> = {
+  LOGIN: 'Ingresó a la central',
+  LOGIN_FAILED: 'Intento de ingreso fallido',
+  LOGOUT: 'Cerró sesión',
+  PASSWORD_CHANGED: 'Cambió su contraseña',
+  OPERATOR_CREATED: 'Creó un usuario',
+  OPERATOR_UPDATED: 'Modificó un usuario',
+  PASSWORD_RESET: 'Restableció una contraseña',
+  SHIFT_PLANNED: 'Programó un turno',
+  SHIFT_REMOVED: 'Eliminó un turno',
+  SHIFT_STARTED: 'Inició turno',
+  SHIFT_ENDED: 'Terminó turno',
+  UNIT_CREATED: 'Creó una unidad',
+  UNIT_UPDATED: 'Cambió una unidad',
+  CONTACT_CREATED: 'Agregó un contacto',
+  CONTACT_UPDATED: 'Editó un contacto',
+  CONTACT_REMOVED: 'Desactivó un contacto',
+};
+
+/** Duración en segundos como la lee un supervisor: 45 s, 3 min, 1 h 20. */
+export function formatDuration(s: number | null): string {
+  if (s === null) return '—';
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return `${h} h ${String(m).padStart(2, '0')}`;
+}
 
 export const FLAG: Record<string, string> = {
   possible_false_alarm: 'Posible falsa alarma',

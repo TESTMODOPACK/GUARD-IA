@@ -63,6 +63,16 @@ export function saveSession(pair: TokenPair & { operator?: OperatorPublic }): Se
   return s;
 }
 
+/** Reemplaza los datos del operador (p. ej. tras cambiar la contraseña temporal) sin tocar los tokens. */
+export function updateOperator(operator: OperatorPublic) {
+  const s = loadSession();
+  if (!s) return;
+  const next: Session = { ...s, operator };
+  cached = next;
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+  listeners.forEach((l) => l(next));
+}
+
 export function clearSession() {
   cached = null;
   if (typeof window !== 'undefined') window.localStorage.removeItem(SESSION_KEY);

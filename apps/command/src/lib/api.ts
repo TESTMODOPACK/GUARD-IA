@@ -1,4 +1,19 @@
 import type {
+  ActivityPage,
+  AdminOverview,
+  AdminRange,
+  CaseActivity,
+  Contact,
+  ContactInput,
+  CreateOperator,
+  CreateShift,
+  OperatorAccount,
+  Shift,
+  ShiftStatus,
+  SystemActivity,
+  TemporaryPassword,
+  UpdateContact,
+  UpdateOperator,
   AlertDetail,
   AlertEvent,
   AlertStatus,
@@ -118,9 +133,13 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   }
   if (!res.ok) {
     const err = (body ?? {}) as Partial<ApiError>;
+    // Contraseña temporal pendiente: la API no deja operar hasta cambiarla.
+    if (err.code === 'PASSWORD_CHANGE_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/cambiar-clave') {
+      window.location.replace('/cambiar-clave');
+    }
     throw new ApiRequestError(res.status, err.code ?? 'INTERNAL', err.message ?? `HTTP ${res.status}`, err.details);
   }
-  return body as T;
+  return res.status === 204 ? (null as T) : (body as T);
 }
 
 const json = (body: unknown) => JSON.stringify(body);
@@ -152,6 +171,34 @@ export const api = {
   units: () => request<Unit[]>('/ops/units'),
   updateUnit: (id: string, status: UnitStatus) => request<Unit>(`/ops/units/${id}`, { method: 'PATCH', body: json({ status }) }),
   mediaUrl: (mediaId: string) => request<SignedUrl>(`/ops/media/${mediaId}/url`),
+
+  // ---- administración (migración 0003)
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<OperatorPublic>('/ops/me/password', { method: 'POST', body: json({ currentPassword, newPassword }) }),
+  operators: () => request<OperatorAccount[]>('/ops/operators'),
+  createOperator: (body: CreateOperator) => request<TemporaryPassword>('/ops/operators', { method: 'POST', body: json(body) }),
+  updateOperator: (id: string, body: UpdateOperator) =>
+    request<OperatorAccount>(`/ops/operators/${id}`, { method: 'PATCH', body: json(body) }),
+  resetPassword: (id: string) => request<TemporaryPassword>(`/ops/operators/${id}/reset-password`, { method: 'POST' }),
+
+  shifts: (from: string, to: string) =>
+    request<Shift[]>(`/ops/shifts?${new URLSearchParams({ from, to }).toString()}`),
+  shiftStatus: () => request<ShiftStatus>('/ops/shifts/status'),
+  startShift: () => request<Shift>('/ops/shifts/start', { method: 'POST' }),
+  endShift: (handoverNote: string) => request<Shift>('/ops/shifts/end', { method: 'POST', body: json({ handoverNote }) }),
+  planShift: (body: CreateShift) => request<Shift>('/ops/shifts', { method: 'POST', body: json(body) }),
+  removeShift: (id: string) => request<null>(`/ops/shifts/${id}`, { method: 'DELETE' }),
+
+  contacts: (includeInactive = false) => request<Contact[]>(`/ops/contacts${includeInactive ? '?includeInactive=true' : ''}`),
+  createContact: (body: ContactInput) => request<Contact>('/ops/contacts', { method: 'POST', body: json(body) }),
+  updateContact: (id: string, body: UpdateContact) => request<Contact>(`/ops/contacts/${id}`, { method: 'PATCH', body: json(body) }),
+  removeContact: (id: string) => request<Contact>(`/ops/contacts/${id}`, { method: 'DELETE' }),
+
+  overview: (range: AdminRange) => request<AdminOverview>(`/ops/admin/overview?range=${range}`),
+  caseActivity: (cursor?: string) =>
+    request<ActivityPage<CaseActivity>>(`/ops/admin/activity?source=cases&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  systemActivity: (cursor?: string) =>
+    request<ActivityPage<SystemActivity>>(`/ops/admin/activity?source=system&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
 };
 
 /** Todas las alertas con esos estados siguiendo el cursor (la API entrega 100 por página). Tope: 10 páginas. */
