@@ -3,7 +3,7 @@ import { asc, eq, inArray, sql } from 'drizzle-orm';
 import type { CitizenEraseResult, CitizenExport } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import { DbService } from '../db/db.service';
-import { alert, alertEvent, citizen, device, media } from '../db/schema';
+import { alert, alertEvent, citizen, citizenStrike, device, media, tenant } from '../db/schema';
 import { MediaService } from '../media/media.service';
 
 /** Derechos ARCO del vecino (Ley 21.719): acceso (export) y supresión (anonimización). */
@@ -25,6 +25,19 @@ export class PrivacyService {
       const alerts = await tx.select().from(alert).where(eq(alert.citizenId, citizenId)).orderBy(asc(alert.createdAt));
       const ids = alerts.map((a) => a.id);
       const files = ids.length ? await tx.select().from(media).where(inArray(media.alertId, ids)) : [];
+      // Faltas por aviso falso: dato personal del vecino (derecho de acceso).
+      const strikes = await tx
+        .select({
+          createdAt: citizenStrike.createdAt,
+          expiresAt: citizenStrike.expiresAt,
+          note: citizenStrike.note,
+          annulledAt: citizenStrike.annulledAt,
+          tenantName: tenant.name,
+        })
+        .from(citizenStrike)
+        .innerJoin(tenant, eq(tenant.id, citizenStrike.tenantId))
+        .where(eq(citizenStrike.citizenId, citizenId))
+        .orderBy(asc(citizenStrike.createdAt));
       const events = ids.length
         ? await tx
             .select({ alertId: alertEvent.alertId, kind: alertEvent.kind, createdAt: alertEvent.createdAt })
@@ -44,6 +57,13 @@ export class PrivacyService {
           consentAt: c.consentAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
         },
+        strikes: strikes.map((st) => ({
+          municipality: st.tenantName,
+          createdAt: st.createdAt.toISOString(),
+          expiresAt: st.expiresAt.toISOString(),
+          annulled: st.annulledAt !== null,
+          note: st.note,
+        })),
         devices: devices.map((d) => ({ platform: d.platform, appVersion: d.appVersion, lastSeenAt: d.lastSeenAt.toISOString() })),
         alerts: alerts.map((a) => ({
           id: a.id,

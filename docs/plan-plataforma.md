@@ -267,6 +267,13 @@ según la política de retención.
   quedan como eventos de la alerta (`FIELD_UPDATE`, `SUPPORT_REQUESTED`, `FIELD_PANIC`); `triage_label` suma
   la clasificación de terreno; `shift` suma la unidad del turno.
 
+### Avance (13-10-2026)
+Etapa 1 hecha (migración 0008): motivos `ACCIDENTAL` y `MISREPORTED`, diálogo de rechazo sin motivo marcado y con
+el historial del vecino, faltas con evidencia y vencimiento, advertencia escalonada al vecino (push y app), faltas
+en "Mis datos"; resultado en terreno registrado por la central (RT-9), con "era otra situación" como clasificación
+de terreno. Falta de PU: cuenta restringida, bloqueo con aprobación del supervisor, "Estado de tu cuenta" y pedir
+revisión, anular faltas. Falta de PT: la app de terreno.
+
 ## 6. Modelo de datos propuesto
 
 | Tabla | Llave | Contenido |

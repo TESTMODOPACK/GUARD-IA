@@ -100,7 +100,14 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     o está a menos de 3 km de esa comuna, la alerta sigue nueva y la central de destino tiene operadores
     conectados; si no, la central ve la sugerencia y traspasa a mano. Solo alertas abiertas sin despacho.
     Tras el traspaso: `alert.transferred` a origen, `alert.created` a destino, aviso al vecino.
-14. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
+14. **Uso indebido y terreno** (migración 0008, `docs/plan-plataforma.md` §5b y §5c): solo `FALSE_ALARM`
+    (aviso falso intencional) es falta del vecino: exige evidencia escrita (≥ 10 caracteres), queda en
+    `citizen_strike` por 90 días y escala la advertencia; `ACCIDENTAL`, `MISREPORTED`, duplicada, etc. no
+    sancionan. El diálogo de rechazo no trae motivo marcado. Lo que se le dice al vecino vive en
+    `shared/src/citizen-notices.ts` (push y app). La central registra lo que informa la unidad
+    (`dispatch.outcome`); "era otra situación" corrige la categoría como clasificación de terreno
+    (`triage_label.field_*`) y "falsa alarma confirmada" permite rechazar una alerta ya despachada.
+15. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
@@ -148,8 +155,8 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 ## Pendiente conocido
 
 - Base de datos: informe en `docs/revision-base-de-datos.md` (dos PK de texto, RLS que no usa índices por
-  municipio, privilegios); correcciones planificadas como `0008_hardening.sql` y `0009_scale.sql`, sin aplicar
-  (A3 ya resuelto en 0006/0007). Si `0008` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
+  municipio, privilegios); correcciones planificadas como `0009_hardening.sql` y `0010_scale.sql`, sin aplicar
+  (A3 ya resuelto en 0006/0007). Si `0009` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
 - Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
   Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
@@ -157,7 +164,9 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   hace falta el plan pagado o un proveedor con más cuota (si se agota, rige el respaldo por reglas).
 - Plataforma y operación (borrador 1, 13-10-2026): `docs/plan-plataforma.md` (consola de superadministrador por
   región, planes, contratos, facturación, bitácora de errores, métricas; uso indebido con escalera de faltas;
-  unidad en terreno que informa resultados). Fases P1, PU, PT, P2 antes del piloto; decisiones pendientes en §9.
+  unidad en terreno que informa resultados). Etapa 1 hecha (13-10-2026): motivos de rechazo, faltas y
+  advertencias, resultado en terreno desde la central. Siguen P1 (consola; decidir si va en dominio propio), resto
+  de PU (restricción, bloqueo con aprobación, "Estado de tu cuenta"), app de terreno y P2; decisiones en §9.
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
   ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
   Guard-IA") y se retoma después del piloto.

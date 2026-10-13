@@ -27,7 +27,7 @@ Resumen de lo encontrado:
 #### C1. `otp_code.phone` es llave primaria de tipo texto
 - **Evidencia:** `0001_init.sql:207-213` declara `phone text PRIMARY KEY`. En la base, `pg_constraint` da `otp_code | phone | text`. El espejo está en `schema.ts:205-206`.
 - **Agravantes:** el teléfono no tiene el CHECK de formato que sí tiene `citizen.phone`. Tampoco hay índice sobre `expires_at` para purgar (C3 de la sección 3, A5 abajo).
-- **SQL (0008):**
+- **SQL (0009):**
 ```sql
 ALTER TABLE otp_code ADD COLUMN id uuid NOT NULL DEFAULT gen_random_uuid();
 ALTER TABLE otp_code DROP CONSTRAINT otp_code_pkey;
@@ -46,7 +46,7 @@ CREATE INDEX otp_code_expires_idx ON otp_code (expires_at);
 
 #### C2. `schema_migrations.name` es llave primaria de tipo texto
 - **Evidencia:** la crea `apps/api/src/db/migrator.ts:24-27` (`name text PRIMARY KEY`), no una migración. En la base, `schema_migrations | name | text`. Es la única otra PK de texto.
-- **SQL (0008, idempotente):**
+- **SQL (0009, idempotente):**
 ```sql
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
@@ -92,7 +92,7 @@ Este es el hallazgo de mayor impacto a escala.
 3. No depender de `status` ni `type` como columnas de índice. Usarlos como predicado de índice parcial o dejarlos de filtro.
 
 ```sql
--- 0008
+-- 0009
 ALTER TABLE alert ADD COLUMN priority_rank smallint GENERATED ALWAYS AS (
   CASE priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END) STORED;
 -- enum_eq es IMMUTABLE (verificado), la columna generada es válida. ADD COLUMN STORED reescribe la tabla:
@@ -139,7 +139,7 @@ DROP INDEX incident_tenant_type_last_idx;
   - `unit`: `UPDATE` sobre `id`, `tenant_id` y `code`. El código (`units.service.ts:64-72`, `ops.service.ts`) solo cambia `status`, `kind`, `last_lat`, `last_lng`, `last_seen_at`.
   - `device`: `UPDATE` sobre `id`.
   - `DELETE` sin uso en `citizen`, `operator`, `dispatch`, `media` y `unit`. La búsqueda de `.delete(` en la API solo encuentra `shift` y `otpCode`. Los vecinos se anonimizan y los operadores se desactivan.
-- **SQL (0008):**
+- **SQL (0009):**
 ```sql
 REVOKE ALL ON schema_migrations FROM guardia_app;
 REVOKE INSERT, UPDATE, DELETE ON spatial_ref_sys, geometry_columns, geography_columns FROM guardia_app;
@@ -161,7 +161,7 @@ REVOKE DELETE ON citizen, operator, dispatch, media, unit FROM guardia_app;
 #### A2. `tenant` no tiene RLS: cualquier contexto lee todos los municipios
 - **Evidencia:** `0001:367-368` lo dice (`tenant no tiene RLS; guardia_app solo tiene SELECT`). La base lo confirma: `relrowsecurity = f`. Un operador o un vecino puede leer `settings` y la geocerca `boundary` de cientos de municipios. La regla 3 del CLAUDE.md dice que la RLS es la frontera.
 - **Quién lee `tenant` hoy:** `alerts.service.ts:242` (vecino), `alert-read.service.ts:164`, `stats.service.ts:46` y `operators.service.ts:180` (operador), `auth.service.ts:173` y `ai.processor.ts:55` (sistema). Ninguno lee `boundary`, y el espejo Drizzle ni la declara.
-- **SQL (0008):**
+- **SQL (0009):**
 ```sql
 ALTER TABLE tenant ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_system   ON tenant FOR SELECT TO guardia_app USING (app_role() = 'system');
@@ -180,7 +180,7 @@ GRANT SELECT (id, name, slug, cut_code, timezone, audio_retention_days, settings
 #### A3. El trigger de ruteo hace Seq Scan de `tenant` en cada SOS
 - **Evidencia:** `0001:239` usa `ST_Contains(t.boundary::geometry, v_point)`. El índice `tenant_boundary_gix` está sobre la columna `geography`, así que la conversión a `geometry` lo anula. EXPLAIN: `Seq Scan on tenant t, Filter: (active AND st_contains((boundary)::geometry, ...))`. Con `ST_Covers(boundary, punto::geography)` el índice sí se usa, pero eso cambia la semántica (bordes geodésicos y borde incluido). Hoy `tenant` tiene 1 fila con 5 vértices, así que no se nota.
 - **Por qué importa:** el trigger corre dentro de la inserción del SOS (regla 1). Con cientos de municipios y límites de miles de vértices, cada SOS deserializa todas las geocercas.
-- **SQL (0008):**
+- **SQL (0009):**
 ```sql
 CREATE INDEX tenant_boundary_geom_gix ON tenant USING GIST ((boundary::geometry));
 ```
@@ -193,7 +193,7 @@ ALTER TABLE tenant ADD CONSTRAINT tenant_boundary_valid CHECK (ST_IsValid(bounda
 
 #### A4. `erase_citizen` deja las coordenadas exactas en `incident`
 - **Evidencia:** `0002:41-49` redondea `alert.lat/lng` a 3 decimales, pero no toca `incident`. Un incidente de una sola alerta copia las coordenadas de esa alerta (`incidents.service.ts:62-73`). En la base: 12 de 16 incidentes son de 1 alerta con latitud y longitud idénticas a la alerta. Tras suprimir al vecino, la ubicación exacta sigue en `incident.lat/lng` y en `incident.location` (generada). Contradice el comentario de la migración (ubicación a ~100 m) y la Ley 21.719.
-- **SQL (0008): `CREATE OR REPLACE FUNCTION erase_citizen` con el cuerpo vigente (`0005_triage.sql`, que ya borra `ai_triage`) más este bloque, justo después del `UPDATE alert`:**
+- **SQL (0009): `CREATE OR REPLACE FUNCTION erase_citizen` con el cuerpo vigente (`0005_triage.sql`, que ya borra `ai_triage`) más este bloque, justo después del `UPDATE alert`:**
 ```sql
 UPDATE incident i
    SET lat = round(i.lat::numeric, 3)::double precision,
@@ -208,7 +208,7 @@ UPDATE incident i
 - **`refresh_token`:** no hay ningún `DELETE` en `apps/api/src/jobs` ni en `token.service.ts`. En la base: 75 filas, 28 revocadas, 5 vencidas. `EXPLAIN` de las vencidas: `Seq Scan` (no hay índice por `expires_at`). Cada rotación del refresh inserta una fila. El access token del vecino dura 15 min, el refresh 30 días (`env.ts:23-24`).
 - **`otp_code`:** solo se borra al verificar con éxito o agotar intentos. Un número que pide código y no lo usa deja la fila indefinidamente. Una ráfaga de números aleatorios (SMS pumping) la engorda.
 - **Media (`media.service.ts:107-129`):** `purgeExpired(limit = 500)` corre una vez al día (04:00), y borra las filas por soft delete (`deleted_at`), nunca físicamente. Con la hipótesis de ~4.200 archivos vencidos al día a escala nacional (ver sección 3, ítem 6), el atraso crece ~3.700 por día. El flujo de supresión (`privacy.service.ts:87`) también llama a `purgeExpired()` y depende de que su fila caiga dentro de esos 500, sin `ORDER BY`.
-- **SQL (0008):** `otp_code_expires_idx` ya está en C1, más:
+- **SQL (0009):** `otp_code_expires_idx` ya está en C1, más:
 ```sql
 CREATE INDEX refresh_token_expires_idx ON refresh_token (expires_at);
 ```
@@ -252,7 +252,7 @@ CREATE INDEX refresh_token_subject_idx ON refresh_token (subject_id) WHERE revok
 - **Efecto en código:** `token.service.ts:62-68` inserta `citizenId` u `operatorId` según el `kind`, en lugar de `subjectId`. Las lecturas de `row.subjectId` (líneas 101, 105, 121, 148) siguen igual. En `schema.ts`: `subjectId: uuid('subject_id').generatedAlwaysAs(sql\`COALESCE(citizen_id, operator_id)\`)`.
 - **Sobre `erase_citizen`:** el `DELETE ... WHERE subject_id = p_citizen AND kind = 'CITIZEN'` de `0002:52` sigue válido.
 
-**`alert_event.actor_id`:** guarda el id del vecino o del operador según `actor_type`. En la base: CITIZEN 39 con id, OPERATOR 68 con id, SYSTEM 40 y AI 37 sin id. Se resuelve al reconstruir la tabla en la migración 0009 (sección 3, S1) con `actor_operator_id` y `actor_citizen_id`, ambos con FK, y un CHECK que los liga a `actor_type`.
+**`alert_event.actor_id`:** guarda el id del vecino o del operador según `actor_type`. En la base: CITIZEN 39 con id, OPERATOR 68 con id, SYSTEM 40 y AI 37 sin id. Se resuelve al reconstruir la tabla en la migración 0010 (sección 3, S1) con `actor_operator_id` y `actor_citizen_id`, ambos con FK, y un CHECK que los liga a `actor_type`.
 
 **`audit_log.target_id`:** apunta a operador, turno, unidad o contacto. Dejarlo sin FK es correcto: la bitácora debe sobrevivir al objeto (por ejemplo, `SHIFT_REMOVED` borra el turno). `audit_log.actor_id` ya tiene FK a `operator`.
 
@@ -325,7 +325,7 @@ CREATE TRIGGER media_tenant       BEFORE INSERT ON media       FOR EACH ROW EXEC
   - `UPDATE alert SET status/priority/...` en una alerta propia.
   - Insertar un `alert_event` con `actor_type = 'OPERATOR'` y `kind = 'ACKNOWLEDGED'`, falsificando la auditoría.
   - `DELETE` de `media`.
-- **SQL (0008, para `alert` y `media`; el de `alert_event` va en la reconstrucción de 0009):**
+- **SQL (0009, para `alert` y `media`; el de `alert_event` va en la reconstrucción de 0010):**
 ```sql
 DROP POLICY alert_citizen ON alert;
 CREATE POLICY alert_citizen_select ON alert FOR SELECT TO guardia_app
@@ -414,7 +414,7 @@ ALTER TABLE otp_code SET (fillfactor = 70, autovacuum_vacuum_scale_factor = 0, a
   - Sin `.references(...)` en `operator.createdBy` (línea 106), `alert.incidentId` (152), `auditLog.actorId` (234), `shift.createdBy` (254) y `contact.createdBy` (274).
   - `incident.importance` está como `integer` (línea 294) y en SQL es `smallint`.
   - El comentario de cabecera dice "espejo de 0001"; ya cubre 0001-0004.
-  - Tras 0008/0009 hay que reflejar: `otpCode.id`, `refreshToken` (citizen/operator), `alertEvent` (actores), `priorityRank`, `uuidv7` por defecto.
+  - Tras 0009/0010 hay que reflejar: `otpCode.id`, `refreshToken` (citizen/operator), `alertEvent` (actores), `priorityRank`, `uuidv7` por defecto.
 - **B2. `refresh_token.token_hash` es `text` con 64 caracteres hex.** Guardarlo como `bytea` (32 bytes) reduce a la mitad el índice único más grande de la tabla más grande. Implica cambiar `hash()` en `token.service.ts` para devolver `Buffer` y declarar un tipo `bytea` en Drizzle.
 - **B3. Clave del advisory lock.** `hashtextextended(texto, 0)` comparte espacio de claves con cualquier otro uso de advisory locks. Usar la forma de dos enteros `pg_advisory_xact_lock(int4, int4)` con un id de feature fijo.
 - **B4. `tenant_boundary_gix`** (geography) no se usa, ya que el trigger convierte a geometry (A3). Si se adopta el índice funcional, queda como respaldo; `idx_scan` es 0.
@@ -467,7 +467,7 @@ Conclusión: el modelo de aislamiento es el adecuado (vecino global, alertas fue
 
 ### 3.3 Crecimiento y estrategia concreta
 
-**S1. Particionar `alert_event` y `audit_log` por mes (0009).**
+**S1. Particionar `alert_event` y `audit_log` por mes (0010).**
 - **Por qué esas dos.** Son append-only, sin FKs entrantes, y se consultan siempre con `tenant_id` y rango de fechas.
 - **Por qué no las demás:**
   - `alert`: recibe FKs de `media`, `dispatch` y `alert_event`, y su `UNIQUE (citizen_id, client_ref)` (idempotencia del SOS) no puede incluir `created_at` sin perder la garantía.
@@ -477,7 +477,7 @@ Conclusión: el modelo de aislamiento es el adecuado (vecino global, alertas fue
 - **Por qué hacerlo ahora.** `alert_event` tiene 188 filas; reconstruirla hoy es trivial y más adelante es una migración larga.
 
 ```sql
--- 0009_scale.sql
+-- 0010_scale.sql
 CREATE TABLE alert_event_new (
   id                uuid        NOT NULL DEFAULT uuidv7(),          -- ver S2
   alert_id          uuid        NOT NULL REFERENCES alert(id) ON DELETE CASCADE,
@@ -591,15 +591,15 @@ El número de filas por sí solo no es el límite: 2,6 M de alertas al año se m
 ## 4. Plan de entrega
 
 > Numeración (13-10-2026): `0005_triage.sql` (agente de clasificación), `0006_geo_routing.sql` (comunas y
-> traspaso entre municipios) y `0007_comuna_parts.sql` (comunas en trozos para el ruteo) se aplicaron antes que
-> estas correcciones, así que el endurecimiento pasa a `0008_hardening.sql` y el particionado a `0009_scale.sql`. **A3 ya está resuelto en `0006_geo_routing.sql`**
-> (el trigger de ruteo usa `ST_Covers` sobre geography, con índice GIST); sácalo de `0008`.
+> traspaso entre municipios), `0007_comuna_parts.sql` (comunas en trozos para el ruteo) y `0008_misuse_field.sql`
+> (faltas por aviso falso y resultado en terreno) se aplicaron antes que estas correcciones, así que el endurecimiento pasa a `0009_hardening.sql` y el particionado a `0010_scale.sql`. **A3 ya está resuelto en `0006_geo_routing.sql`**
+> (el trigger de ruteo usa `ST_Covers` sobre geography, con índice GIST); sácalo de `0009`.
 > `0005_triage.sql` ya cumple las reglas de este informe: `triage_label` tiene PK uuid, `tenant_id` con FK e
 > índice, RLS por municipio, sin DELETE para la app y UPDATE solo por columna.
 
 1. **Sin migración, ya:** `tenant_id` explícito en las consultas de operador (C3); `lock_timeout` en `attachInTx` (A6); `.orderBy(asc(alert.id))` en `resolve` (M7); `MaintenanceCron` con las purgas (A5).
-2. **`0008_hardening.sql`:** C1, C2, A1, A2, A3, A4, M1 (refresh_token), M2, M3, M4, M5 (alert y media), M6, M8, y los índices de C3.
-3. **`0009_scale.sql`:** reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
+2. **`0009_hardening.sql`:** C1, C2, A1, A2, A3, A4, M1 (refresh_token), M2, M3, M4, M5 (alert y media), M6, M8, y los índices de C3.
+3. **`0010_scale.sql`:** reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
 4. **Fase 2, opcional:** rol de base por contexto (C3 nivel 2); sesiones en lugar de una fila por rotación; `token_hash` como `bytea`.
 5. **Pruebas:** `pnpm --filter @guardia/api test:db` (RLS contra base real), `pnpm typecheck` y `pnpm simulate`. Añadir la prueba de plan de C3 y una prueba que verifique que `guardia_app` no puede escribir en `schema_migrations`.
 
@@ -612,8 +612,8 @@ Puntos que no pude comprobar en modo solo lectura y que hay que validar en una c
 | Tabla | Columna | Tipo | ¿Cumple? |
 |---|---|---|---|
 | `alert` | `id` | uuid | Sí |
-| `alert_event` | `id` | uuid | Sí (tras 0009: `(id, created_at)`, uuid y timestamptz, también cumple) |
-| `audit_log` | `id` | uuid | Sí (igual, tras 0009) |
+| `alert_event` | `id` | uuid | Sí (tras 0010: `(id, created_at)`, uuid y timestamptz, también cumple) |
+| `audit_log` | `id` | uuid | Sí (igual, tras 0010) |
 | `citizen` | `id` | uuid | Sí |
 | `contact` | `id` | uuid | Sí |
 | `device` | `id` | uuid | Sí |
@@ -629,7 +629,7 @@ Puntos que no pude comprobar en modo solo lectura y que hay que validar en una c
 | `tenant` | `id` | uuid | Sí |
 | `unit` | `id` | uuid | Sí |
 
-Las dos PK de texto se corrigen en 0008 con `id uuid` (y `id bigint IDENTITY` para `schema_migrations`) más `UNIQUE` sobre la columna natural. `onConflict` de `otp_code` no cambia.
+Las dos PK de texto se corrigen en 0009 con `id uuid` (y `id bigint IDENTITY` para `schema_migrations`) más `UNIQUE` sobre la columna natural. `onConflict` de `otp_code` no cambia.
 
 ---
 

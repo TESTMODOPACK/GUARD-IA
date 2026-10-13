@@ -1,25 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import {
   canTransitionAlert,
   canTransitionDispatch,
   categoriesFor,
+  rejectNotice,
+  STRIKE_WINDOW_DAYS,
+  TERMINAL_OUTCOMES,
   type AlertDetail,
   type AlertEvent,
   type Dispatch,
   type DispatchAlert,
   type OpsAlertsQuery,
+  type CitizenStanding,
   type ReclassifyAlert,
+  type RecordOutcome,
   type ReferAlert,
+  type RejectReason,
   type RejectAlert,
   type UpdateDispatch,
 } from '@guardia/shared';
-import { AlertReadService } from '../alerts/alert-read.service';
+import { AlertReadService, activeStrikes } from '../alerts/alert-read.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AppError } from '../common/app-error';
 import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
 import { DbService, type Tx } from '../db/db.service';
-import { alert, citizen, dispatch, triageLabel, unit, type AlertRow } from '../db/schema';
+import { alert, alertEvent, citizen, citizenStrike, dispatch, tenant, triageLabel, unit, type AlertRow } from '../db/schema';
 import { EventsService } from '../events/events.service';
 import { IncidentsService, loadIncidentInfos } from '../incidents/incidents.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -109,17 +115,36 @@ export class OpsService {
   }
 
   async reject(op: OperatorClaims, alertId: string, body: RejectAlert): Promise<AlertDetail> {
+    let strikes: number | null = null;
     let detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const row = await this.loadForUpdate(tx, alertId);
       this.assertTransition(row, 'REJECTED');
       await tx.update(alert).set({ status: 'REJECTED', resolvedAt: new Date() }).where(eq(alert.id, alertId));
       let trustDelta = 0;
+      let strikeCount: number | null = null;
+      // Solo el engaño intencional es falta del vecino (docs/plan-plataforma.md §5b): baja la confianza y
+      // queda registrada con la evidencia, por 90 días. Accidental, mal reportado o duplicado no sancionan.
       if (body.reason === 'FALSE_ALARM') {
+        if ((body.notes?.trim().length ?? 0) < 10) {
+          throw new AppError('VALIDATION_ERROR', 'Describe la evidencia del aviso falso (mínimo 10 caracteres)');
+        }
         trustDelta = -TRUST_PENALTY_FALSE_ALARM;
         await tx
           .update(citizen)
           .set({ trustScore: sql`greatest(0, ${citizen.trustScore} - ${TRUST_PENALTY_FALSE_ALARM})` })
           .where(eq(citizen.id, row.citizenId));
+        await tx
+          .insert(citizenStrike)
+          .values({
+            citizenId: row.citizenId,
+            tenantId: op.tenantId,
+            alertId,
+            note: body.notes!,
+            decidedBy: op.sub,
+            expiresAt: new Date(Date.now() + STRIKE_WINDOW_DAYS * 86_400_000),
+          })
+          .onConflictDoNothing({ target: citizenStrike.alertId });
+        strikeCount = await activeStrikes(tx, row.citizenId);
       }
       await this.cancelOpenDispatches(tx, row, op, 'alerta rechazada');
       await this.events.record(tx, {
@@ -128,9 +153,12 @@ export class OpsService {
         actorType: 'OPERATOR',
         actorId: op.sub,
         kind: 'REJECTED',
-        payload: { reason: body.reason, notes: body.notes ?? null, trustDelta },
+        payload: { reason: body.reason, notes: body.notes ?? null, trustDelta, strikeCount },
       });
-      return this.reads.detail(tx, alertId);
+      return { detail: await this.reads.detail(tx, alertId), strikeCount };
+    }).then((r) => {
+      strikes = r.strikeCount;
+      return r.detail;
     });
     // Una alerta rechazada deja de confirmar su grupo: se recalcula y se emite con el grupo al día.
     if (detail.incident) {
@@ -138,11 +166,52 @@ export class OpsService {
       detail = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, alertId));
     }
     this.realtime.alertUpdated(op.tenantId, detail);
-    await this.notifyCitizen(detail, {
-      title: 'Tu alerta fue cerrada',
-      body: 'La central cerró el caso sin despacho. Si sigues en peligro, llama al 133.',
-    });
+    const notice = rejectNotice(body.reason, strikes);
+    await this.notifyCitizen(detail, { title: notice.title, body: notice.body });
     return detail;
+  }
+
+  /**
+   * Lo que ve el operador antes de rechazar: faltas vigentes del vecino en todo el país (con el municipio
+   * que las puso) y los rechazos recientes en este municipio (p. ej. una "prueba" que se repite).
+   */
+  citizenStanding(op: OperatorClaims, alertId: string): Promise<CitizenStanding> {
+    return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const [row] = await tx.select({ citizenId: alert.citizenId }).from(alert).where(eq(alert.id, alertId)).limit(1);
+      if (!row) throw new AppError('NOT_FOUND', 'Alerta no encontrada');
+      const byTenant = await tx
+        .select({ tenantName: tenant.name, count: sql<number>`count(*)::int` })
+        .from(citizenStrike)
+        .innerJoin(tenant, eq(tenant.id, citizenStrike.tenantId))
+        .where(
+          and(
+            eq(citizenStrike.citizenId, row.citizenId),
+            sql`${citizenStrike.annulledAt} IS NULL`,
+            gt(citizenStrike.expiresAt, sql`now()`),
+          ),
+        )
+        .groupBy(tenant.name);
+      const rejections = await tx
+        .select({ payload: alertEvent.payload, at: alertEvent.createdAt })
+        .from(alertEvent)
+        .innerJoin(alert, eq(alert.id, alertEvent.alertId))
+        .where(
+          and(
+            eq(alert.citizenId, row.citizenId),
+            eq(alertEvent.kind, 'REJECTED'),
+            gt(alertEvent.createdAt, sql`now() - make_interval(days => ${STRIKE_WINDOW_DAYS})`),
+          ),
+        )
+        .orderBy(desc(alertEvent.createdAt))
+        .limit(10);
+      return {
+        activeStrikes: byTenant.reduce((n, t) => n + t.count, 0),
+        strikesByTenant: byTenant,
+        recentRejections: rejections
+          .map((r) => ({ reason: (r.payload as { reason?: RejectReason }).reason, at: r.at.toISOString() }))
+          .filter((r): r is { reason: RejectReason; at: string } => !!r.reason),
+      };
+    });
   }
 
   async dispatch(op: OperatorClaims, alertId: string, body: DispatchAlert): Promise<Dispatch> {
@@ -417,6 +486,83 @@ export class OpsService {
     });
     this.realtime.alertUpdated(op.tenantId, detail);
     return detail;
+  }
+
+  /**
+   * Resultado en terreno (migración 0008), registrado por la central con lo que informa la unidad.
+   * Los terminales (atendido, derivado, no se encontró nada, falsa alarma confirmada) cierran el despacho y
+   * liberan la unidad; "pide apoyo" y "era otra situación" lo dejan abierto. "Era otra situación" aplica la
+   * categoría que vio la unidad (manda sobre la IA y queda como clasificación de terreno). La alerta la
+   * cierra el operador (resolver o, si la unidad confirmó un engaño, rechazar como aviso falso).
+   */
+  async recordOutcome(op: OperatorClaims, dispatchId: string, body: RecordOutcome): Promise<Dispatch> {
+    const { d, detail, reclassified, closed } = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const [row] = await tx.select().from(dispatch).where(eq(dispatch.id, dispatchId)).for('update').limit(1);
+      if (!row) throw new AppError('NOT_FOUND', 'Despacho no encontrado');
+      if (row.status === 'CANCELLED') throw new AppError('CONFLICT', 'El despacho fue cancelado');
+      const alertRow = await this.loadForUpdate(tx, row.alertId);
+      if (body.category && !categoriesFor(alertRow.type).includes(body.category)) {
+        throw new AppError('VALIDATION_ERROR', 'La categoría no corresponde al tipo de alerta');
+      }
+      const close = TERMINAL_OUTCOMES.includes(body.outcome) && OPEN_DISPATCH.includes(row.status);
+      const now = new Date();
+      const [updated] = await tx
+        .update(dispatch)
+        .set({
+          outcome: body.outcome,
+          outcomeNote: body.notes ?? null,
+          outcomeAt: now,
+          outcomeBy: op.sub,
+          ...(close ? { status: 'CLOSED' as const, closedAt: now } : {}),
+        })
+        .where(eq(dispatch.id, dispatchId))
+        .returning();
+      if (close) await tx.update(unit).set({ status: 'AVAILABLE' }).where(eq(unit.id, row.unitId));
+      const [u] = await tx.select({ code: unit.code }).from(unit).where(eq(unit.id, row.unitId)).limit(1);
+
+      const reclassified = body.outcome === 'DIFFERENT_SITUATION' && !!body.category;
+      if (reclassified) {
+        const subcategory = body.subcategory ?? null;
+        await tx.update(alert).set({ category: body.category, subcategory }).where(eq(alert.id, row.alertId));
+        await this.upsertLabel(tx, alertRow, op, {
+          category: body.category,
+          subcategory,
+          classifiedBy: op.sub,
+          classifiedAt: now,
+          fieldCategory: body.category,
+          fieldSubcategory: subcategory,
+        });
+      } else {
+        await this.touch(tx, row.alertId);
+      }
+      await this.events.record(tx, {
+        alertId: row.alertId,
+        tenantId: op.tenantId,
+        actorType: 'OPERATOR',
+        actorId: op.sub,
+        kind: 'FIELD_REPORT',
+        payload: {
+          dispatchId,
+          unitCode: u?.code,
+          outcome: body.outcome,
+          notes: body.notes ?? null,
+          category: body.category ?? null,
+          subcategory: body.subcategory ?? null,
+          closedDispatch: close,
+        },
+      });
+      return {
+        d: toDispatch(updated, u?.code ?? ''),
+        detail: await this.reads.detail(tx, row.alertId),
+        reclassified,
+        closed: close,
+      };
+    });
+    this.realtime.dispatchUpdated(op.tenantId, d);
+    if (reclassified) await this.afterTriageChange(op, d.alertId, detail);
+    else this.realtime.alertUpdated(op.tenantId, detail);
+    if (closed) await this.emitUnit(op, d.unitId);
+    return d;
   }
 
   /** Una fila por alerta; cada escritura guarda también lo que la IA proponía en ese momento. */

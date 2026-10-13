@@ -80,8 +80,30 @@ export type ActorType = (typeof ACTOR_TYPES)[number];
 export const MEDIA_KINDS = ['AUDIO', 'PHOTO'] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
-export const REJECT_REASONS = ['FALSE_ALARM', 'DUPLICATE', 'OUT_OF_SCOPE', 'TEST', 'OTHER'] as const;
+/**
+ * Motivo de rechazo (viaja en el evento REJECTED). Solo FALSE_ALARM (engaño intencional) cuenta como
+ * falta del vecino; ACCIDENTAL y MISREPORTED (buena fe) se agregaron para no sancionar errores.
+ */
+export const REJECT_REASONS = ['FALSE_ALARM', 'DUPLICATE', 'OUT_OF_SCOPE', 'TEST', 'OTHER', 'ACCIDENTAL', 'MISREPORTED'] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
+
+/** Faltas por aviso falso: vencen a los 90 días (docs/plan-plataforma.md §5b). */
+export const STRIKE_WINDOW_DAYS = 90;
+
+/**
+ * Lo que informa la unidad al llegar (migración 0008). Los terminales cierran el despacho y liberan la
+ * unidad; "pide apoyo" y "era otra situación" lo dejan abierto.
+ */
+export const DISPATCH_OUTCOMES = [
+  'RESOLVED_ON_SITE',
+  'REFERRED',
+  'NEEDS_SUPPORT',
+  'NOT_FOUND',
+  'DIFFERENT_SITUATION',
+  'FALSE_ALARM_CONFIRMED',
+] as const;
+export type DispatchOutcome = (typeof DISPATCH_OUTCOMES)[number];
+export const TERMINAL_OUTCOMES: readonly DispatchOutcome[] = ['RESOLVED_ON_SITE', 'REFERRED', 'NOT_FOUND', 'FALSE_ALARM_CONFIRMED'];
 
 /** Bitácora del sistema (migración 0003, tipo audit_kind). */
 export const AUDIT_KINDS = [
@@ -139,6 +161,8 @@ export const ALERT_EVENT_KINDS = [
   'REFERRED',
   /** Migración 0006: la alerta pasó a otro municipio. */
   'TRANSFERRED',
+  /** Migración 0008: resultado informado desde terreno (por radio o, después, desde la unidad). */
+  'FIELD_REPORT',
 ] as const;
 export type AlertEventKind = (typeof ALERT_EVENT_KINDS)[number];
 
@@ -152,7 +176,8 @@ export const ALERT_TRANSITIONS: Record<AlertStatus, readonly AlertStatus[]> = {
   PENDING: ['ACKNOWLEDGED', 'DISPATCHED', 'REJECTED', 'CANCELLED', 'RESOLVED'],
   ACKNOWLEDGED: ['DISPATCHED', 'REJECTED', 'RESOLVED'],
   /** ACKNOWLEDGED solo cuando se cancela el último despacho abierto (lo hace el servidor). */
-  DISPATCHED: ['RESOLVED', 'ACKNOWLEDGED'],
+  /** REJECTED: la unidad confirmó en terreno que era una falsa alarma (migración 0008). */
+  DISPATCHED: ['RESOLVED', 'ACKNOWLEDGED', 'REJECTED'],
   RESOLVED: [],
   REJECTED: [],
   CANCELLED: [],

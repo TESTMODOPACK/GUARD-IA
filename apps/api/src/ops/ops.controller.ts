@@ -5,6 +5,7 @@ import {
   DispatchAlertSchema,
   OpsAlertsQuerySchema,
   ReclassifyAlertSchema,
+  RecordOutcomeSchema,
   ReferAlertSchema,
   RejectAlertSchema,
   TransferAlertSchema,
@@ -17,6 +18,7 @@ import {
   type DispatchAlert,
   type OpsAlertsQuery,
   type ReclassifyAlert,
+  type RecordOutcome,
   type ReferAlert,
   type RejectAlert,
   type TransferAlert,
@@ -141,6 +143,23 @@ export class OpsController {
     @Body(zod(AddNoteSchema)) body: AddNote,
   ) {
     return this.ops.addNote(op, id, body.text);
+  }
+
+  /** Resultado en terreno de un despacho (lo que informa la unidad). */
+  @Post('dispatches/:id/outcome')
+  @HttpCode(200)
+  recordOutcome(
+    @CurrentAuth() op: OperatorClaims,
+    @Param('id', zod(UuidSchema)) id: string,
+    @Body(zod(RecordOutcomeSchema)) body: RecordOutcome,
+  ) {
+    return this.ops.recordOutcome(op, id, body);
+  }
+
+  /** Faltas vigentes del vecino y rechazos recientes, para decidir un rechazo con criterio. */
+  @Get('alerts/:id/citizen-standing')
+  citizenStanding(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
+    return this.ops.citizenStanding(op, id);
   }
 
   @Patch('dispatches/:id')

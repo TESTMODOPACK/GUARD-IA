@@ -2,20 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import { ExternalLink, Phone, X } from 'lucide-react';
-import type { AlertCategory, AlertDetail as AlertDetailT, Dispatch, DispatchStatus, Priority, SuggestedAgency } from '@guardia/shared';
+import type {
+  AlertCategory,
+  AlertDetail as AlertDetailT,
+  Dispatch,
+  DispatchOutcome,
+  DispatchStatus,
+  Priority,
+  RejectReason,
+  SuggestedAgency,
+} from '@guardia/shared';
 import { api } from '@/lib/api';
 import {
   AGENCY,
   agencyList,
   AI_STATUS,
   classificationLabel,
+  DISPATCH_OUTCOME,
   DISPATCH_STATUS,
   EVENT_KIND,
   FLAG,
   formatAge,
   formatDateTime,
   formatTime,
+  ordinal,
   PRIORITY,
+  REJECT_REASON,
   SOURCE,
   STATUS,
 } from '@/lib/labels';
@@ -25,7 +37,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { ContactsHint } from './ContactsHint';
 import { IncidentPanel, Transcript } from './IncidentPanel';
 import { TriagePanel } from './TriagePanel';
-import { DispatchDialog, RejectDialog, ResolveDialog } from './Dialogs';
+import { DispatchDialog, OutcomeDialog, RejectDialog, ResolveDialog } from './Dialogs';
 import { Button, PriorityDot, Spinner, Tag, textareaClass } from './ui';
 
 export function AlertDetailPanel() {
@@ -39,6 +51,9 @@ export function AlertDetailPanel() {
   const now = useNow();
 
   const [dialog, setDialog] = useState<'dispatch' | 'reject' | 'resolve' | null>(null);
+  const [outcomeFor, setOutcomeFor] = useState<Dispatch | null>(null);
+  // "Falsa alarma confirmada" en terreno abre el rechazo con la evidencia de la unidad (el operador confirma).
+  const [rejectInitial, setRejectInitial] = useState<{ reason: 'FALSE_ALARM'; notes: string } | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
@@ -95,7 +110,8 @@ export function AlertDetailPanel() {
 
   const canAck = alert.status === 'PENDING';
   const canDispatch = alert.status === 'PENDING' || alert.status === 'ACKNOWLEDGED';
-  const canReject = alert.status === 'PENDING' || alert.status === 'ACKNOWLEDGED';
+  // DISPATCHED también: la unidad puede confirmar en terreno que fue un engaño.
+  const canReject = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(alert.status);
   const canResolve = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(alert.status);
 
   return (
@@ -122,6 +138,11 @@ export function AlertDetailPanel() {
           {alert.priority ? <Tag tone={alert.priority === 'HIGH' ? 'high' : alert.priority === 'MEDIUM' ? 'medium' : 'low'}>Prioridad {PRIORITY[alert.priority].toLowerCase()}</Tag> : null}
           {alert.suggestedAgency ? <Tag>Sugerido: {AGENCY[alert.suggestedAgency]}</Tag> : null}
           {lowTrust ? <Tag tone="medium">Vecino con baja confianza ({alert.citizenTrustScore})</Tag> : null}
+          {detail && detail.citizenStrikes > 0 ? (
+            <Tag tone="high">
+              {detail.citizenStrikes} {detail.citizenStrikes === 1 ? 'aviso falso' : 'avisos falsos'} en 90 días
+            </Tag>
+          ) : null}
         </div>
       </div>
 
@@ -138,7 +159,7 @@ export function AlertDetailPanel() {
               Despachar unidad
             </Button>
           ) : null}
-          {openDispatch ? <DispatchControls dispatch={openDispatch} busy={busy} run={run} /> : null}
+          {openDispatch ? <DispatchControls dispatch={openDispatch} busy={busy} run={run} onOutcome={() => setOutcomeFor(openDispatch)} /> : null}
           {canResolve ? (
             <Button variant="quiet" onClick={() => setDialog('resolve')} data-testid="action-resolve">
               Resolver
@@ -263,6 +284,16 @@ export function AlertDetailPanel() {
                     <li key={d.id} className="flex items-center gap-2">
                       <span className="font-medium">{d.unitCode}</span>
                       <Tag tone={d.status === 'CLOSED' ? 'ok' : d.status === 'CANCELLED' ? 'neutral' : 'accent'}>{DISPATCH_STATUS[d.status]}</Tag>
+                      {d.outcome ? (
+                        <Tag tone={d.outcome === 'NEEDS_SUPPORT' || d.outcome === 'FALSE_ALARM_CONFIRMED' ? 'high' : 'neutral'}>
+                          {DISPATCH_OUTCOME[d.outcome]}
+                        </Tag>
+                      ) : null}
+                      {d.status === 'CLOSED' && !d.outcome ? (
+                        <Button variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => setOutcomeFor(d)}>
+                          Registrar resultado
+                        </Button>
+                      ) : null}
                       <span className="ml-auto text-xs text-ink-muted tabular-nums">{formatTime(d.updatedAt)}</span>
                     </li>
                   ))}
@@ -332,7 +363,30 @@ export function AlertDetailPanel() {
         />
       ) : null}
       {dialog === 'reject' ? (
-        <RejectDialog onClose={() => setDialog(null)} onConfirm={(reason, notes) => run('reject', () => api.reject(alert.id, reason, notes), 'Alerta rechazada')} />
+        <RejectDialog
+          alertId={alert.id}
+          initial={rejectInitial}
+          onClose={() => {
+            setDialog(null);
+            setRejectInitial(undefined);
+          }}
+          onConfirm={(reason, notes) => run('reject', () => api.reject(alert.id, reason, notes), 'Alerta rechazada')}
+        />
+      ) : null}
+      {outcomeFor ? (
+        <OutcomeDialog
+          unitCode={outcomeFor.unitCode}
+          alertType={alert.type}
+          onClose={() => setOutcomeFor(null)}
+          onConfirm={async (body) => {
+            await run('outcome', () => api.recordOutcome(outcomeFor.id, body), `${outcomeFor.unitCode}: ${DISPATCH_OUTCOME[body.outcome].toLowerCase()}`);
+            void refreshDetail(alert.id);
+            if (body.outcome === 'FALSE_ALARM_CONFIRMED') {
+              setRejectInitial({ reason: 'FALSE_ALARM', notes: `Confirmado en terreno por ${outcomeFor.unitCode}: ${body.notes ?? ''}`.trim() });
+              setDialog('reject');
+            }
+          }}
+        />
       ) : null}
       {dialog === 'resolve' ? (
         <ResolveDialog
@@ -356,10 +410,13 @@ function DispatchControls({
   dispatch,
   busy,
   run,
+  onOutcome,
 }: {
   dispatch: Dispatch;
   busy: string | null;
   run: (key: string, fn: () => Promise<unknown>, okText: string) => Promise<void>;
+  /** Abre el registro de lo que informa la unidad. */
+  onOutcome: () => void;
 }) {
   const upsertAlert = useStore((s) => s.upsertAlert);
   const next = NEXT_DISPATCH[dispatch.status];
@@ -387,6 +444,9 @@ function DispatchControls({
       >
         Cancelar despacho
       </Button>
+      <Button variant="quiet" onClick={onOutcome} data-testid="action-outcome">
+        Registrar resultado ({dispatch.unitCode})
+      </Button>
     </>
   );
 }
@@ -405,7 +465,9 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
       text = `${p.unitCode ?? ''} ${p.status ? DISPATCH_STATUS[p.status as DispatchStatus]?.toLowerCase() ?? p.status : ''}${p.revertedToAck ? ' · la alerta vuelve a revisión' : ''}`;
       break;
     case 'REJECTED':
-      text = `${p.reason ?? ''}${p.notes ? ` · ${p.notes}` : ''}`;
+      text = `${REJECT_REASON[p.reason as RejectReason] ?? p.reason ?? ''}${
+        typeof p.strikeCount === 'number' ? ` · ${ordinal(p.strikeCount)} falta en 90 días` : ''
+      }${p.notes ? ` · ${p.notes}` : ''}`;
       break;
     case 'RESOLVED':
       text = p.notes ? String(p.notes) : null;
@@ -419,6 +481,11 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
       text = p.confirmed
         ? `Confirmada: ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`
         : `${classificationLabel(p.from as AlertCategory | null, p.fromSubcategory as string | null)} → ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`;
+      break;
+    case 'FIELD_REPORT':
+      text = `${p.unitCode ?? ''} · ${DISPATCH_OUTCOME[p.outcome as DispatchOutcome] ?? p.outcome ?? ''}${
+        p.category ? ` · ${classificationLabel(p.category as AlertCategory, p.subcategory as string | null)}` : ''
+      }${p.notes ? ` · ${p.notes}` : ''}`;
       break;
     case 'TRANSFERRED':
       text = `${p.auto ? 'Automático, por el agente: ' : ''}${p.reason ?? ''}`;

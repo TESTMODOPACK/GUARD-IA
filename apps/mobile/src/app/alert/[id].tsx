@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CANCEL_WINDOW_SECONDS, type CitizenAlert } from '@guardia/shared';
 import { api, errorMessage } from '@/lib/api';
-import { dispatchLine, FINAL, kindLabel, textFor, titleFor } from '@/lib/labels';
+import { dispatchLine, FINAL, isWarning, kindLabel, textFor, titleFor } from '@/lib/labels';
 import { onAlertStatus, onConnection } from '@/lib/realtime';
 import { ErrorText, LinkButton, Screen } from '@/components/ui';
 import { color, font, radius } from '@/theme';
@@ -81,7 +81,14 @@ export default function AlertStatus() {
   const canCancel = alert.status === 'PENDING' && cancelLeft > 0;
   const unrouted = alert.status === 'UNROUTED';
   const done = alert.status === 'RESOLVED';
-  const tone = unrouted ? styles.toneWarn : done ? styles.toneOk : alert.status === 'CANCELLED' ? styles.toneNeutral : styles.toneSos;
+  const tone =
+    unrouted || isWarning(alert)
+      ? styles.toneWarn
+      : done
+        ? styles.toneOk
+        : alert.status === 'CANCELLED' || alert.status === 'REJECTED'
+          ? styles.toneNeutral
+          : styles.toneSos;
   const unit = dispatchLine(alert);
 
   const cancel = async () => {

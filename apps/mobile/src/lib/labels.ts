@@ -1,4 +1,5 @@
 import type { AlertStatus, CitizenAlert, CivicCategory, DispatchStatus } from '@guardia/shared';
+import { rejectNotice } from '@guardia/shared';
 
 /** Vocabulario del vecino: una palabra por concepto, igual en toda la app. */
 export const STATUS_TITLE: Record<AlertStatus, string> = {
@@ -63,7 +64,19 @@ export const CIVIC_LABEL: Record<CivicCategory, string> = {
   OTRO_URBANO: 'Otro',
 };
 
+/** Cerrada sin despacho: el mismo mensaje que recibió por push, según el motivo (shared/citizen-notices). */
+function closedNotice(a: CitizenAlert) {
+  return a.status === 'REJECTED' && a.closeReason ? rejectNotice(a.closeReason, a.strikeCount) : null;
+}
+
+/** La central cerró la alerta como aviso falso: la pantalla lo destaca como advertencia. */
+export function isWarning(a: CitizenAlert): boolean {
+  return closedNotice(a)?.warning ?? false;
+}
+
 export function titleFor(a: CitizenAlert): string {
+  const notice = closedNotice(a);
+  if (notice) return notice.title;
   return (a.type === 'CIVIC_REPORT' && CIVIC_TITLE[a.status]) || STATUS_TITLE[a.status];
 }
 
@@ -72,6 +85,8 @@ export function textFor(a: CitizenAlert): string {
   if (a.status === 'UNROUTED' && a.comunaName) {
     return `Estás en ${a.comunaName}, que todavía no usa Guard-IA: ninguna central puede atenderte. Llama ahora.`;
   }
+  const notice = closedNotice(a);
+  if (notice) return notice.body;
   return (a.type === 'CIVIC_REPORT' && CIVIC_TEXT[a.status]) || STATUS_TEXT[a.status];
 }
 

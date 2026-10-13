@@ -7,6 +7,7 @@ export * from './schemas/ops';
 export * from './schemas/ai';
 export * from './triage-rules';
 export * from './geo';
+export * from './citizen-notices';
 export * from './schemas/privacy';
 export * from './schemas/admin';
 export * from './ws-events';

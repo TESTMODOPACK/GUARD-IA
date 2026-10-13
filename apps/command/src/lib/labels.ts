@@ -6,6 +6,7 @@ import type {
   AlertStatus,
   AuditKind,
   ContactCategory,
+  DispatchOutcome,
   DispatchStatus,
   ImportanceLevel,
   ImportanceReason,
@@ -153,6 +154,25 @@ export function subcategoryLabel(s: string | null | undefined): string | null {
   return s ? (SUBCATEGORY[s as Subcategory] ?? s.toLowerCase().replace(/_/g, ' ')) : null;
 }
 
+/** Lo que informa la unidad (por radio, por ahora). */
+export const DISPATCH_OUTCOME: Record<DispatchOutcome, string> = {
+  RESOLVED_ON_SITE: 'Atendido en el lugar',
+  REFERRED: 'Derivado a otra institución',
+  NEEDS_SUPPORT: 'En proceso, pide apoyo',
+  NOT_FOUND: 'No se encontró nada',
+  DIFFERENT_SITUATION: 'Era otra situación',
+  FALSE_ALARM_CONFIRMED: 'Falsa alarma confirmada',
+};
+
+export const DISPATCH_OUTCOME_HELP: Record<DispatchOutcome, string> = {
+  RESOLVED_ON_SITE: 'Se resolvió. Cierra el despacho y libera la unidad.',
+  REFERRED: 'Se entregó a Carabineros, SAMU o Bomberos. Cierra el despacho.',
+  NEEDS_SUPPORT: 'La unidad sigue en el lugar y necesita otra unidad o una institución.',
+  NOT_FOUND: 'Nadie en el lugar ni señales del hecho. Cierra el despacho; vuelve a llamar al vecino.',
+  DIFFERENT_SITUATION: 'Lo que había no era lo reportado. Indica qué era: corrige la clasificación.',
+  FALSE_ALARM_CONFIRMED: 'Se comprobó que fue broma o engaño. Cierra el despacho y luego rechaza la alerta.',
+};
+
 export const DISPATCH_STATUS: Record<DispatchStatus, string> = {
   ASSIGNED: 'Asignada',
   EN_ROUTE: 'En camino',
@@ -168,11 +188,27 @@ export const UNIT_STATUS: Record<UnitStatus, string> = {
 };
 
 export const REJECT_REASON: Record<RejectReason, string> = {
-  FALSE_ALARM: 'Falsa alarma',
+  ACCIDENTAL: 'Activación accidental',
+  MISREPORTED: 'Mal reportado, de buena fe',
   DUPLICATE: 'Duplicada',
   OUT_OF_SCOPE: 'Fuera del ámbito municipal',
   TEST: 'Prueba',
+  FALSE_ALARM: 'Aviso falso intencional',
   OTHER: 'Otro motivo',
+};
+
+/** Orden en el diálogo: primero los de buena fe; el que sanciona, al final y nunca marcado por defecto. */
+export const REJECT_REASON_ORDER: RejectReason[] = ['ACCIDENTAL', 'MISREPORTED', 'DUPLICATE', 'OUT_OF_SCOPE', 'TEST', 'OTHER', 'FALSE_ALARM'];
+
+/** Cuándo usar cada motivo y qué le pasa a la cuenta del vecino. */
+export const REJECT_REASON_HELP: Record<RejectReason, string> = {
+  ACCIDENTAL: 'SOS sin habla, bolsillo, se canceló tarde. Sin efecto en la cuenta.',
+  MISREPORTED: 'Era un reporte urbano, o la categoría o el lugar estaban mal. Sin efecto.',
+  DUPLICATE: 'La situación ya está en atención por otra alerta. Sin efecto.',
+  OUT_OF_SCOPE: 'No corresponde al municipio; el vecino recibe a quién acudir. Sin efecto.',
+  TEST: '"Estoy probando la app". Sin efecto; si se repite, usa aviso falso.',
+  OTHER: 'Ninguno de los anteriores. Sin efecto.',
+  FALSE_ALARM: 'Broma, engaño o acoso. Cuenta como falta por 90 días y el vecino recibe una advertencia.',
 };
 
 export const EVENT_KIND: Record<AlertEventKind, string> = {
@@ -190,6 +226,7 @@ export const EVENT_KIND: Record<AlertEventKind, string> = {
   RECLASSIFIED: 'Clasificación revisada',
   REFERRED: 'Derivado a otras instituciones',
   TRANSFERRED: 'Traspaso entre municipios',
+  FIELD_REPORT: 'Resultado en terreno',
 };
 
 export const ROLE: Record<OperatorRole, string> = {
@@ -316,6 +353,11 @@ export function categoryLabel(c: AlertCategory | null, fallback = 'Sin clasifica
 export function classificationLabel(c: AlertCategory | null, sub: string | null | undefined, fallback = 'Sin clasificar') {
   const s = subcategoryLabel(sub);
   return s ? `${categoryLabel(c, fallback)} · ${s}` : categoryLabel(c, fallback);
+}
+
+/** 1.ª, 2.ª, 3.ª… */
+export function ordinal(n: number): string {
+  return `${n}.ª`;
 }
 
 /** "Carabineros, SAMU y Bomberos". */

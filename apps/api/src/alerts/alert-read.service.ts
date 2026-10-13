@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert, TriageLabel } from '@guardia/shared';
+import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert, RejectReason, TriageLabel } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import {
   toAlertDetail,
@@ -11,7 +11,19 @@ import {
   toDispatch,
 } from '../common/mappers';
 import type { Tx } from '../db/db.service';
-import { alert, alertEvent, citizen, dispatch, media, operator, tenant, triageLabel, unit, type AlertRow } from '../db/schema';
+import {
+  alert,
+  alertEvent,
+  citizen,
+  citizenStrike,
+  dispatch,
+  media,
+  operator,
+  tenant,
+  triageLabel,
+  unit,
+  type AlertRow,
+} from '../db/schema';
 import { comunaName, geoContext } from '../geo/geo.queries';
 import { loadIncidentInfos } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
@@ -22,6 +34,15 @@ export interface ListFilters {
   since?: Date;
   limit: number;
   cursor?: string;
+}
+
+/** Faltas vigentes de un vecino (todo el país; RLS deja verlas si tiene alertas en este municipio). */
+export async function activeStrikes(tx: Tx, citizenId: string): Promise<number> {
+  const [r] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(citizenStrike)
+    .where(and(eq(citizenStrike.citizenId, citizenId), isNull(citizenStrike.annulledAt), gt(citizenStrike.expiresAt, sql`now()`)));
+  return r?.n ?? 0;
 }
 
 /** Orden de prioridad para la cola de la central: HIGH primero, luego antigüedad. */
@@ -152,6 +173,7 @@ export class AlertReadService {
       incident: incidentInfo,
       citizenPhone: c?.phone ?? null,
       citizenName: c?.name ?? null,
+      citizenStrikes: await activeStrikes(tx, row.citizenId),
       media: await this.mediaSvc.toPublic(mediaRows),
       dispatches: dispatchRows.map((d) => toDispatch(d.d, d.unitCode)),
       events: eventRows.map(toAlertEvent),
@@ -199,6 +221,18 @@ export class AlertReadService {
       .where(and(eq(dispatch.alertId, row.id), inArray(dispatch.status, ['ASSIGNED', 'EN_ROUTE', 'ON_SITE'])))
       .orderBy(desc(dispatch.createdAt))
       .limit(1);
-    return toCitizenAlert(row, tenantName, active ?? null, await comunaName(tx, row.comunaCut));
+    // Cerrada sin despacho: el motivo (y, si fue aviso falso, cuántas faltas tiene) para que la app lo explique.
+    let closed: { reason: RejectReason; strikeCount: number | null } | null = null;
+    if (row.status === 'REJECTED') {
+      const [ev] = await tx
+        .select({ payload: alertEvent.payload })
+        .from(alertEvent)
+        .where(and(eq(alertEvent.alertId, row.id), eq(alertEvent.kind, 'REJECTED')))
+        .orderBy(desc(alertEvent.createdAt))
+        .limit(1);
+      const p = (ev?.payload ?? {}) as { reason?: RejectReason; strikeCount?: number };
+      if (p.reason) closed = { reason: p.reason, strikeCount: p.strikeCount ?? null };
+    }
+    return toCitizenAlert(row, tenantName, active ?? null, await comunaName(tx, row.comunaCut), closed);
   }
 }

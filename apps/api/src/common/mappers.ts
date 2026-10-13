@@ -7,6 +7,7 @@ import type {
   GeoContext,
   IncidentInfo,
   MediaPublic,
+  RejectReason,
   Triage,
   TriageLabel,
   Unit,
@@ -65,6 +66,7 @@ export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
 export interface AlertDetailExtras extends AlertRowExtras {
   citizenPhone: string | null;
   citizenName: string | null;
+  citizenStrikes: number;
   media: MediaPublic[];
   dispatches: Dispatch[];
   events: AlertEvent[];
@@ -88,6 +90,7 @@ export function toAlertDetail(row: AlertRow, x: AlertDetailExtras): AlertDetail 
     resolvedAt: isoOrNull(row.resolvedAt),
     citizenPhone: x.citizenPhone,
     citizenName: x.citizenName,
+    citizenStrikes: x.citizenStrikes,
     media: x.media,
     dispatches: x.dispatches,
     events: x.events,
@@ -103,6 +106,9 @@ export function toDispatch(row: DispatchRow, unitCode: string): Dispatch {
     operatorId: row.operatorId,
     status: row.status,
     notes: row.notes,
+    outcome: row.outcome,
+    outcomeNote: row.outcomeNote,
+    outcomeAt: isoOrNull(row.outcomeAt),
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     closedAt: isoOrNull(row.closedAt),
@@ -154,6 +160,7 @@ export function toCitizenAlert(
   tenantName: string | null,
   active: { unitCode: string; status: DispatchRow['status']; updatedAt: Date } | null,
   comunaName: string | null = null,
+  closed: { reason: RejectReason; strikeCount: number | null } | null = null,
 ): CitizenAlert {
   return {
     id: row.id,
@@ -163,6 +170,8 @@ export function toCitizenAlert(
     status: row.status,
     tenantName,
     comunaName,
+    closeReason: closed?.reason ?? null,
+    strikeCount: closed?.strikeCount ?? null,
     activeDispatch: active
       ? { unitCode: active.unitCode, status: active.status, updatedAt: iso(active.updatedAt) }
       : null,

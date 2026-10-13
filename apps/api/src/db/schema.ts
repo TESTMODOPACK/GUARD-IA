@@ -20,6 +20,7 @@ import {
   ALERT_TYPES,
   AUDIT_KINDS,
   CONTACT_CATEGORIES,
+  DISPATCH_OUTCOMES,
   DISPATCH_STATUSES,
   MEDIA_KINDS,
   OPERATOR_ROLES,
@@ -46,6 +47,7 @@ export const suggestedAgencyEnum = pgEnum('suggested_agency', SUGGESTED_AGENCIES
 export const alertStatusEnum = pgEnum('alert_status', ALERT_STATUSES);
 export const aiStatusEnum = pgEnum('ai_status', AI_STATUSES);
 export const dispatchStatusEnum = pgEnum('dispatch_status', DISPATCH_STATUSES);
+export const dispatchOutcomeEnum = pgEnum('dispatch_outcome', DISPATCH_OUTCOMES);
 export const unitStatusEnum = pgEnum('unit_status', UNIT_STATUSES);
 export const unitKindEnum = pgEnum('unit_kind', UNIT_KINDS);
 export const operatorRoleEnum = pgEnum('operator_role', OPERATOR_ROLES);
@@ -193,6 +195,11 @@ export const dispatch = pgTable('dispatch', {
     .references(() => operator.id),
   status: dispatchStatusEnum('status').notNull().default('ASSIGNED'),
   notes: text('notes'),
+  // 0008_misuse_field.sql
+  outcome: dispatchOutcomeEnum('outcome'),
+  outcomeNote: text('outcome_note'),
+  outcomeAt: ts('outcome_at'),
+  outcomeBy: uuid('outcome_by').references(() => operator.id),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
   closedAt: ts('closed_at'),
@@ -331,6 +338,9 @@ export const triageLabel = pgTable('triage_label', {
   classifiedAt: ts('classified_at'),
   referredBy: uuid('referred_by').references(() => operator.id),
   referredAt: ts('referred_at'),
+  // 0008_misuse_field.sql
+  fieldCategory: alertCategoryEnum('field_category'),
+  fieldSubcategory: text('field_subcategory'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -348,8 +358,35 @@ export const comuna = pgTable('comuna', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
+// ------------------------------------------------------------- 0008_misuse_field.sql
+
+/** Falta de un vecino por aviso falso intencional; vence a los 90 días, se anula (no se borra). */
+export const citizenStrike = pgTable('citizen_strike', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  citizenId: uuid('citizen_id')
+    .notNull()
+    .references(() => citizen.id),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  alertId: uuid('alert_id')
+    .notNull()
+    .unique()
+    .references(() => alert.id, { onDelete: 'cascade' }),
+  note: text('note').notNull(),
+  decidedBy: uuid('decided_by')
+    .notNull()
+    .references(() => operator.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+  annulledAt: ts('annulled_at'),
+  annulledBy: uuid('annulled_by').references(() => operator.id),
+  annulReason: text('annul_reason'),
+});
+
 export const schema = {
   tenant,
+  citizenStrike,
   comuna,
   incident,
   triageLabel,

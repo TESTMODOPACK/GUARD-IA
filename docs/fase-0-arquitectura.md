@@ -97,6 +97,13 @@ y señales; después corren reglas fijas de shared (`triage-rules.ts`) que solo 
 `triage_label` con lo que proponía la IA (`AlertDetail.triageLabel`) y eventos `RECLASSIFIED` / `REFERRED`.
 Medición: `pnpm --filter @guardia/api eval:triage` sobre `apps/api/scripts/triage-cases.json`.
 
+Uso indebido y terreno (migración 0008, 13-10-2026): `POST /ops/alerts/:id/reject` acepta `ACCIDENTAL` y
+`MISREPORTED` (sin sanción); `FALSE_ALARM` exige `notes` (evidencia) y crea una falta (`citizen_strike`, 90 días).
+`GET /ops/alerts/:id/citizen-standing` da faltas vigentes y rechazos recientes; `AlertDetail.citizenStrikes`.
+`POST /ops/dispatches/:id/outcome` `{outcome, notes?, category?, subcategory?}` registra lo que informa la unidad
+(evento `FIELD_REPORT`). `CitizenAlert.closeReason` y `strikeCount` para que la app explique el cierre. Una alerta
+`DISPATCHED` puede pasar a `REJECTED` (falsa alarma confirmada en terreno).
+
 Redirección entre municipios (migración 0006, 13-10-2026): tabla nacional `comuna` (PK = CUT entero) y
 `alert.comuna_cut` (la fija el trigger). `AlertDetail.geo` trae la comuna del GPS, la comuna que nombra el
 vecino con el municipio que la atiende y los municipios dentro del margen del GPS; `CitizenAlert.comunaName`.

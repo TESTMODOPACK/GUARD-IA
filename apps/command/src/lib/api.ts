@@ -16,6 +16,7 @@ import type {
   UpdateOperator,
   AlertCategory,
   AlertDetail,
+  CitizenStanding,
   AlertEvent,
   AlertStatus,
   AlertSummary,
@@ -24,6 +25,7 @@ import type {
   Dispatch,
   DispatchStatus,
   OperatorPublic,
+  RecordOutcome,
   RejectReason,
   SignedUrl,
   SuggestedAgency,
@@ -174,6 +176,9 @@ export const api = {
   transfer: (id: string, tenantId: string, reason: string) =>
     request<{ toTenantName: string }>(`/ops/alerts/${id}/transfer`, { method: 'POST', body: json({ tenantId, reason }) }),
   tenants: () => request<TenantOption[]>('/ops/tenants'),
+  citizenStanding: (alertId: string) => request<CitizenStanding>(`/ops/alerts/${alertId}/citizen-standing`),
+  recordOutcome: (dispatchId: string, body: RecordOutcome) =>
+    request<Dispatch>(`/ops/dispatches/${dispatchId}/outcome`, { method: 'POST', body: json(body) }),
   refer: (id: string, agencies: SuggestedAgency[], notes?: string) =>
     request<AlertDetail>(`/ops/alerts/${id}/referral`, { method: 'POST', body: json({ agencies, notes }) }),
   note: (id: string, text: string) => request<AlertEvent>(`/ops/alerts/${id}/notes`, { method: 'POST', body: json({ text }) }),

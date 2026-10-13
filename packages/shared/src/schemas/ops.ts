@@ -3,6 +3,7 @@ import {
   ALERT_CATEGORIES,
   ALERT_STATUSES,
   ALERT_TYPES,
+  DISPATCH_OUTCOMES,
   DISPATCH_STATUSES,
   REJECT_REASONS,
   SUGGESTED_AGENCIES,
@@ -22,11 +23,48 @@ export const OpsAlertsQuerySchema = CursorPaginationSchema.extend({
 });
 export type OpsAlertsQuery = z.infer<typeof OpsAlertsQuerySchema>;
 
-export const RejectAlertSchema = z.object({
-  reason: z.enum(REJECT_REASONS),
-  notes: z.string().trim().max(1000).optional(),
-});
+export const RejectAlertSchema = z
+  .object({
+    reason: z.enum(REJECT_REASONS),
+    notes: z.string().trim().max(1000).optional(),
+  })
+  .superRefine((v, ctx) => {
+    // Una falta del vecino necesita evidencia: qué se escuchó o se habló (docs/plan-plataforma.md §5b).
+    if (v.reason === 'FALSE_ALARM' && (v.notes?.length ?? 0) < 10) {
+      ctx.addIssue({ code: 'custom', path: ['notes'], message: 'Describe la evidencia del aviso falso (mínimo 10 caracteres)' });
+    }
+  });
 export type RejectAlert = z.infer<typeof RejectAlertSchema>;
+
+/** Resultado en terreno de un despacho (migración 0008), registrado por la central. */
+export const RecordOutcomeSchema = z
+  .object({
+    outcome: z.enum(DISPATCH_OUTCOMES),
+    notes: z.string().trim().max(1000).optional(),
+    /** Solo "era otra situación": la categoría real que vio la unidad. */
+    category: z.enum(ALERT_CATEGORIES).optional(),
+    subcategory: z.string().nullable().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.outcome === 'DIFFERENT_SITUATION' && !v.category) {
+      ctx.addIssue({ code: 'custom', path: ['category'], message: 'Indica qué situación encontró la unidad' });
+    }
+    if (v.category && !subcategoryFits(v.category, v.subcategory)) {
+      ctx.addIssue({ code: 'custom', path: ['subcategory'], message: `La subcategoría no corresponde a ${v.category}` });
+    }
+    if (v.outcome === 'FALSE_ALARM_CONFIRMED' && (v.notes?.length ?? 0) < 10) {
+      ctx.addIssue({ code: 'custom', path: ['notes'], message: 'Describe qué comprobó la unidad (mínimo 10 caracteres)' });
+    }
+  });
+export type RecordOutcome = z.infer<typeof RecordOutcomeSchema>;
+
+/** Historial del vecino que ve el operador antes de rechazar (faltas de todo el país, rechazos de su municipio). */
+export const CitizenStandingSchema = z.object({
+  activeStrikes: z.number().int(),
+  strikesByTenant: z.array(z.object({ tenantName: z.string(), count: z.number().int() })),
+  recentRejections: z.array(z.object({ reason: z.enum(REJECT_REASONS), at: z.iso.datetime() })),
+});
+export type CitizenStanding = z.infer<typeof CitizenStandingSchema>;
 
 export const DispatchAlertSchema = z.object({
   unitId: UuidSchema,

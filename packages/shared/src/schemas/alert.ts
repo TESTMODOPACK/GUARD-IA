@@ -7,7 +7,9 @@ import {
   ALERT_STATUSES,
   ALERT_TYPES,
   ACTOR_TYPES,
+  DISPATCH_OUTCOMES,
   DISPATCH_STATUSES,
+  REJECT_REASONS,
   MEDIA_KINDS,
   PRIORITIES,
   SUGGESTED_AGENCIES,
@@ -109,6 +111,10 @@ export const DispatchSchema = z.object({
   operatorId: UuidSchema,
   status: z.enum(DISPATCH_STATUSES),
   notes: z.string().nullable(),
+  /** Resultado en terreno (migración 0008); null mientras nadie lo informa. */
+  outcome: z.enum(DISPATCH_OUTCOMES).nullable(),
+  outcomeNote: z.string().nullable(),
+  outcomeAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   closedAt: z.iso.datetime().nullable(),
@@ -170,6 +176,8 @@ export const AlertDetailSchema = AlertSummarySchema.extend({
   resolvedAt: z.iso.datetime().nullable(),
   citizenPhone: z.string().nullable(),
   citizenName: z.string().nullable(),
+  /** Faltas vigentes del vecino por avisos falsos (en todo el país, últimos 90 días). */
+  citizenStrikes: z.number().int(),
   media: z.array(MediaPublicSchema),
   dispatches: z.array(DispatchSchema),
   events: z.array(AlertEventSchema),
@@ -186,6 +194,10 @@ export const CitizenAlertSchema = z.object({
   tenantName: z.string().nullable(),
   /** Comuna donde está el vecino (sirve aunque su municipio no use Guard-IA). */
   comunaName: z.string().nullable(),
+  /** Si la central la cerró sin despacho: por qué (la app explica cada motivo). */
+  closeReason: z.enum(REJECT_REASONS).nullable(),
+  /** Con closeReason FALSE_ALARM: cuántas faltas vigentes tiene ahora (1.ª, 2.ª advertencia…). */
+  strikeCount: z.number().int().nullable(),
   activeDispatch: z
     .object({
       unitCode: z.string(),

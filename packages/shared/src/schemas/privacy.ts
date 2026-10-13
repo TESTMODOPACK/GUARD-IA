@@ -11,6 +11,16 @@ import { LocationSchema, UuidSchema } from './common';
 export const CitizenExportSchema = z.object({
   exportedAt: z.iso.datetime(),
   citizen: CitizenPublicSchema.extend({ createdAt: z.iso.datetime() }),
+  /** Faltas por aviso falso (migración 0008), con la evidencia que escribió la central. */
+  strikes: z.array(
+    z.object({
+      municipality: z.string(),
+      createdAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime(),
+      annulled: z.boolean(),
+      note: z.string(),
+    }),
+  ),
   devices: z.array(
     z.object({
       platform: z.enum(['ios', 'android']),
