@@ -85,6 +85,22 @@ export default function Verify() {
         disabled={wait > 0}
       />
       <LinkButton label="Cambiar número" onPress={() => router.back()} />
+      {__DEV__ ? (
+        // Solo en desarrollo: el SMS no se envía (SMS_PROVIDER=console) y la API expone el último código.
+        <LinkButton
+          label="Ver código (solo desarrollo)"
+          onPress={async () => {
+            setError(null);
+            try {
+              const { hint } = await api.devOtp(phone);
+              setCode(hint);
+              void verify(hint);
+            } catch (e) {
+              setError(errorMessage(e));
+            }
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }

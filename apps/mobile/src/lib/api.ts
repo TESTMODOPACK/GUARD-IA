@@ -64,8 +64,11 @@ async function send(path: string, init: RequestInit, token?: string | null): Pro
   if (token) headers.Authorization = `Bearer ${token}`;
   try {
     return await fetch(`${API_BASE}${path}`, { ...init, headers: { ...headers, ...(init.headers as object) }, signal: ctrl.signal });
-  } catch {
-    throw new ApiError(0, 'NETWORK', OFFLINE);
+  } catch (e) {
+    // En desarrollo se ve la causa real (sin red, timeout, archivo ilegible…) en la pantalla.
+    const detail = __DEV__ ? ` [${ctrl.signal.aborted ? 'tiempo de espera agotado' : (e as Error)?.message ?? String(e)} · ${API_BASE}${path}]` : '';
+    console.warn(`fetch ${path} falló:`, e);
+    throw new ApiError(0, 'NETWORK', OFFLINE + detail);
   } finally {
     clearTimeout(timer);
   }
@@ -99,6 +102,8 @@ export const api = {
   requestOtp: (phone: string) => request<null>('/auth/otp/request', { method: 'POST', body: json({ phone }) }, { auth: false }),
   verifyOtp: (phone: string, code: string) =>
     request<TokenPair & { citizen: CitizenPublic }>('/auth/otp/verify', { method: 'POST', body: json({ phone, code }) }, { auth: false }),
+  /** Solo desarrollo (la API lo expone con OTP_DEBUG_ENDPOINT=true; en producción responde 404). */
+  devOtp: (phone: string) => request<{ hint: string }>(`/dev/otp/${encodeURIComponent(phone)}`, {}, { auth: false }),
   me: () => request<CitizenPublic>('/me'),
   consent: (version: string) => request<null>('/me/consent', { method: 'POST', body: json({ version }) }),
   upsertDevice: (d: DeviceUpsert) => request<null>('/me/devices', { method: 'PUT', body: json(d) }),
@@ -165,8 +170,13 @@ export async function logout(): Promise<void> {
   }
 }
 
-/** Mensaje para mostrar al vecino. Los mensajes de la API ya vienen en español. */
+/**
+ * Mensaje para mostrar al vecino. Los de la API ya vienen en español. Un error que no es de red
+ * (micrófono, grabación, archivo) no se disfraza de "sin conexión": en desarrollo se muestra tal cual.
+ */
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;
-  return OFFLINE;
+  console.warn('error en la app:', e);
+  const detail = __DEV__ && e instanceof Error ? ` [${e.name}: ${e.message}]` : '';
+  return `Algo falló en el teléfono. Intenta de nuevo; si es una emergencia, llama al 133.${detail}`;
 }

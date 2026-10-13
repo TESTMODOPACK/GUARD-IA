@@ -60,11 +60,14 @@ export default function Voice() {
   const send = useCallback(async () => {
     setSending(true);
     setError(null);
+    let step = 'guardar la grabación';
     try {
       await recorder.stop();
       const uri = recorder.uri;
-      if (!uri) throw new Error('No se pudo guardar la grabación');
+      if (!uri) throw new Error('la grabadora no entregó el archivo');
+      step = 'obtener tu ubicación';
       const loc = await (fix.current ?? currentFix());
+      step = 'enviar la alerta';
       const res = await sendAlert(
         {
           type: 'EMERGENCY_SOS',
@@ -78,7 +81,8 @@ export default function Voice() {
       router.replace({ pathname: '/alert/[id]', params: { id: res.alertId } });
     } catch (e) {
       setSending(false);
-      setError(e instanceof LocationError ? e.message : errorMessage(e));
+      // El paso dice qué falló: micrófono, GPS o red no se arreglan igual.
+      setError(e instanceof LocationError ? e.message : `No se pudo ${step}. ${errorMessage(e)}`);
     }
   }, [recorder]);
 
@@ -90,7 +94,7 @@ export default function Voice() {
       recorder.record();
       limit.current = setTimeout(() => void send(), MAX_RECORDING_S * 1000);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(`No se pudo empezar a grabar. ${errorMessage(e)}`);
     }
   };
 
