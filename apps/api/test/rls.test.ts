@@ -62,6 +62,10 @@ d('RLS y ruteo por geocerca', () => {
     await admin`DELETE FROM dispatch WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
     await admin`DELETE FROM alert WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
     await admin`DELETE FROM unit WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
+    for (const t of ['audit_log', 'shift', 'contact']) {
+      await admin`DELETE FROM ${admin(t)} WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
+    }
+    await admin`UPDATE operator SET created_by = NULL WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
     await admin`DELETE FROM operator WHERE tenant_id IN (SELECT id FROM tenant WHERE slug LIKE 'test-%')`;
     await admin`DELETE FROM tenant WHERE slug LIKE 'test-%'`;
 

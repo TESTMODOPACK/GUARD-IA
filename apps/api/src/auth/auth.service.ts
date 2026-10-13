@@ -14,6 +14,7 @@ import { ENV, type Env } from '../config/env';
 import { DbService, type Tx } from '../db/db.service';
 import { citizen, device, operator, otpCode, tenant } from '../db/schema';
 import { RateLimitService } from '../infra/rate-limit.service';
+import { AuditService } from './audit.service';
 import { SMS_PROVIDER, type SmsProvider } from './sms/sms.provider';
 import { TokenService } from './token.service';
 
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly dbs: DbService,
     private readonly tokens: TokenService,
     private readonly rate: RateLimitService,
+    private readonly audit: AuditService,
   ) {}
 
   // ---------------------------------------------------------------- ciudadano
@@ -157,10 +159,17 @@ export class AuthService {
     });
     // Verificación en tiempo constante aunque no exista el usuario, para no filtrar emails.
     const ok = await argonVerify(op?.passwordHash ?? (await DUMMY_HASH), password);
+    if (op && !ok) {
+      // El intento fallido se confirma en su propia transacción antes del throw (regla 4).
+      await this.dbs.asSystem((tx) =>
+        this.audit.record(tx, { tenantId: op.tenantId, actorId: null, kind: 'LOGIN_FAILED', targetId: op.id, payload: { ip } }),
+      );
+    }
     if (!op || !ok) throw new AppError('UNAUTHORIZED', 'Credenciales inválidas');
 
     return this.dbs.asSystem(async (tx) => {
       await tx.update(operator).set({ lastLoginAt: new Date() }).where(eq(operator.id, op.id));
+      await this.audit.record(tx, { tenantId: op.tenantId, actorId: op.id, kind: 'LOGIN', targetId: op.id, payload: { ip } });
       const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
       const claims: AccessClaims = { kind: 'operator', sub: op.id, tenantId: op.tenantId, role: op.role };
       const { refreshId: _id, ...pair } = await this.tokens.issuePair(tx, claims);
@@ -176,7 +185,12 @@ export class AuthService {
 
   /** Cierre de sesión (vecino u operador): el refresh deja de servir. El access vence solo. */
   async logout(raw: string): Promise<void> {
-    await this.tokens.revoke(raw);
+    const subject = await this.tokens.revoke(raw);
+    if (subject?.kind !== 'OPERATOR') return;
+    await this.dbs.asSystem(async (tx) => {
+      const [op] = await tx.select({ tenantId: operator.tenantId }).from(operator).where(eq(operator.id, subject.subjectId)).limit(1);
+      if (op) await this.audit.record(tx, { tenantId: op.tenantId, actorId: subject.subjectId, kind: 'LOGOUT', targetId: subject.subjectId });
+    });
   }
 
   private async claimsFor(tx: Tx, kind: 'CITIZEN' | 'OPERATOR', subjectId: string): Promise<AccessClaims> {
@@ -220,5 +234,13 @@ function toCitizenPublic(c: typeof citizen.$inferSelect): CitizenPublic {
 }
 
 function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string): OperatorPublic {
-  return { id: o.id, tenantId: o.tenantId, tenantName, email: o.email, name: o.name, role: o.role };
+  return {
+    id: o.id,
+    tenantId: o.tenantId,
+    tenantName,
+    email: o.email,
+    name: o.name,
+    role: o.role,
+    mustChangePassword: o.mustChangePassword,
+  };
 }

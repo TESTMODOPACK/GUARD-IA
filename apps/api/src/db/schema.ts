@@ -18,6 +18,8 @@ import {
   ALERT_SOURCES,
   ALERT_STATUSES,
   ALERT_TYPES,
+  AUDIT_KINDS,
+  CONTACT_CATEGORIES,
   DISPATCH_STATUSES,
   MEDIA_KINDS,
   OPERATOR_ROLES,
@@ -98,6 +100,10 @@ export const operator = pgTable('operator', {
   active: boolean('active').notNull().default(true),
   lastLoginAt: ts('last_login_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
+  // 0003_admin.sql
+  mustChangePassword: boolean('must_change_password').notNull().default(false),
+  passwordChangedAt: ts('password_changed_at'),
+  createdBy: uuid('created_by'),
 });
 
 export const unit = pgTable('unit', {
@@ -213,8 +219,66 @@ export const refreshToken = pgTable('refresh_token', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------- 0003_admin.sql
+
+export const auditKindEnum = pgEnum('audit_kind', AUDIT_KINDS);
+export const contactCategoryEnum = pgEnum('contact_category', CONTACT_CATEGORIES);
+
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  actorId: uuid('actor_id'),
+  kind: auditKindEnum('kind').notNull(),
+  targetId: uuid('target_id'),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const shift = pgTable('shift', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  operatorId: uuid('operator_id')
+    .notNull()
+    .references(() => operator.id),
+  plannedStart: ts('planned_start'),
+  plannedEnd: ts('planned_end'),
+  startedAt: ts('started_at'),
+  endedAt: ts('ended_at'),
+  handoverNote: text('handover_note'),
+  createdBy: uuid('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const contact = pgTable('contact', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  category: contactCategoryEnum('category').notNull(),
+  name: text('name').notNull(),
+  organization: text('organization'),
+  phone: text('phone').notNull(),
+  phoneAlt: text('phone_alt'),
+  email: text('email'),
+  sector: text('sector'),
+  notes: text('notes'),
+  available24h: boolean('available_24h').notNull().default(false),
+  sortOrder: integer('sort_order').notNull().default(100),
+  active: boolean('active').notNull().default(true),
+  createdBy: uuid('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
 export const schema = {
   tenant,
+  auditLog,
+  shift,
+  contact,
   citizen,
   device,
   operator,

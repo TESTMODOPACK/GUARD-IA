@@ -61,10 +61,11 @@ d('refresh tokens', () => {
 
   it('logout revoca el refresh: ya no rota; repetirlo o usar un token desconocido no falla', async () => {
     const pair = await dbs.asSystem((tx) => tokens.issuePair(tx, operatorClaims));
-    await tokens.revoke(pair.refreshToken);
+    // Devuelve de quién era (la bitácora registra el LOGOUT del operador).
+    await expect(tokens.revoke(pair.refreshToken)).resolves.toEqual({ kind: 'OPERATOR', subjectId: operatorId });
     await expect(tokens.rotate(pair.refreshToken, claimsFor)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-    await expect(tokens.revoke(pair.refreshToken)).resolves.toBeUndefined();
-    await expect(tokens.revoke('x'.repeat(64))).resolves.toBeUndefined();
+    await expect(tokens.revoke(pair.refreshToken)).resolves.toBeNull();
+    await expect(tokens.revoke('x'.repeat(64))).resolves.toBeNull();
   });
 
   it('el logout de una sesión no corta otra sesión vigente del mismo vecino', async () => {

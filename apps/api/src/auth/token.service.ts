@@ -129,13 +129,23 @@ export class TokenService {
    * ya revocado no es error), para no revelar si existía. Usarlo después de revocado dispara la
    * detección de reutilización en `rotate`, que es lo deseado si alguien lo copió.
    */
-  async revoke(raw: string): Promise<void> {
-    await this.dbs.asSystem((tx) =>
+  async revoke(raw: string): Promise<{ kind: TokenKind; subjectId: string } | null> {
+    const rows = await this.dbs.asSystem((tx) =>
       tx
         .update(refreshToken)
         .set({ revokedAt: new Date() })
-        .where(and(eq(refreshToken.tokenHash, hash(raw)), isNull(refreshToken.revokedAt))),
+        .where(and(eq(refreshToken.tokenHash, hash(raw)), isNull(refreshToken.revokedAt)))
+        .returning({ kind: refreshToken.kind, subjectId: refreshToken.subjectId }),
     );
+    return rows[0] ?? null;
+  }
+
+  /** Cierra todas las sesiones de una cuenta (desactivación, contraseña restablecida). Usa la `tx` del cambio. */
+  async revokeAllFor(tx: Tx, kind: TokenKind, subjectId: string): Promise<void> {
+    await tx
+      .update(refreshToken)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshToken.kind, kind), eq(refreshToken.subjectId, subjectId), isNull(refreshToken.revokedAt)));
   }
 }
 

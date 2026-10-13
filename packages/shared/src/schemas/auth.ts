@@ -60,6 +60,8 @@ export const OperatorPublicSchema = z.object({
   email: z.email(),
   name: z.string(),
   role: z.enum(OPERATOR_ROLES),
+  /** Cuenta nueva o contraseña restablecida: la central pide cambiarla antes de operar. */
+  mustChangePassword: z.boolean(),
 });
 export type OperatorPublic = z.infer<typeof OperatorPublicSchema>;
 

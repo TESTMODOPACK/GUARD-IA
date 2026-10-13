@@ -64,6 +64,13 @@ export class RealtimeService {
     return { since: safeSince.toISOString(), alerts: items };
   }
 
+  /** Operadores con la central abierta ahora (panel del administrador). */
+  async connectedOperatorIds(tenantId: string): Promise<Set<string>> {
+    if (!this.ops) return new Set();
+    const sockets = await this.ops.in(wsRooms.tenant(tenantId)).fetchSockets();
+    return new Set(sockets.map((s) => (s.data as { claims?: { sub: string } }).claims?.sub).filter((x): x is string => !!x));
+  }
+
   /** Número de operadores conectados por tenant (para /health y métricas). */
   async connectedOperators(tenantId: string): Promise<number> {
     if (!this.ops) return 0;

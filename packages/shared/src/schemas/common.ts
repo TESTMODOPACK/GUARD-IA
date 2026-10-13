@@ -40,6 +40,7 @@ export const ERROR_CODES = [
   'CANCEL_WINDOW_EXPIRED',
   'UNIT_UNAVAILABLE',
   'MEDIA_TOO_LARGE',
+  'PASSWORD_CHANGE_REQUIRED',
   'INTERNAL',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];

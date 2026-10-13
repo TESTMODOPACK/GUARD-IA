@@ -81,6 +81,42 @@ export type MediaKind = (typeof MEDIA_KINDS)[number];
 export const REJECT_REASONS = ['FALSE_ALARM', 'DUPLICATE', 'OUT_OF_SCOPE', 'TEST', 'OTHER'] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
+/** Bitácora del sistema (migración 0003, tipo audit_kind). */
+export const AUDIT_KINDS = [
+  'LOGIN',
+  'LOGIN_FAILED',
+  'LOGOUT',
+  'PASSWORD_CHANGED',
+  'OPERATOR_CREATED',
+  'OPERATOR_UPDATED',
+  'PASSWORD_RESET',
+  'SHIFT_PLANNED',
+  'SHIFT_REMOVED',
+  'SHIFT_STARTED',
+  'SHIFT_ENDED',
+  'UNIT_CREATED',
+  'UNIT_UPDATED',
+  'CONTACT_CREATED',
+  'CONTACT_UPDATED',
+  'CONTACT_REMOVED',
+] as const;
+export type AuditKind = (typeof AUDIT_KINDS)[number];
+
+/** Directorio de contactos del municipio (migración 0003, tipo contact_category). */
+export const CONTACT_CATEGORIES = [
+  'CARABINEROS',
+  'PDI',
+  'SAMU',
+  'BOMBEROS',
+  'SALUD',
+  'MUNICIPAL',
+  'SERVICIOS_BASICOS',
+  'JUNTA_VECINOS',
+  'EMERGENCIA_MUNICIPAL',
+  'OTRO',
+] as const;
+export type ContactCategory = (typeof CONTACT_CATEGORIES)[number];
+
 export const ALERT_EVENT_KINDS = [
   'CREATED',
   'AI_PROCESSED',

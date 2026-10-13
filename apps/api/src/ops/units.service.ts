@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { CreateUnit, Unit, UpdateUnit } from '@guardia/shared';
+import { AuditService } from '../auth/audit.service';
 import type { OperatorClaims } from '../auth/auth.guard';
 import { AppError } from '../common/app-error';
 import { toUnit } from '../common/mappers';
@@ -13,6 +14,7 @@ export class UnitsService {
   constructor(
     private readonly dbs: DbService,
     private readonly realtime: RealtimeService,
+    private readonly audit: AuditService,
   ) {}
 
   list(op: OperatorClaims): Promise<Unit[]> {
@@ -30,6 +32,13 @@ export class UnitsService {
         .onConflictDoNothing()
         .returning();
       if (!row) throw new AppError('CONFLICT', `Ya existe la unidad ${body.code}`);
+      await this.audit.record(tx, {
+        tenantId: op.tenantId,
+        actorId: op.sub,
+        kind: 'UNIT_CREATED',
+        targetId: row.id,
+        payload: { code: row.code, kind: row.kind },
+      });
       return toUnit(row);
     });
     this.realtime.unitUpdated(op.tenantId, u);
@@ -63,6 +72,16 @@ export class UnitsService {
         .where(eq(unit.id, unitId))
         .returning();
       if (!row) throw new AppError('NOT_FOUND', 'Unidad no encontrada');
+      // Solo cambios hechos a mano (estado o tipo); la posición se actualiza seguido y no se registra.
+      if (body.status || body.kind) {
+        await this.audit.record(tx, {
+          tenantId: op.tenantId,
+          actorId: op.sub,
+          kind: 'UNIT_UPDATED',
+          targetId: row.id,
+          payload: { code: row.code, ...(body.status ? { status: body.status } : {}), ...(body.kind ? { kind: body.kind } : {}) },
+        });
+      }
       return toUnit(row);
     });
     this.realtime.unitUpdated(op.tenantId, u);
