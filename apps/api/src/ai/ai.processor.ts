@@ -106,6 +106,12 @@ export class AiProcessor extends WorkerHost {
       if (durationS && durationS > this.env.AI_MAX_AUDIO_SECONDS) {
         this.logger.warn(`alerta ${alertId}: audio de ${durationS}s supera el máximo; se procesa igual`);
       }
+      // La transcripción se guarda y se muestra apenas existe: el operador la lee mientras se
+      // clasifica, y no se pierde si la clasificación falla (los reintentos no vuelven a transcribir).
+      if (transcription) {
+        await this.dbs.asSystem((tx) => tx.update(alert).set({ transcription }).where(eq(alert.id, alertId)));
+        await this.emitTranscript(alertId, row.tenantId);
+      }
     }
 
     const localTime = new Intl.DateTimeFormat('es-CL', {
@@ -199,6 +205,13 @@ export class AiProcessor extends WorkerHost {
     });
     this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'failed' }, 0);
     await this.emitUpdated(alertId, tenantId);
+  }
+
+  /** Solo la ficha (sin recalcular el grupo): la clasificación llega después con emitUpdated. */
+  private async emitTranscript(alertId: string, tenantId: string | null) {
+    if (!tenantId) return;
+    const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
+    this.realtime.alertUpdated(tenantId, detail);
   }
 
   private async emitUpdated(alertId: string, tenantId: string | null) {

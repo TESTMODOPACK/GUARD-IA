@@ -31,7 +31,7 @@ export class OpenAiProvider implements AiProvider {
   private readonly client: OpenAI;
 
   constructor(private readonly env: Env) {
-    this.client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 30_000, maxRetries: 0 });
+    this.client = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: env.OPENAI_BASE_URL, timeout: 30_000, maxRetries: 0 });
   }
 
   async transcribe(input: TranscribeInput): Promise<TranscribeResult> {

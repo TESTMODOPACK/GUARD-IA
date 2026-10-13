@@ -67,6 +67,11 @@ const EnvSchema = z.object({
   /** openai | mock. Si no hay OPENAI_API_KEY, se fuerza mock. */
   AI_PROVIDER: z.enum(['openai', 'mock']).default('openai'),
   OPENAI_API_KEY: z.string().optional(),
+  /**
+   * Servicio compatible con la API de OpenAI (vacío = OpenAI). Ej. Groq, con plan gratuito para
+   * pruebas: https://api.groq.com/openai/v1 con OPENAI_STT_MODEL=whisper-large-v3-turbo.
+   */
+  OPENAI_BASE_URL: z.string().url().optional(),
   OPENAI_STT_MODEL: z.string().default('whisper-1'),
   OPENAI_CLASSIFY_MODEL: z.string().default('gpt-4o-mini'),
   AI_MAX_AUDIO_SECONDS: z.coerce.number().int().default(60),
