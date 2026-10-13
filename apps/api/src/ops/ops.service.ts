@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import {
   canTransitionAlert,
   canTransitionDispatch,
@@ -25,7 +25,7 @@ import { AlertsService } from '../alerts/alerts.service';
 import { AppError } from '../common/app-error';
 import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
 import { DbService, type Tx } from '../db/db.service';
-import { alert, alertEvent, citizen, citizenStrike, dispatch, tenant, triageLabel, unit, type AlertRow } from '../db/schema';
+import { alert, alertEvent, citizen, citizenStrike, dispatch, triageLabel, unit, type AlertRow } from '../db/schema';
 import { EventsService } from '../events/events.service';
 import { IncidentsService, loadIncidentInfos } from '../incidents/incidents.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -59,6 +59,7 @@ export class OpsService {
   list(op: OperatorClaims, q: OpsAlertsQuery) {
     return this.dbs.asOperator(op.tenantId, op.sub, (tx) =>
       this.reads.list(tx, {
+        tenantId: op.tenantId,
         statuses: q.status,
         type: q.type,
         since: q.since ? new Date(q.since) : undefined,
@@ -179,18 +180,13 @@ export class OpsService {
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const [row] = await tx.select({ citizenId: alert.citizenId }).from(alert).where(eq(alert.id, alertId)).limit(1);
       if (!row) throw new AppError('NOT_FOUND', 'Alerta no encontrada');
-      const byTenant = await tx
-        .select({ tenantName: tenant.name, count: sql<number>`count(*)::int` })
-        .from(citizenStrike)
-        .innerJoin(tenant, eq(tenant.id, citizenStrike.tenantId))
-        .where(
-          and(
-            eq(citizenStrike.citizenId, row.citizenId),
-            sql`${citizenStrike.annulledAt} IS NULL`,
-            gt(citizenStrike.expiresAt, sql`now()`),
-          ),
-        )
-        .groupBy(tenant.name);
+      // El nombre del otro municipio sale del directorio (0009): la RLS de tenant solo muestra el propio.
+      const byTenant = (await tx.execute(sql`
+        SELECT d.name AS "tenantName", count(*)::int AS count
+          FROM citizen_strike s
+          JOIN tenant_directory d ON d.id = s.tenant_id
+         WHERE s.citizen_id = ${row.citizenId}::uuid AND s.annulled_at IS NULL AND s.expires_at > now()
+         GROUP BY d.name`)) as unknown as { tenantName: string; count: number }[];
       const rejections = await tx
         .select({ payload: alertEvent.payload, at: alertEvent.createdAt })
         .from(alertEvent)
@@ -339,6 +335,8 @@ export class OpsService {
           .select()
           .from(alert)
           .where(and(eq(alert.incidentId, row.incidentId), ne(alert.id, row.id), inArray(alert.status, ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'])))
+          // Siempre en el mismo orden: dos operadores cerrando el mismo grupo no se bloquean mutuamente (M7).
+          .orderBy(asc(alert.id))
           .for('update');
         for (const m of others) {
           await this.resolveRow(tx, m, op, { notes: notes ?? null, trustDelta: TRUST_REWARD_RESOLVED, viaAlertId: row.id });

@@ -29,6 +29,8 @@ import { loadIncidentInfos } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 
 export interface ListFilters {
+  /** Siempre explícito: bajo RLS es lo que deja usar los índices por municipio (C3). */
+  tenantId: string;
   statuses?: AlertStatus[];
   type?: AlertType;
   since?: Date;
@@ -49,8 +51,8 @@ export async function activeStrikes(tx: Tx, citizenId: string): Promise<number> 
 const classifier = alias(operator, 'classifier');
 const referrer = alias(operator, 'referrer');
 
-const PRIORITY_RANK = sql<number>`CASE ${alert.priority}
-  WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`;
+/** Columna generada (0009) con el orden de la cola; tiene índice parcial con tenant_id primero. */
+const PRIORITY_RANK = alert.priorityRank;
 
 /**
  * Lecturas de alertas compartidas por la API de ciudadano, la central, el worker IA
@@ -112,7 +114,7 @@ export class AlertReadService {
    * la página siguiente continúe exactamente donde terminó la anterior.
    */
   async list(tx: Tx, f: ListFilters): Promise<{ items: AlertSummary[]; nextCursor: string | null }> {
-    const where: SQL[] = [];
+    const where: SQL[] = [eq(alert.tenantId, f.tenantId)];
     if (f.statuses?.length) where.push(inArray(alert.status, f.statuses));
     if (f.type) where.push(eq(alert.type, f.type));
     if (f.since) where.push(gt(alert.updatedAt, f.since));
@@ -128,7 +130,7 @@ export class AlertReadService {
       }
     }
     const rows = await tx
-      .select({ row: alert, rank: PRIORITY_RANK.as('rank'), createdAtText: sql<string>`${alert.createdAt}::text` })
+      .select({ row: alert, rank: PRIORITY_RANK, createdAtText: sql<string>`${alert.createdAt}::text` })
       .from(alert)
       .where(where.length ? and(...where) : undefined)
       .orderBy(PRIORITY_RANK, asc(alert.createdAt), asc(alert.id))

@@ -1,11 +1,11 @@
 import { Global, Injectable, Logger, Module } from '@nestjs/common';
-import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AUTO_TRANSFER, type TenantOption, type TransferAlert, type Triage } from '@guardia/shared';
 import { AlertReadService } from '../alerts/alert-read.service';
 import type { OperatorClaims } from '../auth/auth.guard';
 import { AppError } from '../common/app-error';
 import { DbService, type Tx } from '../db/db.service';
-import { alert, dispatch, tenant } from '../db/schema';
+import { alert, dispatch } from '../db/schema';
 import { IncidentsService, loadIncidentInfos } from '../incidents/incidents.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -44,12 +44,12 @@ export class TransferService {
 
   /** Municipios de Guard-IA a los que se puede traspasar (todos los activos menos el propio). */
   tenantOptions(op: OperatorClaims): Promise<TenantOption[]> {
-    return this.dbs.asOperator(op.tenantId, op.sub, (tx) =>
-      tx
-        .select({ id: tenant.id, name: tenant.name })
-        .from(tenant)
-        .where(and(eq(tenant.active, true), ne(tenant.id, op.tenantId)))
-        .orderBy(asc(tenant.name)),
+    // tenant_directory (0009): la RLS de tenant solo deja ver el municipio propio.
+    return this.dbs.asOperator(op.tenantId, op.sub, async (tx) =>
+      (await tx.execute(sql`
+        SELECT id, name FROM tenant_directory
+         WHERE active AND id <> ${op.tenantId}::uuid
+         ORDER BY name`)) as unknown as TenantOption[],
     );
   }
 
@@ -106,7 +106,9 @@ export class TransferService {
       const rows = (await tx.execute(
         sql`select transfer_alert(${alertId}::uuid, ${toTenantId}::uuid, ${actorId}::uuid, ${reason}, ${auto}) as from_tenant`,
       )) as unknown as { from_tenant: string }[];
-      const [to] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, toTenantId)).limit(1);
+      const [to] = (await tx.execute(sql`SELECT name FROM tenant_directory WHERE id = ${toTenantId}::uuid`)) as unknown as {
+        name: string;
+      }[];
       return {
         fromTenantId: rows[0].from_tenant,
         oldIncident: before?.incidentId ?? null,

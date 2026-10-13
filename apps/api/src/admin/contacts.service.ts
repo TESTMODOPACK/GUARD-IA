@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { Contact, ContactInputParsed, UpdateContactParsed } from '@guardia/shared';
 import { AuditService } from '../auth/audit.service';
 import type { OperatorClaims } from '../auth/auth.guard';
@@ -40,7 +40,7 @@ export class ContactsService {
       const rows = await tx
         .select()
         .from(contact)
-        .where(includeInactive ? undefined : eq(contact.active, true))
+        .where(includeInactive ? eq(contact.tenantId, op.tenantId) : and(eq(contact.tenantId, op.tenantId), eq(contact.active, true)))
         .orderBy(asc(contact.category), asc(contact.sortOrder), asc(contact.name));
       return rows.map(toContact);
     });

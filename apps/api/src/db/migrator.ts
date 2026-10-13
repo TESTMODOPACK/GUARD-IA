@@ -21,8 +21,10 @@ export async function migrate(opts: MigrateOptions): Promise<string[]> {
   const sql = postgres(opts.adminUrl, { max: 1, onnotice: () => undefined });
   const applied: string[] = [];
   try {
+    // Llave numérica (0009_hardening corrige las bases creadas antes con name como PK de texto).
     await sql`CREATE TABLE IF NOT EXISTS schema_migrations (
-      name text PRIMARY KEY,
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name text NOT NULL UNIQUE,
       applied_at timestamptz NOT NULL DEFAULT now()
     )`;
     const done = new Set(

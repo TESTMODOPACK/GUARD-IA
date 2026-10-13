@@ -108,7 +108,8 @@ export class AiProcessor extends WorkerHost {
     if (audio && !transcription) {
       const buf = await this.mediaSvc.download(audio.storageKey);
       const r = await this.ai.transcribe({ audio: buf, mime: audio.mime });
-      transcription = r.text;
+      // La base acepta hasta 5000 caracteres (0009); un audio largo no debe hacer fallar el guardado.
+      transcription = r.text.slice(0, 5000);
       durationS = r.durationS;
       if (durationS && durationS > this.env.AI_MAX_AUDIO_SECONDS) {
         this.logger.warn(`alerta ${alertId}: audio de ${durationS}s supera el máximo; se procesa igual`);

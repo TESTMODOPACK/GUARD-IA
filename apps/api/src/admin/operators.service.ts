@@ -42,8 +42,8 @@ export class OperatorsService {
   async list(op: OperatorClaims): Promise<OperatorAccount[]> {
     const online = await this.realtime.connectedOperatorIds(op.tenantId);
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
-      const rows = await tx.select().from(operator).orderBy(asc(operator.name));
-      const onShift = await openShiftOperatorIds(tx);
+      const rows = await tx.select().from(operator).where(eq(operator.tenantId, op.tenantId)).orderBy(asc(operator.name));
+      const onShift = await openShiftOperatorIds(tx, op.tenantId);
       return rows.map((r) => toAccount(r, online.has(r.id), onShift.has(r.id)));
     });
   }
@@ -193,11 +193,11 @@ export class OperatorsService {
   }
 }
 
-export async function openShiftOperatorIds(tx: Tx): Promise<Set<string>> {
+export async function openShiftOperatorIds(tx: Tx, tenantId: string): Promise<Set<string>> {
   const rows = await tx
     .select({ operatorId: shift.operatorId })
     .from(shift)
-    .where(and(isNotNull(shift.startedAt), isNull(shift.endedAt)));
+    .where(and(eq(shift.tenantId, tenantId), isNotNull(shift.startedAt), isNull(shift.endedAt)));
   return new Set(rows.map((r) => r.operatorId));
 }
 

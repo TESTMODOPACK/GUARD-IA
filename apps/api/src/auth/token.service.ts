@@ -62,7 +62,7 @@ export class TokenService {
       .insert(refreshToken)
       .values({
         kind: claims.kind === 'citizen' ? 'CITIZEN' : 'OPERATOR',
-        subjectId: claims.sub,
+        ...(claims.kind === 'citizen' ? { citizenId: claims.sub } : { operatorId: claims.sub }),
         tokenHash: hash(raw),
         expiresAt: new Date(Date.now() + this.refreshTtl(claims) * 1000),
       })

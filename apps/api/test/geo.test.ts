@@ -87,6 +87,16 @@ d('georreferencia y redirección', () => {
     ops = new OpsService(dbs, reads, new EventsService(), realtime, notifications, incidents, { enqueue: async () => true } as unknown as AlertsService);
     transfers = new TransferService(dbs, reads, realtime, notifications, incidents);
 
+    // Restos de una corrida interrumpida (afterAll no alcanzó a limpiar).
+    const stale = await admin<{ id: string }[]>`SELECT id FROM tenant WHERE slug LIKE 'geo-test-%'`;
+    for (const { id } of stale) {
+      await admin`DELETE FROM audit_log WHERE tenant_id = ${id}`;
+      await admin`DELETE FROM alert_event WHERE alert_id IN (SELECT id FROM alert WHERE tenant_id = ${id})`;
+      await admin`DELETE FROM alert WHERE tenant_id = ${id}`;
+      await admin`DELETE FROM incident WHERE tenant_id = ${id}`;
+      await admin`DELETE FROM operator WHERE tenant_id = ${id}`;
+      await admin`DELETE FROM tenant WHERE id = ${id}`;
+    }
     for (const [k, x0] of [['A', -100], ['B', -99], ['C', -98]] as const) {
       await admin`
         INSERT INTO comuna (cut, name, name_key, region_cut, region_name, boundary)
@@ -107,7 +117,7 @@ d('georreferencia y redirección', () => {
       if (k !== 'D') {
         const [o] = await admin<{ id: string }[]>`
           INSERT INTO operator (tenant_id, email, password_hash, name, role)
-          VALUES (${row.id}, ${`geo-${k}-${suffix}@test.cl`}, 'x', ${'Op ' + k}, 'OPERATOR') RETURNING id`;
+          VALUES (${row.id}, ${`geo-${k.toLowerCase()}-${suffix}@test.cl`}, 'x', ${'Op ' + k}, 'OPERATOR') RETURNING id`;
         op[k] = { kind: 'operator', sub: o.id, tenantId: row.id, role: 'OPERATOR' };
       }
     }

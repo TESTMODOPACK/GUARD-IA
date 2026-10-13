@@ -50,7 +50,7 @@ export class AuthService {
       tx
         .insert(otpCode)
         .values({ phone, codeHash, expiresAt, attempts: 0 })
-        .onConflictDoUpdate({ target: otpCode.phone, set: { codeHash, expiresAt, attempts: 0 } }),
+        .onConflictDoUpdate({ target: otpCode.phone, set: { codeHash, expiresAt, attempts: 0, createdAt: new Date() } }),
     );
     if (this.env.OTP_DEBUG_ENDPOINT) devOtpCache.set(phone, code);
     await this.sms.send(phone, `Guard-IA: tu código es ${code}. Vence en 5 minutos.`);

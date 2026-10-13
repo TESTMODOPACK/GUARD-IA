@@ -42,7 +42,7 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
 - `apps/api/src`: `auth/` (OTP, JWT, refresh rotativo), `alerts/` (camino crítico del SOS), `ops/`
   (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock, `triage.prompt.ts`), `realtime/` (Socket.io
   `/ops` y `/citizen`), `media/` (S3 o disco local), `geo/` (comunas, traspaso entre municipios), `notifications/` (push Expo), `db/` (Drizzle +
-  migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA), `cli/`
+  migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA, tokens y códigos vencidos), `cli/`
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
   (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
@@ -65,6 +65,9 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
    (privilegios por columna en la migración). El ciudadano nunca elige municipio: lo decide el trigger
    `alert_route_tenant` por geocerca. La única vía para cambiar el municipio de una alerta es la función
    `transfer_alert()` (migración 0006, SECURITY DEFINER, auditada): la usan el agente y la central.
+   Toda consulta de operador filtra además `tenant_id` explícito (la RLS no usa índices por municipio por sí
+   sola; 0009). `tenant` tiene RLS: el operador solo ve el suyo; para nombres o límites de otros municipios se
+   lee la vista `tenant_directory`, nunca `tenant`.
 4. **Efectos secundarios antes del `throw`.** Un `throw` dentro de una transacción la revierte. La
    revocación de refresh tokens y el contador de intentos OTP se confirman en su propia transacción
    antes de responder 401. Repite el patrón si agregas lógica parecida.
@@ -73,7 +76,10 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
    (una unidad, un despacho abierto), `UNIQUE (citizen_id, client_ref)` para idempotencia.
 7. **Migraciones**: SQL a mano, un archivo nuevo numerado en `apps/api/src/db/migrations/`; nunca
    editar `0001_init.sql` una vez desplegado. El schema Drizzle (`db/schema.ts`) es espejo tipado,
-   no genera migraciones. Enums de Postgres y de `shared/enums.ts` deben coincidir.
+   no genera migraciones. Enums de Postgres y de `shared/enums.ts` deben coincidir. Desde 0009 los
+   privilegios por defecto no otorgan nada: cada tabla nueva declara sus `GRANT` a `guardia_app` (UPDATE por
+   columna, sin DELETE salvo que haga falta) y su RLS. Ninguna PK de texto. Correos de operador en minúsculas
+   (CHECK `operator_email_lower`).
 8. **Errores de API**: `AppError(code, message, details?)` con códigos de `shared` (`ERROR_CODES`).
    Validación con zod vía `zod(Schema)` en controladores.
 9. **Central**: selectores de zustand devuelven primitivos o referencias estables; derivar listas con
@@ -154,9 +160,10 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 ## Pendiente conocido
 
-- Base de datos: informe en `docs/revision-base-de-datos.md` (dos PK de texto, RLS que no usa índices por
-  municipio, privilegios); correcciones planificadas como `0009_hardening.sql` y `0010_scale.sql`, sin aplicar
-  (A3 ya resuelto en 0006/0007). Si `0009` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
+- Base de datos: informe en `docs/revision-base-de-datos.md`. `0009_hardening.sql` aplicada en local (PK de
+  texto corregidas, índices por municipio, privilegios, FK compuestas, RLS de `tenant` + `tenant_directory`,
+  `MaintenanceCron`). Falta `0011_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
+  piloto; `0010` es la consola de plataforma.
 - Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
   Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.

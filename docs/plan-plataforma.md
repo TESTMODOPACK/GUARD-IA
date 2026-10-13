@@ -274,6 +274,12 @@ en "Mis datos"; resultado en terreno registrado por la central (RT-9), con "era 
 de terreno. Falta de PU: cuenta restringida, bloqueo con aprobación del supervisor, "Estado de tu cuenta" y pedir
 revisión, anular faltas. Falta de PT: la app de terreno.
 
+Etapa 2a hecha (migración 0009, endurecimiento de la base, informe en `docs/revision-base-de-datos.md`): sin PK de
+texto, índices y `tenant_id` explícito por municipio, privilegios mínimos (cada migración nueva declara sus
+`GRANT`), RLS en `tenant` con la vista `tenant_directory`, FK compuestas por municipio y purga de tokens y
+códigos vencidos. Sigue la 2b: consola de plataforma (`0010_platform.sql`, `apps/platform`). El particionado
+queda como `0011_scale.sql`.
+
 ## 6. Modelo de datos propuesto
 
 | Tabla | Llave | Contenido |
@@ -322,15 +328,17 @@ revisión, anular faltas. Falta de PT: la app de terreno.
 ## 9. Decisiones pendientes
 1. Modelo de precio: tramos por población, plan fijo con límites, o fijo más variable por uso (IA y SMS).
 2. Proveedor de factura electrónica, o emisión manual al comienzo.
-3. Consola como app aparte en dominio propio (recomendado) o sección de la central.
+3. ~~Consola como app aparte en dominio propio (recomendado) o sección de la central.~~ **Decidido (13-10):**
+   app aparte (`apps/platform`) en dominio propio.
 4. Registro de errores propio (recomendado para el piloto) o Sentry/GlitchTip.
 5. Qué se limita al suspender por mora (propuesta: nada del SOS ni de la central).
 6. Modo prueba durante la implementación (propuesta: sí, por teléfonos de prueba).
 7. Contratos regionales: ¿una asociación o un gobierno regional puede pagar por varias comunas con una sola
    factura? (el modelo lo permite con `customer` y `contract_tenant`).
-8. Cuenta bloqueada: ¿la app reemplaza el SOS por los números de emergencia (recomendado) o el SOS sigue
-   llegando a la central con la marca "cuenta bloqueada"?
-9. Escalera de uso indebido: ¿se aceptan 3 faltas en 90 días y 30 días de bloqueo como punto de partida?
+8. ~~Cuenta bloqueada: ¿la app reemplaza el SOS por los números de emergencia o el SOS sigue llegando?~~
+   **Decidido (13-10):** la cuenta bloqueada no puede usar la app (ni SOS ni reportes); la pantalla de bloqueo
+   muestra, solo como texto, los números 133/131/132, el plazo y cómo pedir revisión.
+9. ~~Escalera de uso indebido: ¿3 faltas en 90 días y 30 días de bloqueo?~~ **Decidido (13-10):** sí.
 10. Terreno: ¿app web dentro de la central (recomendado para el piloto) o app nativa desde el comienzo? ¿Cada
     funcionario con su cuenta (recomendado, por trazabilidad) o una cuenta por unidad?
 

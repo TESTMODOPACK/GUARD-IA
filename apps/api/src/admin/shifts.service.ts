@@ -31,6 +31,7 @@ export class ShiftsService {
       const rows = await selectShifts(tx)
         .where(
           and(
+            eq(shift.tenantId, op.tenantId),
             sql`coalesce(${shift.plannedStart}, ${shift.startedAt}) < ${to.toISOString()}::timestamptz`,
             sql`coalesce(${shift.plannedEnd}, ${shift.endedAt}, now()) > ${from.toISOString()}::timestamptz`,
           ),
@@ -43,6 +44,17 @@ export class ShiftsService {
   async create(op: OperatorClaims, body: CreateShift): Promise<Shift> {
     const start = new Date(body.plannedStart);
     const end = new Date(body.plannedEnd);
+    try {
+      return await this.createInTx(op, body, start, end);
+    } catch (e) {
+      // Dos programaciones simultáneas del mismo turno: la base las rechaza (shift_no_overlap, 0009).
+      const err = e as { code?: string; cause?: { code?: string } };
+      if ((err.code ?? err.cause?.code) === '23P01') throw new AppError('CONFLICT', 'Ese turno se cruza con otro ya programado');
+      throw e;
+    }
+  }
+
+  private createInTx(op: OperatorClaims, body: CreateShift, start: Date, end: Date): Promise<Shift> {
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const [who] = await tx
         .select({ name: operator.name, active: operator.active })

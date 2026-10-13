@@ -42,7 +42,7 @@ d('derechos ARCO', () => {
     await admin`INSERT INTO media (alert_id, kind, storage_key, mime, bytes, retention_until)
                 VALUES (${alertId}, 'AUDIO', ${'test/' + randomUUID()}, 'audio/mp4', 1000, now() + interval '90 days')`;
     await admin`INSERT INTO device (citizen_id, expo_push_token, platform) VALUES (${citizenId}, ${'ExponentPushToken[' + randomUUID() + ']'}, 'android')`;
-    await admin`INSERT INTO refresh_token (kind, subject_id, token_hash, expires_at) VALUES ('CITIZEN', ${citizenId}, ${randomUUID()}, now() + interval '1 day')`;
+    await admin`INSERT INTO refresh_token (kind, citizen_id, token_hash, expires_at) VALUES ('CITIZEN', ${citizenId}, ${randomUUID()}, now() + interval '1 day')`;
   });
 
   afterAll(async () => {

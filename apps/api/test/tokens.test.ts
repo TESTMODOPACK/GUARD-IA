@@ -21,24 +21,41 @@ d('refresh tokens', () => {
   let dbs: DbService;
   let admin: postgres.Sql;
   let tokens: TokenService;
-  // Sujetos ficticios: refresh_token no tiene FK, basta un uuid propio para limpiar al final.
-  const operatorId = randomUUID();
-  const citizenId = randomUUID();
-  const operatorClaims: AccessClaims = { kind: 'operator', sub: operatorId, tenantId: randomUUID(), role: 'OPERATOR' };
-  const citizenClaims: AccessClaims = { kind: 'citizen', sub: citizenId };
+  // Desde 0009 el refresh token tiene FK a su dueño: el operador y el vecino existen de verdad.
+  let tenantId = '';
+  let operatorId = '';
+  let citizenId = '';
+  let operatorClaims: AccessClaims;
+  let citizenClaims: AccessClaims;
+  const suffix = randomUUID().slice(0, 8);
   const claimsFor = async (_tx: unknown, kind: 'CITIZEN' | 'OPERATOR') =>
     kind === 'OPERATOR' ? operatorClaims : citizenClaims;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     const env = validateEnv(process.env);
     if (!env.DATABASE_ADMIN_URL) throw new Error('DATABASE_ADMIN_URL requerido');
     dbs = new DbService(env);
     admin = postgres(env.DATABASE_ADMIN_URL, { max: 1, onnotice: () => undefined });
     tokens = new TokenService(env, new JwtService(), dbs);
+    const box = JSON.stringify({ type: 'MultiPolygon', coordinates: [[[[80, 80], [81, 80], [81, 81], [80, 81], [80, 80]]]] });
+    const [t] = await admin<{ id: string }[]>`
+      INSERT INTO tenant (name, slug, boundary) VALUES ('Tokens', ${'tok-test-' + suffix}, ST_GeomFromGeoJSON(${box})::geography) RETURNING id`;
+    tenantId = t.id;
+    const [o] = await admin<{ id: string }[]>`
+      INSERT INTO operator (tenant_id, email, password_hash, name) VALUES (${tenantId}, ${'tok-' + suffix + '@test.cl'}, 'x', 'Tok') RETURNING id`;
+    operatorId = o.id;
+    const [c] = await admin<{ id: string }[]>`
+      INSERT INTO citizen (phone) VALUES (${'+5694' + String(Date.now()).slice(-7)}) RETURNING id`;
+    citizenId = c.id;
+    operatorClaims = { kind: 'operator', sub: operatorId, tenantId, role: 'OPERATOR' };
+    citizenClaims = { kind: 'citizen', sub: citizenId };
   });
 
   afterAll(async () => {
     await admin`DELETE FROM refresh_token WHERE subject_id IN (${operatorId}, ${citizenId})`;
+    if (operatorId) await admin`DELETE FROM operator WHERE id = ${operatorId}`;
+    if (citizenId) await admin`DELETE FROM citizen WHERE id = ${citizenId}`;
+    if (tenantId) await admin`DELETE FROM tenant WHERE id = ${tenantId}`;
     await admin.end({ timeout: 5 });
     await dbs.onModuleDestroy();
   });

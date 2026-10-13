@@ -252,7 +252,7 @@ CREATE INDEX refresh_token_subject_idx ON refresh_token (subject_id) WHERE revok
 - **Efecto en código:** `token.service.ts:62-68` inserta `citizenId` u `operatorId` según el `kind`, en lugar de `subjectId`. Las lecturas de `row.subjectId` (líneas 101, 105, 121, 148) siguen igual. En `schema.ts`: `subjectId: uuid('subject_id').generatedAlwaysAs(sql\`COALESCE(citizen_id, operator_id)\`)`.
 - **Sobre `erase_citizen`:** el `DELETE ... WHERE subject_id = p_citizen AND kind = 'CITIZEN'` de `0002:52` sigue válido.
 
-**`alert_event.actor_id`:** guarda el id del vecino o del operador según `actor_type`. En la base: CITIZEN 39 con id, OPERATOR 68 con id, SYSTEM 40 y AI 37 sin id. Se resuelve al reconstruir la tabla en la migración 0010 (sección 3, S1) con `actor_operator_id` y `actor_citizen_id`, ambos con FK, y un CHECK que los liga a `actor_type`.
+**`alert_event.actor_id`:** guarda el id del vecino o del operador según `actor_type`. En la base: CITIZEN 39 con id, OPERATOR 68 con id, SYSTEM 40 y AI 37 sin id. Se resuelve al reconstruir la tabla en la migración 0011 (sección 3, S1) con `actor_operator_id` y `actor_citizen_id`, ambos con FK, y un CHECK que los liga a `actor_type`.
 
 **`audit_log.target_id`:** apunta a operador, turno, unidad o contacto. Dejarlo sin FK es correcto: la bitácora debe sobrevivir al objeto (por ejemplo, `SHIFT_REMOVED` borra el turno). `audit_log.actor_id` ya tiene FK a `operator`.
 
@@ -325,7 +325,7 @@ CREATE TRIGGER media_tenant       BEFORE INSERT ON media       FOR EACH ROW EXEC
   - `UPDATE alert SET status/priority/...` en una alerta propia.
   - Insertar un `alert_event` con `actor_type = 'OPERATOR'` y `kind = 'ACKNOWLEDGED'`, falsificando la auditoría.
   - `DELETE` de `media`.
-- **SQL (0009, para `alert` y `media`; el de `alert_event` va en la reconstrucción de 0010):**
+- **SQL (0009, para `alert` y `media`; el de `alert_event` va en la reconstrucción de 0011):**
 ```sql
 DROP POLICY alert_citizen ON alert;
 CREATE POLICY alert_citizen_select ON alert FOR SELECT TO guardia_app
@@ -414,7 +414,7 @@ ALTER TABLE otp_code SET (fillfactor = 70, autovacuum_vacuum_scale_factor = 0, a
   - Sin `.references(...)` en `operator.createdBy` (línea 106), `alert.incidentId` (152), `auditLog.actorId` (234), `shift.createdBy` (254) y `contact.createdBy` (274).
   - `incident.importance` está como `integer` (línea 294) y en SQL es `smallint`.
   - El comentario de cabecera dice "espejo de 0001"; ya cubre 0001-0004.
-  - Tras 0009/0010 hay que reflejar: `otpCode.id`, `refreshToken` (citizen/operator), `alertEvent` (actores), `priorityRank`, `uuidv7` por defecto.
+  - Tras 0009/0011 hay que reflejar: `otpCode.id`, `refreshToken` (citizen/operator), `alertEvent` (actores), `priorityRank`, `uuidv7` por defecto.
 - **B2. `refresh_token.token_hash` es `text` con 64 caracteres hex.** Guardarlo como `bytea` (32 bytes) reduce a la mitad el índice único más grande de la tabla más grande. Implica cambiar `hash()` en `token.service.ts` para devolver `Buffer` y declarar un tipo `bytea` en Drizzle.
 - **B3. Clave del advisory lock.** `hashtextextended(texto, 0)` comparte espacio de claves con cualquier otro uso de advisory locks. Usar la forma de dos enteros `pg_advisory_xact_lock(int4, int4)` con un id de feature fijo.
 - **B4. `tenant_boundary_gix`** (geography) no se usa, ya que el trigger convierte a geometry (A3). Si se adopta el índice funcional, queda como respaldo; `idx_scan` es 0.
@@ -467,7 +467,7 @@ Conclusión: el modelo de aislamiento es el adecuado (vecino global, alertas fue
 
 ### 3.3 Crecimiento y estrategia concreta
 
-**S1. Particionar `alert_event` y `audit_log` por mes (0010).**
+**S1. Particionar `alert_event` y `audit_log` por mes (0011).**
 - **Por qué esas dos.** Son append-only, sin FKs entrantes, y se consultan siempre con `tenant_id` y rango de fechas.
 - **Por qué no las demás:**
   - `alert`: recibe FKs de `media`, `dispatch` y `alert_event`, y su `UNIQUE (citizen_id, client_ref)` (idempotencia del SOS) no puede incluir `created_at` sin perder la garantía.
@@ -477,7 +477,7 @@ Conclusión: el modelo de aislamiento es el adecuado (vecino global, alertas fue
 - **Por qué hacerlo ahora.** `alert_event` tiene 188 filas; reconstruirla hoy es trivial y más adelante es una migración larga.
 
 ```sql
--- 0010_scale.sql
+-- 0011_scale.sql
 CREATE TABLE alert_event_new (
   id                uuid        NOT NULL DEFAULT uuidv7(),          -- ver S2
   alert_id          uuid        NOT NULL REFERENCES alert(id) ON DELETE CASCADE,
@@ -596,10 +596,23 @@ El número de filas por sí solo no es el límite: 2,6 M de alertas al año se m
 > (el trigger de ruteo usa `ST_Covers` sobre geography, con índice GIST); sácalo de `0009`.
 > `0005_triage.sql` ya cumple las reglas de este informe: `triage_label` tiene PK uuid, `tenant_id` con FK e
 > índice, RLS por municipio, sin DELETE para la app y UPDATE solo por columna.
+>
+> **Estado (13-10-2026):** el punto 1 y `0009_hardening.sql` están aplicados en la base local: 66 tests contra la
+> base real, el simulador y la prueba de plan de C3 (la cola usa `alert_open_queue_idx`) en verde. `0010` queda
+> para la consola de plataforma (`0010_platform.sql`), así que el particionado pasa a **`0011_scale.sql`**.
+> Lo que cambió respecto del texto de arriba:
+> - **A2:** con RLS en `tenant`, el operador solo ve su municipio. Para lo que necesita ver de los demás (lista
+>   de traspaso, comuna nombrada por el vecino, nombre del municipio en el historial de faltas) hay una vista
+>   `tenant_directory` (`security_barrier`, solo `id, name, comuna_cut, active, boundary`). `geo.queries.ts`,
+>   `transfer.service.ts` y `ops.service.citizenStanding` leen de ella.
+> - **A1:** `ALTER DEFAULT PRIVILEGES … REVOKE ALL`: desde 0010, cada migración declara sus `GRANT`.
+> - **M6:** el CHECK `operator_email_lower` obliga a guardar el correo en minúsculas (los tests ya lo hacen); el
+>   EXCLUDE `shift_no_overlap` devuelve `23P01` y la API lo traduce a `CONFLICT` en `shifts.service.ts`.
+> - **A5:** `MaintenanceCron` (`jobs/maintenance.cron.ts`, cada 10 min, lotes de 5000 con `SKIP LOCKED`).
 
 1. **Sin migración, ya:** `tenant_id` explícito en las consultas de operador (C3); `lock_timeout` en `attachInTx` (A6); `.orderBy(asc(alert.id))` en `resolve` (M7); `MaintenanceCron` con las purgas (A5).
 2. **`0009_hardening.sql`:** C1, C2, A1, A2, A3, A4, M1 (refresh_token), M2, M3, M4, M5 (alert y media), M6, M8, y los índices de C3.
-3. **`0010_scale.sql`:** reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
+3. **`0011_scale.sql`** (antes `0010`): reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
 4. **Fase 2, opcional:** rol de base por contexto (C3 nivel 2); sesiones en lugar de una fila por rotación; `token_hash` como `bytea`.
 5. **Pruebas:** `pnpm --filter @guardia/api test:db` (RLS contra base real), `pnpm typecheck` y `pnpm simulate`. Añadir la prueba de plan de C3 y una prueba que verifique que `guardia_app` no puede escribir en `schema_migrations`.
 
@@ -612,8 +625,8 @@ Puntos que no pude comprobar en modo solo lectura y que hay que validar en una c
 | Tabla | Columna | Tipo | ¿Cumple? |
 |---|---|---|---|
 | `alert` | `id` | uuid | Sí |
-| `alert_event` | `id` | uuid | Sí (tras 0010: `(id, created_at)`, uuid y timestamptz, también cumple) |
-| `audit_log` | `id` | uuid | Sí (igual, tras 0010) |
+| `alert_event` | `id` | uuid | Sí (tras 0011: `(id, created_at)`, uuid y timestamptz, también cumple) |
+| `audit_log` | `id` | uuid | Sí (igual, tras 0011) |
 | `citizen` | `id` | uuid | Sí |
 | `contact` | `id` | uuid | Sí |
 | `device` | `id` | uuid | Sí |
@@ -621,9 +634,9 @@ Puntos que no pude comprobar en modo solo lectura y que hay que validar en una c
 | `incident` | `id` | uuid | Sí |
 | `media` | `id` | uuid | Sí |
 | `operator` | `id` | uuid | Sí |
-| **`otp_code`** | **`phone`** | **text** | **No (C1)** |
+| `otp_code` | `id` | uuid | Sí (tras 0009; antes `phone` text, C1) |
 | `refresh_token` | `id` | uuid | Sí |
-| **`schema_migrations`** | **`name`** | **text** | **No (C2)** |
+| `schema_migrations` | `id` | bigint | Sí (tras 0009; antes `name` text, C2) |
 | `shift` | `id` | uuid | Sí |
 | `spatial_ref_sys` (PostGIS) | `srid` | integer | Sí |
 | `tenant` | `id` | uuid | Sí |

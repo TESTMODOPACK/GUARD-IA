@@ -11,6 +11,7 @@ import type { AlertRow } from '../db/schema';
 const point = (row: Pick<AlertRow, 'lat' | 'lng'>) => sql`ST_SetSRID(ST_MakePoint(${row.lng}, ${row.lat}), 4326)::geography`;
 
 /** Igual que comunaKey() de shared, en SQL, para comparar con el nombre del municipio. */
+// Los demás municipios se leen por tenant_directory (0009): la RLS de tenant solo deja ver el propio.
 const TENANT_KEY = sql.raw(String.raw`btrim(regexp_replace(regexp_replace(regexp_replace(
   translate(lower(t.name), 'áéíóúüñ', 'aeiouun'),
   '^(i\.?\s*)?(ilustre\s+)?(municipalidad|comuna|municipio)\s+de\s+', ''),
@@ -45,7 +46,7 @@ export async function resolveMentionedComuna(
               FROM comuna_part p
              WHERE p.cut = c.cut AND ST_DWithin(p.part, ${point(row)}, 50000)) AS distance_m
       FROM comuna c
-      LEFT JOIN tenant t ON t.comuna_cut = c.cut AND t.active
+      LEFT JOIN tenant_directory t ON t.comuna_cut = c.cut AND t.active
      WHERE c.name_key = ${key}
      ORDER BY distance_m NULLS LAST
      LIMIT 1`)) as unknown as {
@@ -59,7 +60,7 @@ export async function resolveMentionedComuna(
 
   const [t] = (await tx.execute(sql`
     SELECT t.id, t.name, round(ST_Distance(t.boundary, ${point(row)}))::int AS distance_m
-      FROM tenant t
+      FROM tenant_directory t
      WHERE t.active AND ${TENANT_KEY} = ${key}
      LIMIT 1`)) as unknown as { id: string; name: string; distance_m: number }[];
   return t ? { name, cut: null, tenantId: t.id, tenantName: t.name, distanceM: t.distance_m } : null;
@@ -76,14 +77,14 @@ export async function nearbyTenants(tx: Tx, row: Pick<AlertRow, 'lat' | 'lng' | 
        WHERE ST_DWithin(p.part, ${point(row)}, ${margin})
        GROUP BY p.cut
     ), candidates AS (
-      SELECT t.id, near.d FROM near JOIN tenant t ON t.comuna_cut = near.cut AND t.active
+      SELECT t.id, near.d FROM near JOIN tenant_directory t ON t.comuna_cut = near.cut AND t.active
       UNION ALL
       SELECT t.id, ST_Distance(t.boundary, ${point(row)})
-        FROM tenant t
+        FROM tenant_directory t
        WHERE t.active AND t.comuna_cut IS NULL AND ST_DWithin(t.boundary, ${point(row)}, ${margin})
     )
     SELECT t.id, t.name, round(min(c.d))::int AS distance_m
-      FROM candidates c JOIN tenant t ON t.id = c.id
+      FROM candidates c JOIN tenant_directory t ON t.id = c.id
      WHERE t.id IS DISTINCT FROM ${row.tenantId}::uuid
      GROUP BY t.id, t.name
      ORDER BY distance_m

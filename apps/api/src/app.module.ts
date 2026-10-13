@@ -13,6 +13,7 @@ import { HealthController } from './health/health.controller';
 import { InfraModule } from './infra/infra.module';
 import { RedisModule } from './infra/redis.module';
 import { AiOutboxCron } from './jobs/ai-outbox.cron';
+import { MaintenanceCron } from './jobs/maintenance.cron';
 import { RetentionCron } from './jobs/retention.cron';
 import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -78,6 +79,6 @@ import { RealtimeModule } from './realtime/realtime.module';
     GeoModule,
   ],
   controllers: [HealthController],
-  providers: [RetentionCron, AiOutboxCron],
+  providers: [RetentionCron, AiOutboxCron, MaintenanceCron],
 })
 export class AppModule {}

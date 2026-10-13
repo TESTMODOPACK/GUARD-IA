@@ -65,7 +65,7 @@ export class RealtimeService {
     const d = new Date(since);
     const safeSince = Number.isNaN(d.getTime()) ? new Date(Date.now() - 3600_000) : d;
     const { items } = await this.dbs.asOperator(tenantId, operatorId, (tx) =>
-      this.reads.list(tx, { since: safeSince, limit: 200 }),
+      this.reads.list(tx, { tenantId, since: safeSince, limit: 200 }),
     );
     return { since: safeSince.toISOString(), alerts: items };
   }

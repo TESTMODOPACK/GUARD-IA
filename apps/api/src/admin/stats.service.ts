@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   AI_STATUSES,
   ALERT_STATUSES,
@@ -40,6 +40,9 @@ export class StatsService {
     const bucket = range === '24h' ? 'hour' : 'day';
     // postgres-js no serializa Date dentro de sql``: texto ISO con cast explícito.
     const fromTs = sql`${from.toISOString()}::timestamptz`;
+    // tenant_id explícito en cada consulta: bajo RLS es lo que permite usar los índices por municipio
+    // (docs/revision-base-de-datos.md, C3). La RLS sigue siendo la frontera; esto es rendimiento.
+    const T = sql`${op.tenantId}::uuid`;
     const online = await this.realtime.connectedOperatorIds(op.tenantId);
 
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
@@ -49,14 +52,14 @@ export class StatsService {
       const open = await rows<{ status: string; n: number; oldest: string | null }>(
         tx,
         sql`SELECT status, count(*)::int AS n, min(created_at)::text AS oldest
-            FROM alert WHERE status IN ('PENDING','ACKNOWLEDGED','DISPATCHED') GROUP BY status`,
+            FROM alert WHERE tenant_id = ${T} AND status IN ('PENDING','ACKNOWLEDGED','DISPATCHED') GROUP BY status`,
       );
-      const units = await rows<{ status: string; n: number }>(tx, sql`SELECT status, count(*)::int AS n FROM unit GROUP BY status`);
-      const onShift = await openShiftOperatorIds(tx);
+      const units = await rows<{ status: string; n: number }>(tx, sql`SELECT status, count(*)::int AS n FROM unit WHERE tenant_id = ${T} GROUP BY status`);
+      const onShift = await openShiftOperatorIds(tx, op.tenantId);
 
       const byStatus = await rows<{ type: string; status: string; n: number }>(
         tx,
-        sql`SELECT type, status, count(*)::int AS n FROM alert WHERE created_at >= ${fromTs} GROUP BY type, status`,
+        sql`SELECT type, status, count(*)::int AS n FROM alert WHERE tenant_id = ${T} AND created_at >= ${fromTs} GROUP BY type, status`,
       );
       // Una barra por hora o día en la zona del municipio, incluidas las vacías.
       const series = await rows<{ bucket: string; sos: number; civic: number }>(
@@ -71,13 +74,13 @@ export class StatsService {
                    count(a.id) FILTER (WHERE a.type = 'CIVIC_REPORT')::int AS civic
             FROM b
             LEFT JOIN alert a
-              ON a.created_at >= ${fromTs} AND date_trunc(${bucket}, a.created_at AT TIME ZONE ${tz}) = b.local_bucket
+              ON a.tenant_id = ${T} AND a.created_at >= ${fromTs} AND date_trunc(${bucket}, a.created_at AT TIME ZONE ${tz}) = b.local_bucket
             GROUP BY b.local_bucket ORDER BY b.local_bucket`,
       );
       const byCategory = await rows<{ category: string; n: number }>(
         tx,
         sql`SELECT category, count(*)::int AS n FROM alert
-            WHERE created_at >= ${fromTs} AND category IS NOT NULL GROUP BY category ORDER BY n DESC`,
+            WHERE tenant_id = ${T} AND created_at >= ${fromTs} AND category IS NOT NULL GROUP BY category ORDER BY n DESC`,
       );
       const response = await rows<{
         type: string;
@@ -98,24 +101,29 @@ export class StatsService {
             FROM alert a
             LEFT JOIN LATERAL (SELECT min(e.created_at) AS t FROM alert_event e WHERE e.alert_id = a.id AND e.kind = 'ACKNOWLEDGED') ack ON true
             LEFT JOIN LATERAL (SELECT min(e.created_at) AS t FROM alert_event e WHERE e.alert_id = a.id AND e.kind = 'DISPATCHED') dsp ON true
-            WHERE a.created_at >= ${fromTs}
+            WHERE a.tenant_id = ${T} AND a.created_at >= ${fromTs}
             GROUP BY a.type`,
       );
       const rejections = await rows<{ reason: string; n: number }>(
         tx,
         sql`SELECT payload->>'reason' AS reason, count(*)::int AS n FROM alert_event
-            WHERE kind = 'REJECTED' AND created_at >= ${fromTs} GROUP BY 1 ORDER BY n DESC`,
+            WHERE tenant_id = ${T} AND kind = 'REJECTED' AND created_at >= ${fromTs} GROUP BY 1 ORDER BY n DESC`,
       );
       const ai = await rows<{ ai_status: string; n: number }>(
         tx,
-        sql`SELECT ai_status, count(*)::int AS n FROM alert WHERE created_at >= ${fromTs} GROUP BY ai_status`,
+        sql`SELECT ai_status, count(*)::int AS n FROM alert WHERE tenant_id = ${T} AND created_at >= ${fromTs} GROUP BY ai_status`,
       );
       const work = await rows<{ actor_id: string; kind: string; n: number }>(
         tx,
         sql`SELECT actor_id, kind, count(*)::int AS n FROM alert_event
-            WHERE actor_type = 'OPERATOR' AND created_at >= ${fromTs} AND actor_id IS NOT NULL GROUP BY actor_id, kind`,
+            WHERE tenant_id = ${T} AND actor_type = 'OPERATOR' AND created_at >= ${fromTs} AND actor_id IS NOT NULL
+            GROUP BY actor_id, kind`,
       );
-      const ops = await tx.select().from(operator).where(eq(operator.active, true)).orderBy(asc(operator.name));
+      const ops = await tx
+        .select()
+        .from(operator)
+        .where(and(eq(operator.tenantId, op.tenantId), eq(operator.active, true)))
+        .orderBy(asc(operator.name));
 
       const statusCounts = zeros(ALERT_STATUSES);
       let sos = 0;
@@ -189,6 +197,7 @@ export class StatsService {
   /** Bitácora paginada, más reciente primero. Cursor `${created_at texto}_${id}` (microsegundos exactos). */
   async activity(op: OperatorClaims, q: ActivityQuery): Promise<ActivityPage<CaseActivity> | ActivityPage<SystemActivity>> {
     const after = parseCursor(q.cursor);
+    const T = sql`${op.tenantId}::uuid`;
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       if (q.source === 'system') {
         const list = await rows<{
@@ -202,7 +211,8 @@ export class StatsService {
           tx,
           sql`SELECT l.id, l.created_at::text AS created_at, l.kind, o.name AS actor_name, l.target_id, l.payload
               FROM audit_log l LEFT JOIN operator o ON o.id = l.actor_id
-              ${after ? sql`WHERE (l.created_at, l.id) < (${after.ts}::timestamptz, ${after.id}::uuid)` : sql``}
+              WHERE l.tenant_id = ${T}
+              ${after ? sql`AND (l.created_at, l.id) < (${after.ts}::timestamptz, ${after.id}::uuid)` : sql``}
               ORDER BY l.created_at DESC, l.id DESC LIMIT ${q.limit + 1}`,
         );
         return page(list, q.limit, (r) => ({
@@ -232,7 +242,8 @@ export class StatsService {
             FROM alert_event e
             JOIN alert a ON a.id = e.alert_id
             LEFT JOIN operator o ON o.id = e.actor_id
-            ${after ? sql`WHERE (e.created_at, e.id) < (${after.ts}::timestamptz, ${after.id}::uuid)` : sql``}
+            WHERE e.tenant_id = ${T}
+            ${after ? sql`AND (e.created_at, e.id) < (${after.ts}::timestamptz, ${after.id}::uuid)` : sql``}
             ORDER BY e.created_at DESC, e.id DESC LIMIT ${q.limit + 1}`,
       );
       return page(list, q.limit, (r) => ({

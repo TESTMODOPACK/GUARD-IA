@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
@@ -6,6 +7,7 @@ import {
   pgEnum,
   pgTable,
   real,
+  smallint,
   text,
   timestamp,
   uuid,
@@ -161,6 +163,10 @@ export const alert = pgTable('alert', {
   aiTriage: jsonb('ai_triage').$type<Triage>(),
   // 0006_geo_routing.sql (la fija el trigger de ruteo; la app no la cambia)
   comunaCut: integer('comuna_cut'),
+  // 0009_hardening.sql: orden de la cola (HIGH 0, MEDIUM 1, LOW 2, sin prioridad 1), con índice.
+  priorityRank: smallint('priority_rank').generatedAlwaysAs(
+    sql`CASE priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`,
+  ),
 });
 
 export const media = pgTable('media', {
@@ -219,7 +225,9 @@ export const alertEvent = pgTable('alert_event', {
 });
 
 export const otpCode = pgTable('otp_code', {
-  phone: text('phone').primaryKey(),
+  // 0009_hardening.sql: llave uuid; el teléfono queda único.
+  id: uuid('id').primaryKey().defaultRandom(),
+  phone: text('phone').notNull().unique(),
   codeHash: text('code_hash').notNull(),
   expiresAt: ts('expires_at').notNull(),
   attempts: integer('attempts').notNull().default(0),
@@ -229,7 +237,12 @@ export const otpCode = pgTable('otp_code', {
 export const refreshToken = pgTable('refresh_token', {
   id: uuid('id').primaryKey().defaultRandom(),
   kind: tokenKindEnum('kind').notNull(),
-  subjectId: uuid('subject_id').notNull(),
+  // 0009_hardening.sql: dueño con FK real; subject_id es generado (COALESCE de los dos).
+  citizenId: uuid('citizen_id').references(() => citizen.id, { onDelete: 'cascade' }),
+  operatorId: uuid('operator_id').references(() => operator.id, { onDelete: 'cascade' }),
+  subjectId: uuid('subject_id')
+    .notNull()
+    .generatedAlwaysAs(sql`COALESCE(citizen_id, operator_id)`),
   tokenHash: text('token_hash').notNull().unique(),
   expiresAt: ts('expires_at').notNull(),
   revokedAt: ts('revoked_at'),

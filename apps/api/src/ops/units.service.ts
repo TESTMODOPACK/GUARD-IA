@@ -19,7 +19,7 @@ export class UnitsService {
 
   list(op: OperatorClaims): Promise<Unit[]> {
     return this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
-      const rows = await tx.select().from(unit).orderBy(asc(unit.code));
+      const rows = await tx.select().from(unit).where(eq(unit.tenantId, op.tenantId)).orderBy(asc(unit.code));
       return rows.map(toUnit);
     });
   }

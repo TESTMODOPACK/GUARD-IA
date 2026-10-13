@@ -49,6 +49,9 @@ export class IncidentsService {
 
     // Dos reportes simultáneos del mismo bache no deben abrir dos incidentes: se serializa la
     // búsqueda por municipio y tipo (el lock se suelta al terminar la transacción).
+    // Un pico en el mismo municipio no debe dejar el pool esperando este lock (A6 del informe de base de
+    // datos): si no se obtiene en 150 ms, la transacción se corta y el worker reagrupa después.
+    await tx.execute(sql`SET LOCAL lock_timeout = '150ms'`);
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${a.tenantId}:${a.type}`}, 0))`);
 
     const existing = await this.findOpenMatch(tx, a);
@@ -146,7 +149,8 @@ export class IncidentsService {
    * vecino ni las rechazadas por la central (una falsa alarma no confirma nada).
    */
   async recompute(tx: Tx, incidentId: string): Promise<void> {
-    const [inc] = await tx.select().from(incident).where(eq(incident.id, incidentId)).limit(1);
+    // Bloquea el incidente: dos recálculos simultáneos no deben pisarse los conteos (M7).
+    const [inc] = await tx.select().from(incident).where(eq(incident.id, incidentId)).for('update').limit(1);
     if (!inc) return;
     const [agg] = (await tx.execute(sql`
       SELECT count(*)::int AS n,
