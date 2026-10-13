@@ -1,18 +1,34 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from './api';
 
-// Con la app abierta, el aviso de la central se muestra igual (banner + lista).
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
+
+/** Expo Go en Android: desde SDK 53 basta con IMPORTAR expo-notifications para que la app se caiga. */
+const isExpoGoAndroid = Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+let loaded: NotificationsModule | null = null;
+
+/**
+ * Carga expo-notifications solo donde funciona (app compilada o iOS), nunca al importar este archivo.
+ * Con la app abierta, el aviso de la central se muestra igual (banner + lista).
+ */
+function notifications(): NotificationsModule {
+  if (loaded) return loaded;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('expo-notifications') as NotificationsModule;
+  mod.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+  loaded = mod;
+  return mod;
+}
 
 export type PushResult =
   | { state: 'registered' }
@@ -27,11 +43,12 @@ export type PushResult =
 export async function registerDevice(): Promise<PushResult> {
   if (Platform.OS === 'web') return { state: 'unavailable', reason: 'la versión web no recibe avisos' };
   if (!Device.isDevice) return { state: 'unavailable', reason: 'emulador sin servicio de avisos' };
-  if (Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
-    return { state: 'unavailable', reason: 'Expo Go en Android no recibe avisos; requiere la app de desarrollo' };
+  if (isExpoGoAndroid) {
+    return { state: 'unavailable', reason: 'Expo Go en Android no recibe avisos; requiere la app compilada' };
   }
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) return { state: 'unavailable', reason: 'falta el proyecto EAS para emitir avisos' };
+  const Notifications = notifications();
 
   // Android 13+: sin un canal creado no aparece el permiso ni hay token.
   if (Platform.OS === 'android') {
