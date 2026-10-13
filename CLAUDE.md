@@ -155,6 +155,9 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
 - Groq gratis: la cuota diaria de tokens se agota con unas 100 clasificaciones de prueba; para el piloto
   hace falta el plan pagado o un proveedor con más cuota (si se agota, rige el respaldo por reglas).
+- Plataforma y operación (borrador 1, 13-10-2026): `docs/plan-plataforma.md` (consola de superadministrador por
+  región, planes, contratos, facturación, bitácora de errores, métricas; uso indebido con escalera de faltas;
+  unidad en terreno que informa resultados). Fases P1, PU, PT, P2 antes del piloto; decisiones pendientes en §9.
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
   ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
   Guard-IA") y se retoma después del piloto.
