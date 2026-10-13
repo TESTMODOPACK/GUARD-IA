@@ -56,13 +56,49 @@ export async function accessToken(): Promise<string | null> {
   return Date.now() < s.accessExpiresAt ? s.accessToken : refreshAccess();
 }
 
-async function send(path: string, init: RequestInit, token?: string | null): Promise<Response> {
+/** Lo que `request` necesita de una respuesta (fetch o XHR). */
+type Reply = { status: number; ok: boolean; text(): Promise<string>; json(): Promise<unknown> };
+
+const UPLOAD_TIMEOUT_MS = 45_000;
+
+/**
+ * Subida multipart en el teléfono. Expo (SDK 57) reemplaza el `fetch` global por expo/fetch, que no
+ * acepta partes `{ uri, name, type }` ("Unsupported FormDataPart implementation"). El
+ * XMLHttpRequest de React Native sí: lee el archivo desde el disco en el lado nativo, sin pasar los
+ * bytes por JavaScript.
+ */
+function sendMultipartXhr(url: string, form: FormData, headers: Record<string, string>): Promise<Reply> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    xhr.onload = () => {
+      const body = xhr.responseText ?? '';
+      resolve({
+        status: xhr.status,
+        ok: xhr.status >= 200 && xhr.status < 300,
+        text: async () => body,
+        json: async () => JSON.parse(body),
+      });
+    };
+    xhr.onerror = () => reject(new Error('error de red al subir el archivo'));
+    xhr.ontimeout = () => reject(new Error('tiempo de espera agotado al subir el archivo'));
+    xhr.send(form);
+  });
+}
+
+async function send(path: string, init: RequestInit, token?: string | null): Promise<Reply> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body && typeof init.body === 'string') headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   try {
+    if (Platform.OS !== 'web' && init.body instanceof FormData) {
+      clearTimeout(timer); // la subida tiene su propio tope, más largo
+      return await sendMultipartXhr(`${API_BASE}${path}`, init.body, headers);
+    }
     return await fetch(`${API_BASE}${path}`, { ...init, headers: { ...headers, ...(init.headers as object) }, signal: ctrl.signal });
   } catch (e) {
     // En desarrollo se ve la causa real (sin red, timeout, archivo ilegible…) en la pantalla.

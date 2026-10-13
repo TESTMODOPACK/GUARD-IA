@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { errorMessage, sendAlert } from '@/lib/api';
 import { currentFix, LocationError, type Fix } from '@/lib/location';
-import { audioFile, MAX_RECORDING_S, MicError, prepareMic } from '@/lib/recorder';
+import { audioFile, MAX_RECORDING_S, MicError, prepareMic, startRecording } from '@/lib/recorder';
 import { ErrorText, LinkButton, Screen } from '@/components/ui';
 import { color, font } from '@/theme';
 
@@ -90,8 +90,7 @@ export default function Voice() {
     if (!ready || sending) return;
     setHint(null);
     try {
-      await recorder.prepareToRecordAsync();
-      recorder.record();
+      await startRecording(recorder);
       limit.current = setTimeout(() => void send(), MAX_RECORDING_S * 1000);
     } catch (e) {
       setError(`No se pudo empezar a grabar. ${errorMessage(e)}`);

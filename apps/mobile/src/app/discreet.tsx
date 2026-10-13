@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { errorMessage, sendAlert } from '@/lib/api';
 import { currentFix, type Fix } from '@/lib/location';
-import { audioFile, MAX_RECORDING_S, prepareMic } from '@/lib/recorder';
+import { audioFile, MAX_RECORDING_S, prepareMic, startRecording } from '@/lib/recorder';
 
 /** Los primeros segundos "Salir" anula sin enviar (entrada por error); después ya es una alerta. */
 const GRACE_S = 3;
@@ -65,8 +65,7 @@ export default function Discreet() {
     (async () => {
       try {
         await prepareMic();
-        await recorder.prepareToRecordAsync();
-        recorder.record();
+        await startRecording(recorder);
         started.current = true;
       } catch (e) {
         // Sin micrófono el SOS sale igual, solo con ubicación (registro solo en consola, nunca en pantalla).
