@@ -24,8 +24,14 @@ export interface ClassifyInput {
   localTime: string;
 }
 
+/**
+ * El proveedor solo entrega la salida del modelo. La normalización y las reglas fijas
+ * (`buildTriage` de shared) las aplica quien llama: el worker y el evaluador, igual para todos.
+ */
 export interface AiProvider {
   readonly name: 'openai' | 'mock';
+  /** Modelo de clasificación (para registrar en el triage); null si no hay modelo. */
+  readonly model: string | null;
   transcribe(input: TranscribeInput): Promise<TranscribeResult>;
   classify(input: ClassifyInput): Promise<AiClassification>;
 }
@@ -33,24 +39,3 @@ export interface AiProvider {
 export const STT_CONTEXT_PROMPT =
   'Emergencia o reporte urbano en Chile. Carabineros, SAMU, Bomberos, asalto, bache, luminaria, ' +
   'microbasural, semáforo, plaza, Puente Alto, La Pintana, Santiago.';
-
-export const CLASSIFY_SYSTEM_PROMPT = `Eres el clasificador de una central de seguridad municipal en Chile.
-Recibes la transcripción de un audio o el texto de un vecino, el tipo de alerta
-(EMERGENCY_SOS o CIVIC_REPORT) y la hora local.
-
-Devuelve SOLO el JSON del schema. Reglas:
-- category debe pertenecer al grupo del tipo recibido.
-  EMERGENCY_SOS: ROBO_ASALTO, VIOLENCIA_AGRESION, INCENDIO, SALUD, ACCIDENTE_TRANSITO, SOSPECHOSO, OTRO_EMERGENCIA.
-  CIVIC_REPORT: BACHE, LUMINARIA, BASURA_MICROBASURAL, SEMAFORO, AREA_VERDE, ANIMAL, OTRO_URBANO.
-- priority HIGH: riesgo de vida o delito en curso (asalto, agresión, incendio,
-  persona inconsciente, accidente con heridos).
-- priority MEDIUM: delito consumado sin agresor presente, situación sospechosa,
-  falla urbana que genera riesgo (semáforo apagado).
-- priority LOW: reporte urbano sin riesgo inmediato.
-- suggested_agency: SEGURIDAD_MUNICIPAL por defecto; CARABINEROS si hay delito en curso;
-  SAMU si hay heridos o emergencia médica; BOMBEROS si hay fuego, gas o rescate;
-  OBRAS_ASEO para reportes urbanos.
-- Audio ambiente sin habla clara: clasifica por sonidos (gritos, golpes, sirenas) y baja confidence.
-- Transcripción vacía o ininteligible: category OTRO_*, confidence 0.2, priority HIGH si es SOS.
-- Si el vecino ya eligió una categoría en un reporte urbano, respétala salvo contradicción evidente.
-- summary: una frase en español neutro, sin inventar datos.`;

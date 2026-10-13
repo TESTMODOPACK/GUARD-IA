@@ -18,7 +18,7 @@ describe('MockAiProvider', () => {
   it('detecta asalto con arma y sugiere Carabineros', async () => {
     const r = await ai.classify({ ...base, type: 'EMERGENCY_SOS', transcription: 'me están asaltando con una pistola' });
     expect(r.category).toBe('ROBO_ASALTO');
-    expect(r.suggested_agency).toBe('CARABINEROS');
+    expect(r.agencies[0].agency).toBe('CARABINEROS');
     expect(r.flags.weapon_mentioned).toBe(true);
   });
 
@@ -31,6 +31,6 @@ describe('MockAiProvider', () => {
     const r = await ai.classify({ ...base, type: 'CIVIC_REPORT', userText: 'frente a mi casa', chosenCategory: 'LUMINARIA' });
     expect(r.category).toBe('LUMINARIA');
     expect(r.priority).toBe('LOW');
-    expect(r.suggested_agency).toBe('OBRAS_ASEO');
+    expect(r.agencies[0].agency).toBe('OBRAS_ASEO');
   });
 });

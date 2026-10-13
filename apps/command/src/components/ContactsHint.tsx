@@ -17,10 +17,10 @@ function contacts(): Promise<Contact[]> {
 }
 
 /**
- * Contactos del municipio para derivar el caso, según la institución sugerida (o, sin sugerencia,
- * seguridad municipal para SOS y obras/servicios para reportes urbanos).
+ * Contactos del municipio para derivar el caso, según las instituciones sugeridas o ya derivadas,
+ * en ese orden (sin sugerencia: seguridad municipal para SOS y obras/servicios para reportes).
  */
-export function ContactsHint({ agency, type }: { agency: SuggestedAgency | null; type: AlertType }) {
+export function ContactsHint({ agencies, type }: { agencies: readonly SuggestedAgency[]; type: AlertType }) {
   const [list, setList] = useState<Contact[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -30,12 +30,12 @@ export function ContactsHint({ agency, type }: { agency: SuggestedAgency | null;
     };
   }, []);
 
-  const key: SuggestedAgency = agency ?? (type === 'EMERGENCY_SOS' ? 'SEGURIDAD_MUNICIPAL' : 'OBRAS_ASEO');
-  const wanted = CONTACTS_FOR_AGENCY[key];
+  const keys: readonly SuggestedAgency[] = agencies.length ? agencies : [type === 'EMERGENCY_SOS' ? 'SEGURIDAD_MUNICIPAL' : 'OBRAS_ASEO'];
+  const wanted = [...new Set(keys.flatMap((k) => CONTACTS_FOR_AGENCY[k]))];
   const matches = (list ?? [])
     .filter((c) => wanted.includes(c.category))
     .sort((a, b) => wanted.indexOf(a.category) - wanted.indexOf(b.category) || Number(b.available24h) - Number(a.available24h) || a.sortOrder - b.sortOrder)
-    .slice(0, 4);
+    .slice(0, Math.max(4, keys.length * 2));
 
   if (!list) return null;
 

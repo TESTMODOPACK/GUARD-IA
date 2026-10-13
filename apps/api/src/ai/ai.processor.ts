@@ -2,10 +2,11 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Job } from 'bullmq';
+import { buildTriage } from '@guardia/shared';
 import { AlertReadService } from '../alerts/alert-read.service';
 import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
-import { alert, citizen, media, tenant } from '../db/schema';
+import { alert, citizen, media, tenant, triageLabel } from '../db/schema';
 import { EventsService } from '../events/events.service';
 import { IncidentsService } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
@@ -127,23 +128,38 @@ export class AiProcessor extends WorkerHost {
       chosenCategory: row.category,
       localTime,
     });
+    // Agente de clasificación: salida del modelo → normalizada → reglas fijas (frases críticas que
+    // solo suben la urgencia). Igual para la IA real y para el clasificador sin red.
+    const triage = buildTriage(row.type, result, [transcription, row.userText].filter(Boolean).join('. '), {
+      provider: this.ai.name,
+      model: this.ai.model,
+    });
 
     // Sección 9: bajo 25 de confianza la alerta entra como MEDIUM aunque la IA diga HIGH.
-    const lowTrust = trustScore < 25 && result.priority === 'HIGH';
-    const priority = lowTrust ? 'MEDIUM' : result.priority;
+    const lowTrust = trustScore < 25 && triage.priority === 'HIGH';
+    const priority = lowTrust ? 'MEDIUM' : triage.priority;
 
-    await this.dbs.asSystem(async (tx) => {
+    const keptByOperator = await this.dbs.asSystem(async (tx) => {
+      // Si el operador ya corrigió la clasificación (p. ej. llamó al vecino mientras la IA corría o
+      // pidió volver a analizar), manda la suya: la IA solo actualiza su propuesta en ai_triage.
+      const [label] = await tx
+        .select({ category: triageLabel.category })
+        .from(triageLabel)
+        .where(eq(triageLabel.alertId, alertId))
+        .limit(1);
+      const kept = !!label?.category;
       await tx
         .update(alert)
         .set({
           transcription,
-          category: result.category,
+          ...(kept ? {} : { category: triage.category, subcategory: triage.subcategory }),
           priority,
-          suggestedAgency: result.suggested_agency,
+          suggestedAgency: triage.agencies[0].agency,
           aiStatus: 'DONE',
-          aiConfidence: result.confidence,
-          aiSummary: result.summary,
-          aiFlags: result.flags,
+          aiConfidence: triage.confidence,
+          aiSummary: triage.summary,
+          aiFlags: triage.flags,
+          aiTriage: triage,
           aiError: null,
         })
         .where(eq(alert.id, alertId));
@@ -157,16 +173,24 @@ export class AiProcessor extends WorkerHost {
         kind: 'AI_PROCESSED',
         payload: {
           provider: this.ai.name,
-          category: result.category,
+          model: this.ai.model,
+          version: triage.version,
+          category: triage.category,
+          subcategory: triage.subcategory,
+          agencies: triage.agencies.map((a) => a.agency),
           priority,
-          aiPriority: result.priority,
+          aiPriority: triage.modelPriority,
+          rules: triage.rules,
           loweredByTrust: lowTrust,
-          confidence: result.confidence,
+          keptOperatorCategory: kept,
+          confidence: triage.confidence,
           ms: Date.now() - started,
           attempt: job.attemptsMade + 1,
         },
       });
+      return kept;
     });
+    if (keptByOperator) this.logger.debug(`alerta ${alertId}: se mantiene la clasificación del operador`);
     this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'done' }, (Date.now() - started) / 1000);
     await this.emitUpdated(alertId, row.tenantId);
   }

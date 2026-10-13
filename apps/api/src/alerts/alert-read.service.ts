@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
-import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert } from '@guardia/shared';
+import { alias } from 'drizzle-orm/pg-core';
+import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert, TriageLabel } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import {
   toAlertDetail,
@@ -10,7 +11,7 @@ import {
   toDispatch,
 } from '../common/mappers';
 import type { Tx } from '../db/db.service';
-import { alert, alertEvent, citizen, dispatch, media, tenant, unit, type AlertRow } from '../db/schema';
+import { alert, alertEvent, citizen, dispatch, media, operator, tenant, triageLabel, unit, type AlertRow } from '../db/schema';
 import { loadIncidentInfos } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 
@@ -23,6 +24,9 @@ export interface ListFilters {
 }
 
 /** Orden de prioridad para la cola de la central: HIGH primero, luego antigüedad. */
+const classifier = alias(operator, 'classifier');
+const referrer = alias(operator, 'referrer');
+
 const PRIORITY_RANK = sql<number>`CASE ${alert.priority}
   WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`;
 
@@ -139,6 +143,7 @@ export class AlertReadService {
     const live = mediaRows.filter((m) => !m.deletedAt);
     const incidentInfo = row.incidentId ? ((await loadIncidentInfos(tx, [row.incidentId])).get(row.incidentId) ?? null) : null;
     return toAlertDetail(row, {
+      triageLabel: await this.triageLabel(tx, row.id),
       hasAudio: live.some((m) => m.kind === 'AUDIO'),
       hasPhoto: live.some((m) => m.kind === 'PHOTO'),
       citizenTrustScore: c?.trust ?? null,
@@ -149,6 +154,27 @@ export class AlertReadService {
       dispatches: dispatchRows.map((d) => toDispatch(d.d, d.unitCode)),
       events: eventRows.map(toAlertEvent),
     });
+  }
+
+  /** Lo que la central confirmó o corrigió de la clasificación y a quién derivó (migración 0005). */
+  private async triageLabel(tx: Tx, alertId: string): Promise<TriageLabel | null> {
+    const [l] = await tx
+      .select({ l: triageLabel, classifiedBy: classifier.name, referredBy: referrer.name })
+      .from(triageLabel)
+      .leftJoin(classifier, eq(classifier.id, triageLabel.classifiedBy))
+      .leftJoin(referrer, eq(referrer.id, triageLabel.referredBy))
+      .where(eq(triageLabel.alertId, alertId))
+      .limit(1);
+    if (!l) return null;
+    return {
+      category: l.l.category,
+      subcategory: l.l.subcategory,
+      agencies: l.l.agencies,
+      classifiedBy: l.classifiedBy,
+      classifiedAt: l.l.classifiedAt?.toISOString() ?? null,
+      referredBy: l.referredBy,
+      referredAt: l.l.referredAt?.toISOString() ?? null,
+    };
   }
 
   /** Vista del vecino: estado + despacho activo + nombre del municipio. */

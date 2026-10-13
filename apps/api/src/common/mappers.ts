@@ -6,8 +6,11 @@ import type {
   Dispatch,
   IncidentInfo,
   MediaPublic,
+  Triage,
+  TriageLabel,
   Unit,
 } from '@guardia/shared';
+import { TriageSchema } from '@guardia/shared';
 import type {
   AlertEventRow,
   AlertRow,
@@ -17,6 +20,13 @@ import type {
 } from '../db/schema';
 
 const iso = (d: Date) => d.toISOString();
+
+/** Un triage guardado por otra versión del agente que ya no valida se omite (la ficha sigue igual). */
+function triageOrNull(v: unknown): Triage | null {
+  if (!v) return null;
+  const r = TriageSchema.safeParse(v);
+  return r.success ? r.data : null;
+}
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
 export interface AlertRowExtras {
@@ -36,6 +46,7 @@ export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
     location: { lat: row.lat, lng: row.lng },
     accuracyM: row.accuracyM,
     category: row.category,
+    subcategory: row.subcategory,
     priority: row.priority,
     suggestedAgency: row.suggestedAgency,
     aiStatus: row.aiStatus,
@@ -56,6 +67,7 @@ export interface AlertDetailExtras extends AlertRowExtras {
   media: MediaPublic[];
   dispatches: Dispatch[];
   events: AlertEvent[];
+  triageLabel: TriageLabel | null;
 }
 
 export function toAlertDetail(row: AlertRow, x: AlertDetailExtras): AlertDetail {
@@ -67,6 +79,8 @@ export function toAlertDetail(row: AlertRow, x: AlertDetailExtras): AlertDetail 
     aiConfidence: row.aiConfidence,
     aiFlags: (row.aiFlags as AlertDetail['aiFlags']) ?? null,
     aiError: row.aiError,
+    triage: triageOrNull(row.aiTriage),
+    triageLabel: x.triageLabel,
     acknowledgedBy: row.acknowledgedBy,
     resolvedAt: isoOrNull(row.resolvedAt),
     citizenPhone: x.citizenPhone,

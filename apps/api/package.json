@@ -15,6 +15,7 @@
     "seed": "tsx src/cli/seed.ts",
     "group-incidents": "tsx src/cli/group-incidents.ts",
     "simulate": "tsx scripts/simulate.ts",
+    "eval:triage": "tsx scripts/eval-triage.ts",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -28,6 +28,7 @@ pnpm --filter @guardia/command dev  # central en :3001
 pnpm simulate --text "..."          # flujo e2e sin app móvil; compuerta Fase 1 (alert.created < 1 s)
 pnpm simulate --external-dispatch   # crea un SOS y espera que la central despache
 pnpm --filter @guardia/shared test && pnpm --filter @guardia/api test:db   # tests (RLS contra base real)
+pnpm --filter @guardia/api eval:triage [--provider mock|openai] [--gate]   # agente de clasificación: 65 casos
 cd apps/command && node scripts/ui-gate.mjs   # compuerta Fase 2 en Chromium headless (central corriendo en standalone)
 ```
 
@@ -38,12 +39,12 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
 - `packages/shared`: enums, schemas zod, eventos WS, transiciones de estado. Es el contrato entre API,
   central y app: cualquier cambio de API empieza aquí.
 - `apps/api/src`: `auth/` (OTP, JWT, refresh rotativo), `alerts/` (camino crítico del SOS), `ops/`
-  (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock), `realtime/` (Socket.io
+  (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock, `triage.prompt.ts`), `realtime/` (Socket.io
   `/ops` y `/citizen`), `media/` (S3 o disco local), `notifications/` (push Expo), `db/` (Drizzle +
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA), `cli/`
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
-  (TopBar, AlertQueue, MapView, AlertDetail, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
+  (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
   `admin/AdminShell`). Páginas: `/` central, `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
   `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
@@ -85,7 +86,13 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     nunca baja de MEDIA). Agrupar va DESPUÉS del commit con tope de 200 ms y es idempotente (el worker
     reintenta); nunca bloquea el SOS. La central muestra una tarjeta por situación, de la más nueva a la
     más antigua y sin ocultar ninguna; la importancia informa y regula el sonido, no filtra.
-12. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
+12. **Agente de clasificación** (migración 0005, `TRIAGE_VERSION` en shared): modelo → `normalizeClassification`
+    → `applyTriageRules`; las reglas fijas (`shared/src/triage-rules.ts`) solo suben prioridad, agregan
+    instituciones y marcan señales, y solo reemplazan la categoría genérica. La clasificación del operador
+    (`triage_label`) manda: el worker no la pisa al reanalizar. Cambiar el prompt o las reglas es cambiar de
+    versión: correr `eval:triage` antes y después; el recall de riesgo vital no puede bajar del 100 %.
+    `erase_citizen` borra `ai_triage` (repite lo que dijo el vecino).
+13. **Producción**: `validateEnv` rechaza `STORAGE_DRIVER=local`, `OTP_DEBUG_ENDPOINT=true`,
     `SMS_PROVIDER=console` y secretos por defecto. No lo relajes.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
@@ -132,6 +139,11 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 ## Pendiente conocido
 
+- Base de datos: informe en `docs/revision-base-de-datos.md` (dos PK de texto, RLS que no usa índices por
+  municipio, privilegios); correcciones planificadas como `0006_hardening.sql` y `0007_scale.sql`, sin aplicar.
+- Georreferencia: el municipio sale del punto GPS (trigger `alert_route_tenant`). El agente ya extrae lugar y
+  comuna mencionados (`triage.location`), pero falta redirigir a otra municipalidad (hoy `tenant_id` es
+  inmutable, regla 3) y advertir alertas cerca del límite comunal.
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue
   ese plan; la arquitectura de escala nacional quedó en un informe aparte (Artifact "Arquitectura de escala
   Guard-IA") y se retoma después del piloto.

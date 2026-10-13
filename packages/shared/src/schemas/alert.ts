@@ -14,6 +14,7 @@ import {
   categoriesFor,
 } from '../enums';
 import { LocationSchema, UuidSchema } from './common';
+import { AiFlagsSchema, TriageSchema } from './ai';
 import { IncidentInfoSchema } from './incident';
 
 /**
@@ -50,14 +51,21 @@ export const CreateAlertMetaSchema = z
   });
 export type CreateAlertMeta = z.infer<typeof CreateAlertMetaSchema>;
 
-export const AiFlagsSchema = z.object({
-  possible_false_alarm: z.boolean(),
-  weapon_mentioned: z.boolean(),
-  people_injured: z.boolean(),
-  minor_involved: z.boolean(),
-  language_other_than_spanish: z.boolean(),
+/**
+ * Lo que el operador confirmó o corrigió (migración 0005, tabla triage_label): la clasificación
+ * correcta y las instituciones a las que efectivamente derivó. Es también el dato con el que se
+ * mide y mejora el agente de clasificación.
+ */
+export const TriageLabelSchema = z.object({
+  category: z.enum(ALERT_CATEGORIES).nullable(),
+  subcategory: z.string().nullable(),
+  agencies: z.array(z.enum(SUGGESTED_AGENCIES)),
+  classifiedBy: z.string().nullable(),
+  classifiedAt: z.iso.datetime().nullable(),
+  referredBy: z.string().nullable(),
+  referredAt: z.iso.datetime().nullable(),
 });
-export type AiFlags = z.infer<typeof AiFlagsSchema>;
+export type TriageLabel = z.infer<typeof TriageLabelSchema>;
 
 export const MediaPublicSchema = z.object({
   id: UuidSchema,
@@ -106,7 +114,10 @@ export const AlertSummarySchema = z.object({
   location: LocationSchema,
   accuracyM: z.number().nullable(),
   category: z.enum(ALERT_CATEGORIES).nullable(),
+  /** Detalle de la categoría (SUBCATEGORIES en schemas/ai.ts); migración 0005. */
+  subcategory: z.string().nullable(),
   priority: z.enum(PRIORITIES).nullable(),
+  /** Primera institución sugerida (la lista completa con motivos viaja en `triage`). */
   suggestedAgency: z.enum(SUGGESTED_AGENCIES).nullable(),
   aiStatus: z.enum(AI_STATUSES),
   aiSummary: z.string().nullable(),
@@ -129,6 +140,9 @@ export const AlertDetailSchema = AlertSummarySchema.extend({
   aiConfidence: z.number().nullable(),
   aiFlags: AiFlagsSchema.nullable(),
   aiError: z.string().nullable(),
+  /** Agente de clasificación: instituciones con motivo, preguntas y reglas aplicadas. */
+  triage: TriageSchema.nullable(),
+  triageLabel: TriageLabelSchema.nullable(),
   acknowledgedBy: UuidSchema.nullable(),
   resolvedAt: z.iso.datetime().nullable(),
   citizenPhone: z.string().nullable(),

@@ -43,6 +43,8 @@ export const SUGGESTED_AGENCIES = [
   'SAMU',
   'BOMBEROS',
   'OBRAS_ASEO',
+  /** Migración 0005: investigación de delitos ya ocurridos, drogas, personas desaparecidas. */
+  'PDI',
 ] as const;
 export type SuggestedAgency = (typeof SUGGESTED_AGENCIES)[number];
 
@@ -129,6 +131,10 @@ export const ALERT_EVENT_KINDS = [
   'RESOLVED',
   'CANCELLED',
   'PUSH_SENT',
+  /** Migración 0005: el operador corrigió o confirmó la clasificación. */
+  'RECLASSIFIED',
+  /** Migración 0005: el operador registró a qué instituciones derivó el caso. */
+  'REFERRED',
 ] as const;
 export type AlertEventKind = (typeof ALERT_EVENT_KINDS)[number];
 

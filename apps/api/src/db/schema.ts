@@ -27,6 +27,8 @@ import {
   SUGGESTED_AGENCIES,
   UNIT_KINDS,
   UNIT_STATUSES,
+  type SuggestedAgency,
+  type Triage,
 } from '@guardia/shared';
 
 /**
@@ -150,6 +152,9 @@ export const alert = pgTable('alert', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
   // 0004_incidents.sql
   incidentId: uuid('incident_id'),
+  // 0005_triage.sql
+  subcategory: text('subcategory'),
+  aiTriage: jsonb('ai_triage').$type<Triage>(),
 });
 
 export const media = pgTable('media', {
@@ -299,9 +304,38 @@ export const incident = pgTable('incident', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
+// ------------------------------------------------------------- 0005_triage.sql
+
+/** Clasificación y derivación que registró la central (una fila por alerta), con lo que dijo la IA. */
+export const triageLabel = pgTable('triage_label', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  alertId: uuid('alert_id')
+    .notNull()
+    .unique()
+    .references(() => alert.id, { onDelete: 'cascade' }),
+  category: alertCategoryEnum('category'),
+  subcategory: text('subcategory'),
+  agencies: suggestedAgencyEnum('agencies').array().$type<SuggestedAgency[]>().notNull().default([]),
+  aiCategory: alertCategoryEnum('ai_category'),
+  aiSubcategory: text('ai_subcategory'),
+  aiAgencies: suggestedAgencyEnum('ai_agencies').array().$type<SuggestedAgency[]>().notNull().default([]),
+  aiVersion: text('ai_version'),
+  classifiedBy: uuid('classified_by').references(() => operator.id),
+  classifiedAt: ts('classified_at'),
+  referredBy: uuid('referred_by').references(() => operator.id),
+  referredAt: ts('referred_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+export type TriageLabelRow = typeof triageLabel.$inferSelect;
+
 export const schema = {
   tenant,
   incident,
+  triageLabel,
   auditLog,
   shift,
   contact,

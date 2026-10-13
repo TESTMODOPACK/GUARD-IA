@@ -3,11 +3,14 @@ import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import {
   canTransitionAlert,
   canTransitionDispatch,
+  categoriesFor,
   type AlertDetail,
   type AlertEvent,
   type Dispatch,
   type DispatchAlert,
   type OpsAlertsQuery,
+  type ReclassifyAlert,
+  type ReferAlert,
   type RejectAlert,
   type UpdateDispatch,
 } from '@guardia/shared';
@@ -16,7 +19,7 @@ import { AlertsService } from '../alerts/alerts.service';
 import { AppError } from '../common/app-error';
 import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
 import { DbService, type Tx } from '../db/db.service';
-import { alert, citizen, dispatch, unit, type AlertRow } from '../db/schema';
+import { alert, citizen, dispatch, triageLabel, unit, type AlertRow } from '../db/schema';
 import { EventsService } from '../events/events.service';
 import { IncidentsService, loadIncidentInfos } from '../incidents/incidents.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -359,6 +362,90 @@ export class OpsService {
       const d = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, previousPrimary));
       this.realtime.alertUpdated(op.tenantId, d);
     }
+    return detail;
+  }
+
+  /**
+   * "Corregir clasificación": el operador confirma o cambia la categoría (p. ej. llamó al vecino de
+   * un SOS por botón). Pasa a ser la clasificación de la alerta, la IA ya no la pisa, y queda como
+   * etiqueta para medir al agente junto con lo que la IA proponía en ese momento.
+   */
+  async reclassify(op: OperatorClaims, alertId: string, body: ReclassifyAlert): Promise<AlertDetail> {
+    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const row = await this.loadForUpdate(tx, alertId);
+      if (!categoriesFor(row.type).includes(body.category)) {
+        throw new AppError('VALIDATION_ERROR', 'La categoría no corresponde al tipo de alerta');
+      }
+      const subcategory = body.subcategory ?? null;
+      const now = new Date();
+      await tx.update(alert).set({ category: body.category, subcategory }).where(eq(alert.id, alertId));
+      await this.upsertLabel(tx, row, op, { category: body.category, subcategory, classifiedBy: op.sub, classifiedAt: now });
+      await this.events.record(tx, {
+        alertId,
+        tenantId: op.tenantId,
+        actorType: 'OPERATOR',
+        actorId: op.sub,
+        kind: 'RECLASSIFIED',
+        payload: {
+          from: row.category,
+          fromSubcategory: row.subcategory,
+          to: body.category,
+          toSubcategory: subcategory,
+          confirmed: row.category === body.category && (row.subcategory ?? null) === subcategory,
+        },
+      });
+      return this.reads.detail(tx, alertId);
+    });
+    return this.afterTriageChange(op, alertId, detail);
+  }
+
+  /** "Derivado a…": instituciones a las que la central derivó el caso (reemplaza la lista anterior). */
+  async refer(op: OperatorClaims, alertId: string, body: ReferAlert): Promise<AlertDetail> {
+    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+      const row = await this.loadForUpdate(tx, alertId);
+      await this.upsertLabel(tx, row, op, { agencies: body.agencies, referredBy: op.sub, referredAt: new Date() });
+      await this.touch(tx, alertId);
+      await this.events.record(tx, {
+        alertId,
+        tenantId: op.tenantId,
+        actorType: 'OPERATOR',
+        actorId: op.sub,
+        kind: 'REFERRED',
+        payload: { agencies: body.agencies, notes: body.notes ?? null },
+      });
+      return this.reads.detail(tx, alertId);
+    });
+    this.realtime.alertUpdated(op.tenantId, detail);
+    return detail;
+  }
+
+  /** Una fila por alerta; cada escritura guarda también lo que la IA proponía en ese momento. */
+  private async upsertLabel(
+    tx: Tx,
+    row: AlertRow,
+    op: OperatorClaims,
+    set: Partial<typeof triageLabel.$inferInsert>,
+  ) {
+    const t = row.aiTriage;
+    const snapshot = {
+      aiCategory: t?.category ?? null,
+      aiSubcategory: t?.subcategory ?? null,
+      aiAgencies: t?.agencies.map((a) => a.agency) ?? [],
+      aiVersion: t?.version ?? null,
+    };
+    await tx
+      .insert(triageLabel)
+      .values({ tenantId: op.tenantId, alertId: row.id, ...snapshot, ...set })
+      .onConflictDoUpdate({ target: triageLabel.alertId, set: { ...snapshot, ...set, updatedAt: new Date() } });
+  }
+
+  /** La categoría cambia el grupo (clasificación de la situación, importancia de un reporte urbano). */
+  private async afterTriageChange(op: OperatorClaims, alertId: string, detail: AlertDetail): Promise<AlertDetail> {
+    if (detail.incident) {
+      await this.incidents.attach(alertId).catch((e: Error) => this.logger.warn(`incidente de ${alertId}: ${e.message}`));
+      detail = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, alertId));
+    }
+    this.realtime.alertUpdated(op.tenantId, detail);
     return detail;
   }
 

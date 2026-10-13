@@ -54,38 +54,39 @@ describe('transiciones', () => {
 });
 
 describe('AiClassificationSchema', () => {
-  it('valida una salida completa', () => {
+  const flags = {
+    possible_false_alarm: false,
+    weapon_mentioned: true,
+    people_injured: false,
+    minor_involved: false,
+    language_other_than_spanish: false,
+  };
+  it('valida una salida completa (triage-v2)', () => {
     const r = AiClassificationSchema.safeParse({
       category: 'ROBO_ASALTO',
+      subcategory: 'ASALTO_EN_CURSO',
       priority: 'HIGH',
-      suggested_agency: 'CARABINEROS',
+      agencies: [{ agency: 'CARABINEROS', reason: 'Asalto con arma en curso' }],
       confidence: 0.9,
       summary: 'Asalto en curso',
-      flags: {
-        possible_false_alarm: false,
-        weapon_mentioned: true,
-        people_injured: false,
-        minor_involved: false,
-        language_other_than_spanish: false,
-      },
+      operator_questions: ['¿El asaltante sigue en el lugar?'],
+      location: { mentioned: 'plaza de la esquina', comuna: null, elsewhere: false },
+      flags,
     });
     expect(r.success).toBe(true);
   });
 
-  it('rechaza confidence > 1', () => {
+  it('rechaza una institución que no existe', () => {
     const r = AiClassificationSchema.safeParse({
       category: 'BACHE',
+      subcategory: null,
       priority: 'LOW',
-      suggested_agency: 'OBRAS_ASEO',
-      confidence: 1.5,
+      agencies: [{ agency: 'MUNICIPIO', reason: 'x' }],
+      confidence: 0.5,
       summary: 'x',
-      flags: {
-        possible_false_alarm: false,
-        weapon_mentioned: false,
-        people_injured: false,
-        minor_involved: false,
-        language_other_than_spanish: false,
-      },
+      operator_questions: [],
+      location: { mentioned: null, comuna: null, elsewhere: false },
+      flags,
     });
     expect(r.success).toBe(false);
   });

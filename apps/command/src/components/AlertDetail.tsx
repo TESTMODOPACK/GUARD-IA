@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { ExternalLink, Phone, X } from 'lucide-react';
-import type { AlertCategory, AlertDetail as AlertDetailT, Dispatch, DispatchStatus, Priority } from '@guardia/shared';
+import type { AlertCategory, AlertDetail as AlertDetailT, Dispatch, DispatchStatus, Priority, SuggestedAgency } from '@guardia/shared';
 import { api } from '@/lib/api';
 import {
   AGENCY,
+  agencyList,
   AI_STATUS,
-  CATEGORY,
-  categoryLabel,
+  classificationLabel,
   DISPATCH_STATUS,
   EVENT_KIND,
   FLAG,
@@ -24,6 +24,7 @@ import { useNow } from './AlertQueue';
 import { AudioPlayer } from './AudioPlayer';
 import { ContactsHint } from './ContactsHint';
 import { IncidentPanel, Transcript } from './IncidentPanel';
+import { TriagePanel } from './TriagePanel';
 import { DispatchDialog, RejectDialog, ResolveDialog } from './Dialogs';
 import { Button, PriorityDot, Spinner, Tag, textareaClass } from './ui';
 
@@ -104,7 +105,7 @@ export function AlertDetailPanel() {
           <PriorityDot priority={alert.priority} className="mt-1.5" />
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold leading-tight">
-              {categoryLabel(alert.category, alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar')}
+              {classificationLabel(alert.category, alert.subcategory, alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar')}
             </h2>
             <p className="text-xs text-ink-muted mt-0.5">
               {alert.type === 'EMERGENCY_SOS' ? 'SOS' : 'Reporte urbano'} por {SOURCE[alert.source]} · hace {formatAge(alert.createdAt, now)}
@@ -152,7 +153,12 @@ export function AlertDetailPanel() {
 
         <IncidentPanel alert={alert} />
 
-        <ContactsHint agency={alert.suggestedAgency} type={alert.type} />
+        <TriagePanel alert={alert} detail={detail} />
+
+        <ContactsHint
+          agencies={detail?.triageLabel?.agencies.length ? detail.triageLabel.agencies : (detail?.triage?.agencies.map((a) => a.agency) ?? (alert.suggestedAgency ? [alert.suggestedAgency] : []))}
+          type={alert.type}
+        />
 
         {/* Audio y foto */}
         {!detail ? (
@@ -407,7 +413,15 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
     case 'AI_PROCESSED':
       text = p.skipped
         ? 'Sin audio ni texto que analizar'
-        : `${CATEGORY[p.category as AlertCategory] ?? p.category ?? ''} · prioridad ${(PRIORITY[p.priority as Priority] ?? String(p.priority ?? '')).toLowerCase()}${p.loweredByTrust ? ' (bajada por confianza del vecino)' : ''}`;
+        : `${classificationLabel(p.category as AlertCategory, p.subcategory as string | null)} · prioridad ${(PRIORITY[p.priority as Priority] ?? String(p.priority ?? '')).toLowerCase()}${p.loweredByTrust ? ' (bajada por confianza del vecino)' : ''}${Array.isArray(payload.agencies) && payload.agencies.length ? ` · sugiere ${agencyList(payload.agencies as SuggestedAgency[])}` : ''}${p.keptOperatorCategory ? ' · se mantuvo la clasificación del operador' : ''}`;
+      break;
+    case 'RECLASSIFIED':
+      text = p.confirmed
+        ? `Confirmada: ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`
+        : `${classificationLabel(p.from as AlertCategory | null, p.fromSubcategory as string | null)} → ${classificationLabel(p.to as AlertCategory, p.toSubcategory as string | null)}`;
+      break;
+    case 'REFERRED':
+      text = `${agencyList((Array.isArray(payload.agencies) ? payload.agencies : []) as SuggestedAgency[])}${p.notes ? ` · ${p.notes}` : ''}`;
       break;
     case 'CREATED':
       text = `${p.hasAudio ? 'con audio' : 'sin audio'}${p.accuracyM ? ` · ±${Math.round(Number(p.accuracyM))} m` : ''}`;

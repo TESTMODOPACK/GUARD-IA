@@ -1,13 +1,16 @@
 import type { AiClassification, AlertCategory, Priority, SuggestedAgency } from '@guardia/shared';
-import { categoriesFor } from '@guardia/shared';
+import { DEFAULT_QUESTIONS, categoriesFor, genericCategory } from '@guardia/shared';
 import type { AiProvider, ClassifyInput, TranscribeInput, TranscribeResult } from './ai.provider';
 
 /**
  * Proveedor sin red: clasifica por palabras clave. Sirve para desarrollo, tests y
- * para que el SOS siga operando si no hay OPENAI_API_KEY. No pretende precisión.
+ * para que el SOS siga operando si no hay OPENAI_API_KEY. No pretende precisión: las frases
+ * críticas (no respira, disparos, violencia intrafamiliar…) las cubren las reglas fijas de shared,
+ * que el worker aplica después igual que con la IA real.
  */
 export class MockAiProvider implements AiProvider {
   readonly name = 'mock' as const;
+  readonly model = null;
 
   async transcribe(input: TranscribeInput): Promise<TranscribeResult> {
     // Un WAV sintético o cualquier audio: no hay STT real. Si el nombre del mime
@@ -53,9 +56,7 @@ export class MockAiProvider implements AiProvider {
       category = input.chosenCategory as AlertCategory;
       confidence = 0.6;
     }
-    if (!category) {
-      category = input.type === 'EMERGENCY_SOS' ? 'OTRO_EMERGENCIA' : 'OTRO_URBANO';
-    }
+    if (!category) category = genericCategory(input.type);
 
     const summary = text.trim()
       ? `[mock] ${text.trim().slice(0, 120)}`
@@ -65,10 +66,13 @@ export class MockAiProvider implements AiProvider {
 
     return {
       category,
+      subcategory: null,
       priority,
-      suggested_agency: agency,
+      agencies: [{ agency, reason: confidence > 0.5 ? 'Palabras clave del reporte' : 'Derivación por defecto' }],
       confidence,
       summary,
+      operator_questions: [...DEFAULT_QUESTIONS[category]],
+      location: { mentioned: null, comuna: null, elsewhere: false },
       flags: {
         possible_false_alarm: /prueba|test|jaja|broma/.test(text),
         weapon_mentioned: /arma|pistol|cuchill/.test(text),

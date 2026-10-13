@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Mic, Repeat, ShieldAlert, Users } from 'lucide-react';
 import type { ImportanceLevel } from '@guardia/shared';
-import { AI_STATUS, categoryLabel, formatSince, formatTime, formatWait, IMPORTANCE, STATUS } from '@/lib/labels';
+import { AI_STATUS, classificationLabel, formatSince, formatTime, formatWait, IMPORTANCE, STATUS } from '@/lib/labels';
 import { lastReportAt, selectQueue, useStore, type AnyAlert, type SortMode } from '@/lib/store';
 import { PriorityDot, Spinner } from './ui';
 
@@ -167,7 +167,11 @@ function AlertRow({
           <PriorityDot priority={alert.priority} />
           <span className="text-sm font-medium truncate">
             {/* En un grupo, la clasificación de la situación (la más específica de sus reportes). */}
-            {categoryLabel(inc?.category ?? alert.category, alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar')}
+            {classificationLabel(
+              inc?.category ?? alert.category,
+              (inc?.category ?? alert.category) === alert.category ? alert.subcategory : null,
+              alert.type === 'EMERGENCY_SOS' ? 'SOS sin clasificar' : 'Reporte sin clasificar',
+            )}
           </span>
           <span className={`ml-auto shrink-0 text-sm tabular-nums ${ageTone}`} title={`Llegó a las ${formatTime(alert.createdAt)}`}>
             {formatWait(alert.createdAt, now)}

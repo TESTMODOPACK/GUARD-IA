@@ -4,6 +4,8 @@ import {
   CreateUnitSchema,
   DispatchAlertSchema,
   OpsAlertsQuerySchema,
+  ReclassifyAlertSchema,
+  ReferAlertSchema,
   RejectAlertSchema,
   ResolveAlertSchema,
   UpdateDispatchSchema,
@@ -13,6 +15,8 @@ import {
   type CreateUnit,
   type DispatchAlert,
   type OpsAlertsQuery,
+  type ReclassifyAlert,
+  type ReferAlert,
   type RejectAlert,
   type ResolveAlert,
   type UpdateDispatch,
@@ -85,6 +89,28 @@ export class OpsController {
   @HttpCode(200)
   detach(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
     return this.ops.detach(op, id);
+  }
+
+  /** "Corregir clasificación": la categoría del operador manda sobre la de la IA. */
+  @Post('alerts/:id/classification')
+  @HttpCode(200)
+  reclassify(
+    @CurrentAuth() op: OperatorClaims,
+    @Param('id', zod(UuidSchema)) id: string,
+    @Body(zod(ReclassifyAlertSchema)) body: ReclassifyAlert,
+  ) {
+    return this.ops.reclassify(op, id, body);
+  }
+
+  /** "Derivado a…": instituciones a las que la central derivó el caso. */
+  @Post('alerts/:id/referral')
+  @HttpCode(200)
+  refer(
+    @CurrentAuth() op: OperatorClaims,
+    @Param('id', zod(UuidSchema)) id: string,
+    @Body(zod(ReferAlertSchema)) body: ReferAlert,
+  ) {
+    return this.ops.refer(op, id, body);
   }
 
   @Post('alerts/:id/notes')

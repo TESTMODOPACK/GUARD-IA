@@ -88,6 +88,15 @@ Incidentes (migración 0004, 13-10-2026): `AlertSummary.incident` trae el grupo 
 importancia y motivos); `POST /ops/alerts/:id/resolve` acepta `includeGrouped` (cierra todo el grupo y avisa a
 cada vecino) y `POST /ops/alerts/:id/detach` separa una alerta de su grupo.
 
+Agente de clasificación (migración 0005, triage-v2, 13-10-2026): la IA entrega categoría, subcategoría, prioridad,
+1 a 3 instituciones con motivo (se suma PDI), preguntas para el operador, el lugar y la comuna que menciona el vecino
+y señales; después corren reglas fijas de shared (`triage-rules.ts`) que solo suben la urgencia. Todo viaja en
+`AlertDetail.triage` (columna `alert.ai_triage`) y la subcategoría en `AlertSummary.subcategory`.
+`POST /ops/alerts/:id/classification` `{category, subcategory}` confirma o corrige (manda sobre la IA) y
+`POST /ops/alerts/:id/referral` `{agencies[], notes?}` registra a quién se derivó; ambos guardan la etiqueta en
+`triage_label` con lo que proponía la IA (`AlertDetail.triageLabel`) y eventos `RECLASSIFIED` / `REFERRED`.
+Medición: `pnpm --filter @guardia/api eval:triage` sobre `apps/api/scripts/triage-cases.json`.
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.
