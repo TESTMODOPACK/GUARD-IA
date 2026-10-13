@@ -176,7 +176,10 @@ export class AiProcessor extends WorkerHost {
   async onFailed(job: Job<ProcessAlertJob> | undefined, error: Error) {
     if (!job) return;
     const attempts = job.opts.attempts ?? 1;
-    this.logger.warn(`job ${job.id} intento ${job.attemptsMade}/${attempts} falló: ${error.message}`);
+    // "Connection error." del SDK no dice nada: la causa real (certificado, DNS, timeout) viene en `cause`.
+    const cause = (error as Error & { cause?: { code?: string; message?: string } }).cause;
+    const why = cause ? ` (causa: ${cause.code ?? ''} ${cause.message ?? ''})` : '';
+    this.logger.warn(`job ${job.id} intento ${job.attemptsMade}/${attempts} falló: ${error.message}${why}`);
     if (job.attemptsMade < attempts) return;
 
     const { alertId } = job.data;

@@ -72,6 +72,11 @@ const EnvSchema = z.object({
    * pruebas: https://api.groq.com/openai/v1 con OPENAI_STT_MODEL=whisper-large-v3-turbo.
    */
   OPENAI_BASE_URL: z.string().url().optional(),
+  /**
+   * Solo para modelos de razonamiento (gpt-oss, o-series, gpt-5): esfuerzo de razonamiento al
+   * clasificar. "low" basta y deja tokens para el JSON. Vacío para modelos sin razonamiento.
+   */
+  OPENAI_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).optional(),
   OPENAI_STT_MODEL: z.string().default('whisper-1'),
   OPENAI_CLASSIFY_MODEL: z.string().default('gpt-4o-mini'),
   AI_MAX_AUDIO_SECONDS: z.coerce.number().int().default(60),

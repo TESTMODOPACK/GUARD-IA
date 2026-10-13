@@ -58,10 +58,13 @@ export class OpenAiProvider implements AiProvider {
       `Texto escrito por el vecino: ${input.userText?.trim() || '(ninguno)'}`,
     ].join('\n');
 
+    const effort = this.env.OPENAI_REASONING_EFFORT;
     const completion = await this.client.chat.completions.create({
       model: this.env.OPENAI_CLASSIFY_MODEL,
-      temperature: 0,
-      max_tokens: 400,
+      // Un modelo de razonamiento gasta tokens "pensando" antes del JSON: con un tope corto la
+      // respuesta llega cortada y no valida. Esos modelos tampoco usan temperature.
+      ...(effort ? { reasoning_effort: effort } : { temperature: 0 }),
+      max_completion_tokens: effort ? 2000 : 400,
       messages: [
         { role: 'system', content: CLASSIFY_SYSTEM_PROMPT },
         { role: 'user', content: user },
