@@ -148,10 +148,11 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 ## Pendiente conocido
 
 - Base de datos: informe en `docs/revision-base-de-datos.md` (dos PK de texto, RLS que no usa índices por
-  municipio, privilegios); correcciones planificadas como `0007_hardening.sql` y `0008_scale.sql`, sin aplicar
-  (A3 ya resuelto en 0006). Si `0007` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
-- Comunas: la tabla `comuna` está vacía hasta correr `load-comunas` con el GeoJSON oficial (BCN o IDE Chile).
-  Sin ella, la comuna mencionada se reconoce por el nombre del municipio y la app no sabe decir la comuna.
+  municipio, privilegios); correcciones planificadas como `0008_hardening.sql` y `0009_scale.sql`, sin aplicar
+  (A3 ya resuelto en 0006/0007). Si `0008` agrega RLS a `tenant`, revisar `GET /ops/tenants` y `geo.queries.ts`.
+- Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
+  Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
+  El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
 - Groq gratis: la cuota diaria de tokens se agota con unas 100 clasificaciones de prueba; para el piloto
   hace falta el plan pagado o un proveedor con más cuota (si se agota, rige el respaldo por reglas).
 - Plan en curso: `docs/plan-desarrollo-local.md` (etapas 0–3 hechas; etapa 4 en curso). Para el piloto se sigue

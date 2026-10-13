@@ -93,6 +93,11 @@ d('georreferencia y redirección', () => {
         VALUES (${CUTS[k]}, ${`Comuna ${k} Test`}, ${`comuna ${k.toLowerCase()} test`}, 16, 'Región de prueba', ST_GeomFromGeoJSON(${box(x0)})::geography)
         ON CONFLICT (cut) DO NOTHING`;
     }
+    // El ruteo usa los trozos (migración 0007), como los deja load-comunas.
+    await admin`DELETE FROM comuna_part WHERE cut IN ${admin(Object.values(CUTS))}`;
+    await admin`
+      INSERT INTO comuna_part (cut, part)
+      SELECT cut, ST_Subdivide(boundary::geometry, 256)::geography FROM comuna WHERE cut IN ${admin(Object.values(CUTS))}`;
     for (const [k, x0, cut] of [['A', -100, CUTS.A], ['B', -99, CUTS.B], ['D', -96, null]] as const) {
       const [row] = await admin<{ id: string }[]>`
         INSERT INTO tenant (name, slug, boundary, comuna_cut)

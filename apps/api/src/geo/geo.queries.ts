@@ -37,14 +37,24 @@ export async function resolveMentionedComuna(
 ): Promise<MentionedComuna | null> {
   const key = comunaKey(name);
   if (key.length < 2) return null;
+  // Distancia por los trozos (migración 0007) y solo hasta 50 km: las comunas australes tienen
+  // cientos de miles de vértices. Más lejos que eso la distancia queda null ("lejos").
   const [c] = (await tx.execute(sql`
     SELECT c.cut, c.name, t.id AS tenant_id, t.name AS tenant_name,
-           round(ST_Distance(c.boundary, ${point(row)}))::int AS distance_m
+           (SELECT round(min(ST_Distance(p.part, ${point(row)})))::int
+              FROM comuna_part p
+             WHERE p.cut = c.cut AND ST_DWithin(p.part, ${point(row)}, 50000)) AS distance_m
       FROM comuna c
       LEFT JOIN tenant t ON t.comuna_cut = c.cut AND t.active
      WHERE c.name_key = ${key}
-     ORDER BY distance_m
-     LIMIT 1`)) as unknown as { cut: number; name: string; tenant_id: string | null; tenant_name: string | null; distance_m: number }[];
+     ORDER BY distance_m NULLS LAST
+     LIMIT 1`)) as unknown as {
+    cut: number;
+    name: string;
+    tenant_id: string | null;
+    tenant_name: string | null;
+    distance_m: number | null;
+  }[];
   if (c) return { name: c.name, cut: c.cut, tenantId: c.tenant_id, tenantName: c.tenant_name, distanceM: c.distance_m };
 
   const [t] = (await tx.execute(sql`
@@ -58,10 +68,24 @@ export async function resolveMentionedComuna(
 /** Otros municipios de Guard-IA dentro del margen de error del GPS (vecino en el límite comunal). */
 export async function nearbyTenants(tx: Tx, row: Pick<AlertRow, 'lat' | 'lng' | 'accuracyM' | 'tenantId'>) {
   const margin = Math.max(NEAR_BOUNDARY_MIN_M, Math.min(2000, row.accuracyM ?? 0));
+  // Municipios enlazados a una comuna: por los trozos de la comuna (rápido). Sin comuna: por su polígono.
   const rows = (await tx.execute(sql`
-    SELECT t.id, t.name, round(ST_Distance(t.boundary, ${point(row)}))::int AS distance_m
-      FROM tenant t
-     WHERE t.active AND t.id IS DISTINCT FROM ${row.tenantId}::uuid AND ST_DWithin(t.boundary, ${point(row)}, ${margin})
+    WITH near AS (
+      SELECT p.cut, min(ST_Distance(p.part, ${point(row)})) AS d
+        FROM comuna_part p
+       WHERE ST_DWithin(p.part, ${point(row)}, ${margin})
+       GROUP BY p.cut
+    ), candidates AS (
+      SELECT t.id, near.d FROM near JOIN tenant t ON t.comuna_cut = near.cut AND t.active
+      UNION ALL
+      SELECT t.id, ST_Distance(t.boundary, ${point(row)})
+        FROM tenant t
+       WHERE t.active AND t.comuna_cut IS NULL AND ST_DWithin(t.boundary, ${point(row)}, ${margin})
+    )
+    SELECT t.id, t.name, round(min(c.d))::int AS distance_m
+      FROM candidates c JOIN tenant t ON t.id = c.id
+     WHERE t.id IS DISTINCT FROM ${row.tenantId}::uuid
+     GROUP BY t.id, t.name
      ORDER BY distance_m
      LIMIT 3`)) as unknown as { id: string; name: string; distance_m: number }[];
   return rows.map((r) => ({ tenantId: r.id, tenantName: r.name, distanceM: r.distance_m }));

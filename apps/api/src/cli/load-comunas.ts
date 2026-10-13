@@ -1,5 +1,5 @@
 /**
- * pnpm --filter @guardia/api load-comunas --geojson comunas.geojson [--srid 4326]
+ * pnpm --filter @guardia/api load-comunas --geojson comunas.geojson [--srid 4326] [--simplify-m 10]
  *        [--cut-prop cod_comuna] [--name-prop Comuna] [--region-prop codregion] [--region-name-prop Region]
  *
  * Carga (o actualiza) la tabla nacional de comunas (migración 0006) desde un GeoJSON público, por
@@ -43,6 +43,9 @@ async function main() {
   const file = arg('geojson');
   if (!file) throw new Error('Indica el archivo: --geojson comunas.geojson');
   const srid = Number(arg('srid') ?? '4326');
+  // Tolerancia de simplificación en metros (0 = sin simplificar). 10 m está bajo el error típico del GPS.
+  const simplifyM = Number(arg('simplify-m') ?? '0');
+  if (!Number.isFinite(simplifyM) || simplifyM < 0 || simplifyM > 200) throw new Error('--simplify-m debe estar entre 0 y 200');
   const adminUrl = process.env.DATABASE_ADMIN_URL;
   if (!adminUrl) throw new Error('Falta DATABASE_ADMIN_URL');
 
@@ -72,15 +75,24 @@ async function main() {
   try {
     await sql.begin(async (tx) => {
       for (const r of rows) {
-        // Polígono o multipolígono, en cualquier SRID → MultiPolygon WGS84 válido.
+        // Polígono o multipolígono, en cualquier SRID → MultiPolygon WGS84 válido. Con --simplify-m se
+        // simplifica en metros (UTM 19S) para que la búsqueda por comuna del trigger del SOS siga rápida.
         await tx`
           INSERT INTO comuna (cut, name, name_key, region_cut, region_name, boundary)
           VALUES (${r.cut}, ${r.name}, ${r.key}, ${r.regionCut}, ${r.regionName},
-            ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(${r.geometry}), ${srid}), 4326)), 3))::geography)
+            ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Transform(
+              ST_SimplifyPreserveTopology(ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(${r.geometry}), ${srid}), 32719), ${simplifyM}),
+              4326)), 3))::geography)
           ON CONFLICT (cut) DO UPDATE SET name = EXCLUDED.name, name_key = EXCLUDED.name_key,
             region_cut = EXCLUDED.region_cut, region_name = EXCLUDED.region_name,
             boundary = EXCLUDED.boundary, updated_at = now()`;
       }
+      // Trozos para el ruteo (migración 0007): se rehacen solo para las comunas recién cargadas.
+      const cuts = rows.map((r) => r.cut);
+      await tx`DELETE FROM comuna_part WHERE cut IN ${tx(cuts)}`;
+      await tx`
+        INSERT INTO comuna_part (cut, part)
+        SELECT c.cut, ST_Subdivide(c.boundary::geometry, 256)::geography FROM comuna c WHERE c.cut IN ${tx(cuts)}`;
     });
     const linked = await sql<{ name: string; comuna: string }[]>`
       UPDATE tenant t SET comuna_cut = c.cut

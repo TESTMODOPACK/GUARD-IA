@@ -31,7 +31,7 @@ export class MockAiProvider implements AiProvider {
 
     const rules: Array<[RegExp, AlertCategory, Priority, SuggestedAgency]> = [
       [/asalt|rob|ladr|cuchill|pistol|arma|encañ/, 'ROBO_ASALTO', 'HIGH', 'CARABINEROS'],
-      [/golpe|pega|agred|violen|grit/, 'VIOLENCIA_AGRESION', 'HIGH', 'CARABINEROS'],
+      [/golpe|pega|agred|violen|grit|pelea|peleand|riña|rina|combos|agarrad/, 'VIOLENCIA_AGRESION', 'HIGH', 'CARABINEROS'],
       [/incendio|fuego|humo|quema|gas/, 'INCENDIO', 'HIGH', 'BOMBEROS'],
       [/herid|inconscien|desmay|infarto|sangr|ambulancia|médic|medic/, 'SALUD', 'HIGH', 'SAMU'],
       [/choque|accidente|atropell|volc/, 'ACCIDENTE_TRANSITO', 'HIGH', 'CARABINEROS'],

@@ -46,7 +46,28 @@ puerto 3000 en red privada; en PowerShell **como administrador**:
 New-NetFirewallRule -DisplayName "Guard-IA API (dev)" -Direction Inbound -Protocol TCP -LocalPort 3000 -Profile Private -Action Allow
 ```
 
-## Problemas comunes
+## Comunas de Chile (migraciones 0006 y 0007)
+
+El ruteo por comuna, el traspaso entre municipios y el aviso "estás en la comuna X" necesitan la tabla
+nacional de comunas. Fuente oficial: División Político Administrativa 2023 de SUBDERE
+(`https://ide.subdere.gov.cl/descargas/SHP/Limite_DPA_03082023.rar`, 262 MB, publicada el 21-02-2024;
+anuncio en subdere.gov.cl/node/82960). Trae 345 comunas en SIRGAS-Chile (Antártica no viene).
+
+Se carga una vez por base (también en el VPS). En WSL, con GDAL (`apt-get install gdal-bin libarchive-tools`):
+
+```bash
+mkdir -p ~/dpa && cd ~/dpa
+curl -fSLO https://ide.subdere.gov.cl/descargas/SHP/Limite_DPA_03082023.rar
+bsdtar -xf Limite_DPA_03082023.rar DPA_2023/COMUNAS
+# WGS84 y simplificado a ~9 m (bajo el error del GPS): de 109 MB a 56 MB
+ogr2ogr -f GeoJSON -t_srs EPSG:4326 -simplify 0.00008 -lco COORDINATE_PRECISION=6 -lco RFC7946=YES   comunas.geojson DPA_2023/COMUNAS/COMUNAS_v1.shp
+```
+
+Y desde el repositorio: `pnpm --filter @guardia/api load-comunas --geojson <ruta>/comunas.geojson` (detecta
+`CUT_COM`, `COMUNA`, `CUT_REG` y `REGION`; tarda ~1 min). Rehace también `comuna_part`. Para enlazar un municipio
+con su comuna, fija `tenant.cut_code` con el CUT (p. ej. `13201` Puente Alto) y vuelve a correr el comando.
+
+
 
 - `Variables de entorno inválidas`: falta `.env` en la raíz del repo.
 - `ECONNREFUSED 5432`: WSL se apagó; vuelve a correr `pnpm infra:wsl`.
