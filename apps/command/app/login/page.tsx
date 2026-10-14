@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiRequestError } from '@/lib/api';
-import { loadSession, saveSession } from '@/lib/session';
+import { homeFor, loadSession, saveSession } from '@/lib/session';
 import { Button, Field, inputClass } from '@/components/ui';
 
 export default function LoginPage() {
@@ -14,7 +14,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loadSession()) router.replace('/');
+    const s = loadSession();
+    if (s) router.replace(homeFor(s.operator));
   }, [router]);
 
   const submit = async (e: React.FormEvent) => {
@@ -24,7 +25,7 @@ export default function LoginPage() {
     try {
       const r = await api.login(email.trim(), password);
       saveSession(r);
-      router.replace(r.operator.mustChangePassword ? '/cambiar-clave' : '/');
+      router.replace(r.operator.mustChangePassword ? '/cambiar-clave' : homeFor(r.operator));
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(
@@ -44,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <main className="h-screen grid place-items-center p-6">
-      <form onSubmit={submit} className="w-[380px] max-w-full rounded-lg border border-line bg-surface p-6 space-y-5">
+      <form onSubmit={submit} className="w-full max-w-[380px] rounded-lg border border-line bg-surface p-6 space-y-5">
         <div className="flex flex-col items-center text-center gap-2 pb-1">
           <img src="/brand-mark.png" alt="" width={72} height={72} />
           <h1 className="text-2xl font-bold tracking-wide leading-tight">

@@ -27,6 +27,12 @@ import type {
   ApiError,
   Dispatch,
   DispatchStatus,
+  FieldAlarm,
+  FieldLocation,
+  FieldReport,
+  FieldState,
+  FieldStatus,
+  Panic,
   OperatorPublic,
   RecordOutcome,
   RejectReason,
@@ -229,6 +235,29 @@ export const api = {
     request<ActivityPage<CaseActivity>>(`/ops/admin/activity?source=cases&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   systemActivity: (cursor?: string) =>
     request<ActivityPage<SystemActivity>>(`/ops/admin/activity?source=system&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+
+  // Avisos de terreno en la central (0012).
+  fieldAlarms: () => request<FieldAlarm[]>('/ops/field-alarms'),
+  ackFieldAlarm: (id: string, note?: string) =>
+    request<FieldAlarm>(`/ops/field-alarms/${id}/ack`, { method: 'POST', body: json({ note }) }),
+
+  // Página /terreno del funcionario (rol FIELD).
+  field: {
+    state: () => request<FieldState>('/ops/field/state'),
+    startShift: (unitId: string) => request<FieldState>('/ops/field/shift/start', { method: 'POST', body: json({ unitId }) }),
+    endShift: () => request<FieldState>('/ops/field/shift/end', { method: 'POST' }),
+    status: (dispatchId: string, body: FieldStatus) =>
+      request<FieldState>(`/ops/field/dispatches/${dispatchId}/status`, { method: 'POST', body: json(body) }),
+    /** multipart: `meta` JSON y hasta 3 `photo` (el navegador pone el boundary). */
+    report: (dispatchId: string, meta: FieldReport, photos: File[]) => {
+      const form = new FormData();
+      form.append('meta', JSON.stringify(meta));
+      for (const p of photos) form.append('photo', p);
+      return request<FieldState>(`/ops/field/dispatches/${dispatchId}/report`, { method: 'POST', body: form });
+    },
+    location: (loc: FieldLocation) => request<null>('/ops/field/location', { method: 'POST', body: json(loc) }),
+    panic: (body: Panic) => request<FieldAlarm>('/ops/field/panic', { method: 'POST', body: json(body) }),
+  },
 };
 
 /** Todas las alertas con esos estados siguiendo el cursor (la API entrega 100 por página). Tope: 10 páginas. */

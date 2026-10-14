@@ -154,7 +154,10 @@ export default function ShiftsPage() {
             <ul className="space-y-1.5 text-sm">
               {status.onDuty.map((d) => (
                 <li key={d.operatorId} className="flex justify-between gap-2">
-                  <span>{d.name}</span>
+                  <span>
+                    {d.name}
+                    {d.unitCode ? <span className="text-ink-muted"> · en terreno con {d.unitCode}</span> : null}
+                  </span>
                   <span className="text-ink-muted tabular-nums">desde {hhmm(d.startedAt)}</span>
                 </li>
               ))}

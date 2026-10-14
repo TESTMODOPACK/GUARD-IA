@@ -83,6 +83,7 @@ d('georreferencia y redirección', () => {
       alertTransferred: (from: string) => calls.push(`transferred:${from}`),
       alertCreated: (to: string) => calls.push(`created:${to}`),
       alertUpdated: () => undefined,
+      fieldRefresh: () => undefined,
       citizenAlertStatus: () => undefined,
     } as unknown as RealtimeService;
     const notifications = { notifyAlertStatus: async () => void calls.push('notify') } as unknown as NotificationsService;

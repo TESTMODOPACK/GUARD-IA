@@ -18,10 +18,11 @@ function context(): AudioContext | null {
   return ctx;
 }
 
-export function ping(kind: 'sos' | 'high') {
+export function ping(kind: 'sos' | 'high' | 'panic') {
   const c = context();
   if (!c || c.state !== 'running') return;
-  const notes = kind === 'sos' ? [880, 1174] : [660, 660, 880];
+  // Pánico de un funcionario de terreno (0012): sirena corta, distinta de un SOS.
+  const notes = kind === 'sos' ? [880, 1174] : kind === 'panic' ? [988, 740, 988, 740, 988, 740] : [660, 660, 880];
   const t0 = c.currentTime;
   notes.forEach((freq, i) => {
     const osc = c.createOscillator();

@@ -11,6 +11,7 @@ import {
   DISPATCH_STATUSES,
   REJECT_REASONS,
   MEDIA_KINDS,
+  OUTCOME_VIA,
   PRIORITIES,
   SUGGESTED_AGENCIES,
   categoriesFor,
@@ -115,6 +116,14 @@ export const DispatchSchema = z.object({
   outcome: z.enum(DISPATCH_OUTCOMES).nullable(),
   outcomeNote: z.string().nullable(),
   outcomeAt: z.iso.datetime().nullable(),
+  /** Quién informó el resultado (0012): la central por radio o la unidad desde /terreno. */
+  outcomeVia: z.enum(OUTCOME_VIA).nullable(),
+  /**
+   * "Era otra situación" informado desde terreno (0012): la categoría que vio la unidad. La central la aplica con
+   * un clic (queda como clasificación de terreno); hasta entonces la alerta conserva la suya.
+   */
+  proposedCategory: z.enum(ALERT_CATEGORIES).nullable(),
+  proposedSubcategory: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   closedAt: z.iso.datetime().nullable(),

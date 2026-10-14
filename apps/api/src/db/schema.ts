@@ -35,6 +35,8 @@ import {
   TENANT_STATUSES,
   CITIZEN_BLOCK_STATUSES,
   CITIZEN_REVIEW_STATUSES,
+  FIELD_ALARM_KINDS,
+  OUTCOME_VIA,
   UNIT_KINDS,
   UNIT_STATUSES,
   type SuggestedAgency,
@@ -67,6 +69,8 @@ export const tokenKindEnum = pgEnum('token_kind', ['CITIZEN', 'OPERATOR']);
 export const tenantStatusEnum = pgEnum('tenant_status', TENANT_STATUSES);
 export const citizenBlockStatusEnum = pgEnum('citizen_block_status', CITIZEN_BLOCK_STATUSES);
 export const citizenReviewStatusEnum = pgEnum('citizen_review_status', CITIZEN_REVIEW_STATUSES);
+export const outcomeViaEnum = pgEnum('outcome_via', OUTCOME_VIA);
+export const fieldAlarmKindEnum = pgEnum('field_alarm_kind', FIELD_ALARM_KINDS);
 export const platformRoleEnum = pgEnum('platform_role', PLATFORM_ROLES);
 export const platformActionEnum = pgEnum('platform_action', PLATFORM_ACTIONS);
 
@@ -236,6 +240,10 @@ export const dispatch = pgTable('dispatch', {
   outcomeNote: text('outcome_note'),
   outcomeAt: ts('outcome_at'),
   outcomeBy: uuid('outcome_by').references(() => operator.id),
+  // 0012_field.sql
+  outcomeVia: outcomeViaEnum('outcome_via'),
+  proposedCategory: alertCategoryEnum('proposed_category'),
+  proposedSubcategory: text('proposed_subcategory'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
   closedAt: ts('closed_at'),
@@ -312,8 +320,31 @@ export const shift = pgTable('shift', {
   startedAt: ts('started_at'),
   endedAt: ts('ended_at'),
   handoverNote: text('handover_note'),
+  // 0012_field.sql: unidad con la que sale el funcionario de terreno.
+  unitId: uuid('unit_id').references(() => unit.id),
   createdBy: uuid('created_by'),
   createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** Avisos de terreno (0012): pánico, apoyo y plazos vencidos. */
+export const fieldAlarm = pgTable('field_alarm', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  kind: fieldAlarmKindEnum('kind').notNull(),
+  unitId: uuid('unit_id').references(() => unit.id),
+  operatorId: uuid('operator_id').references(() => operator.id),
+  dispatchId: uuid('dispatch_id').references(() => dispatch.id),
+  alertId: uuid('alert_id').references(() => alert.id),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  accuracyM: real('accuracy_m'),
+  note: text('note'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  closedAt: ts('closed_at'),
+  closedBy: uuid('closed_by').references(() => operator.id),
+  closeNote: text('close_note'),
 });
 
 export const contact = pgTable('contact', {
@@ -555,6 +586,7 @@ export const platformAuditLog = pgTable('platform_audit_log', {
 });
 
 export const schema = {
+  fieldAlarm,
   citizenBlock,
   citizenReview,
   region,
@@ -586,6 +618,8 @@ export type Schema = typeof schema;
 
 export type AlertRow = typeof alert.$inferSelect;
 export type DispatchRow = typeof dispatch.$inferSelect;
+export type FieldAlarmRow = typeof fieldAlarm.$inferSelect;
+export type ShiftRow = typeof shift.$inferSelect;
 export type UnitRow = typeof unit.$inferSelect;
 export type CitizenRow = typeof citizen.$inferSelect;
 export type OperatorRow = typeof operator.$inferSelect;

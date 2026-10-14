@@ -277,7 +277,7 @@ revisión, anular faltas. Falta de PT: la app de terreno.
 Etapa 2a hecha (migración 0009, endurecimiento de la base, informe en `docs/revision-base-de-datos.md`): sin PK de
 texto, índices y `tenant_id` explícito por municipio, privilegios mínimos (cada migración nueva declara sus
 `GRANT`), RLS en `tenant` con la vista `tenant_directory`, FK compuestas por municipio y purga de tokens y
-códigos vencidos. El particionado queda como `0012_scale.sql` (`0011` es el bloqueo por uso indebido).
+códigos vencidos. El particionado queda como `0013_scale.sql` (`0011` es el bloqueo por uso indebido y `0012` terreno).
 
 Etapa 2b hecha (migración 0010, P1): consola aparte (`apps/platform`, dominio propio en Caddy) con usuarios de
 plataforma y segundo factor TOTP, sesiones cortas y bloqueo por intentos; regiones de norte a sur y provincias;
@@ -301,6 +301,24 @@ días cuenta como falta. Todo queda en la bitácora del municipio y se avisa al 
 pendientes) sin datos personales. En vez de `citizen_restriction` y `citizen_notice` (sección Datos) quedaron
 `citizen_block` y `citizen_review`; la restricción se calcula de las faltas vigentes. Siguen PT (app de terreno) y
 P2 (errores y salud).
+
+PT hecho (14-10-2026, migración 0012), salvo PT-4. Rol **Terreno** (`FIELD`), una cuenta por funcionario; entra a
+`/terreno` de la central desde su teléfono y, al iniciar turno, elige la unidad (varios pueden salir en la misma).
+Recibe el despacho con categoría, resumen, lugar nombrado, instrucciones de la central, preguntas sugeridas y fotos
+del caso, y "Cómo llegar" (abre el mapa del teléfono). Botones **Voy en camino** y **Llegué** (avisan al vecino como
+cuando lo marca la central) e **Informar resultado** con nota y hasta 3 fotos. "Atendido", "derivado", "no se
+encontró nada" y "falsa alarma confirmada" cierran el despacho y liberan la unidad; el caso queda abierto y la
+central ve "La unidad informó el resultado: falta cerrar el caso". "Era otra situación" queda como propuesta que la
+central aplica con un clic. "Pide apoyo" y el **pánico** del funcionario (dos toques; con o sin turno; con su
+posición si el teléfono la entrega) llegan arriba de la central con sonido hasta que alguien marca "Atendido"; el
+funcionario ve la respuesta. Plazos (RT-7): 2 min sin "en camino", 20 min en camino sin "llegué", 30 min en el lugar
+sin informar; solo para unidades con alguien de terreno en turno, y se cierran solos cuando la unidad responde. La
+posición se envía cada 15 s solo con un despacho abierto (queda la última de la unidad, sin historial). Al iniciar
+turno, una unidad fuera de servicio pasa a disponible; al terminar queda como está (lo decide la central). Seguridad:
+el funcionario no entra a ningún otro endpoint de la central ni a su socket, y su contexto RLS `field` solo ve el
+caso de su unidad, nunca datos del vecino. **Falta PT-4**: aviso con el teléfono bloqueado (Web Push; en iPhone solo
+con la página agregada a la pantalla de inicio) e instalación como app; hoy el despacho suena y vibra con la página
+abierta, y la radio sigue de respaldo.
 
 ## 6. Modelo de datos propuesto
 
@@ -362,8 +380,8 @@ P2 (errores y salud).
    muestra los números 133/131/132 (tocarlos abre el marcador del teléfono, no pasa por Guard-IA), el plazo y cómo
    pedir revisión.
 9. ~~Escalera de uso indebido: ¿3 faltas en 90 días y 30 días de bloqueo?~~ **Decidido (13-10):** sí.
-10. Terreno: ¿app web dentro de la central (recomendado para el piloto) o app nativa desde el comienzo? ¿Cada
-    funcionario con su cuenta (recomendado, por trazabilidad) o una cuenta por unidad?
+10. ~~Terreno: ¿app web dentro de la central o app nativa? ¿Cada funcionario con su cuenta o una por unidad?~~
+    **Decidido (14-10):** página web dentro de la central (`/terreno`) y una cuenta por funcionario.
 
 ## 10. Riesgos
 - Cortar el servicio a un municipio deja a los vecinos sin canal: la suspensión nunca corta el SOS y la baja

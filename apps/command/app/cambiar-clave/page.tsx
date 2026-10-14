@@ -4,7 +4,7 @@ import { PASSWORD_MIN_LENGTH } from '@guardia/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiRequestError, logout } from '@/lib/api';
-import { loadSession, updateOperator, type Session } from '@/lib/session';
+import { homeFor, loadSession, updateOperator, type Session } from '@/lib/session';
 import { Button, Field, inputClass } from '@/components/ui';
 
 /** Cambio de contraseña: obligatorio con una temporal (cuenta nueva o restablecida), opcional si no. */
@@ -37,7 +37,7 @@ export default function ChangePasswordPage() {
     try {
       const op = await api.changePassword(current, next);
       updateOperator(op);
-      router.replace('/');
+      router.replace(homeFor(op));
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'No se pudo conectar con la API.');
     } finally {
@@ -47,7 +47,7 @@ export default function ChangePasswordPage() {
 
   return (
     <main className="h-screen grid place-items-center p-6">
-      <form onSubmit={submit} className="w-[400px] max-w-full rounded-lg border border-line bg-surface p-6 space-y-5">
+      <form onSubmit={submit} className="w-full max-w-[400px] rounded-lg border border-line bg-surface p-6 space-y-5">
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">{forced ? 'Crea tu contraseña' : 'Cambiar contraseña'}</h1>
           <p className="text-sm text-ink-muted">

@@ -90,6 +90,8 @@ export const ShiftSchema = z.object({
   startedAt: z.iso.datetime().nullable(),
   endedAt: z.iso.datetime().nullable(),
   handoverNote: z.string().nullable(),
+  /** Unidad con la que sale el funcionario de terreno (0012); null para la central. */
+  unitCode: z.string().nullable(),
   createdAt: z.iso.datetime(),
 });
 export type Shift = z.infer<typeof ShiftSchema>;
@@ -124,7 +126,9 @@ export const ShiftStatusSchema = z.object({
   /** Próximo turno programado del operador (si no tiene uno abierto). */
   next: ShiftSchema.nullable(),
   lastHandover: z.object({ note: z.string(), operatorName: z.string(), endedAt: z.iso.datetime() }).nullable(),
-  onDuty: z.array(z.object({ operatorId: UuidSchema, name: z.string(), startedAt: z.iso.datetime() })),
+  onDuty: z.array(
+    z.object({ operatorId: UuidSchema, name: z.string(), startedAt: z.iso.datetime(), unitCode: z.string().nullable() }),
+  ),
 });
 export type ShiftStatus = z.infer<typeof ShiftStatusSchema>;
 

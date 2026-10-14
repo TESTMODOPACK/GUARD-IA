@@ -8,6 +8,7 @@ import {
   CreateOperatorSchema,
   CreateShiftSchema,
   EndShiftSchema,
+  OPERATOR_ROLES,
   ShiftsQuerySchema,
   UpdateContactSchema,
   UpdateOperatorSchema,
@@ -65,9 +66,10 @@ export class OperatorsController {
     return this.operators.resetPassword(op, id);
   }
 
-  /** Cualquier operador, incluso con la contraseña temporal pendiente de cambiar. */
+  /** Cualquier operador, incluso con la contraseña temporal pendiente de cambiar (también el de terreno). */
   @Post('me/password')
   @AllowPendingPassword()
+  @Roles(...OPERATOR_ROLES)
   @HttpCode(200)
   changePassword(@CurrentAuth() op: OperatorClaims, @Body(zod(ChangePasswordSchema)) body: ChangePassword) {
     return this.operators.changeOwnPassword(op, body);
@@ -125,7 +127,7 @@ export class ContactsController {
   @Get()
   list(@CurrentAuth() op: OperatorClaims, @Query(zod(ContactsQuerySchema)) q: ContactsQuery) {
     // Los desactivados solo los ve quien puede reactivarlos.
-    const includeInactive = !!q.includeInactive && op.role !== 'OPERATOR';
+    const includeInactive = !!q.includeInactive && (op.role === 'ADMIN' || op.role === 'SUPERVISOR');
     return this.contacts.list(op, includeInactive);
   }
 

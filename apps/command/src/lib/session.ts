@@ -32,6 +32,11 @@ function watchOtherTabs() {
   });
 }
 
+/** Página de inicio según el rol: el funcionario de terreno trabaja en /terreno (0012), nunca en la central. */
+export function homeFor(op: Pick<OperatorPublic, 'role'> | null | undefined): string {
+  return op?.role === 'FIELD' ? '/terreno' : '/';
+}
+
 export function loadSession(): Session | null {
   if (cached !== undefined) return cached;
   if (typeof window === 'undefined') return null;

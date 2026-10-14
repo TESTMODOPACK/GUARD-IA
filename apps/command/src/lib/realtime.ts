@@ -1,7 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import type { AlertDetail, AlertSummary, AlertTransferred, Dispatch, ImportanceLevel, Unit } from '@guardia/shared';
+import type { AlertDetail, AlertSummary, AlertTransferred, Dispatch, FieldAlarm, ImportanceLevel, Unit } from '@guardia/shared';
 import { WS_NAMESPACES } from '@guardia/shared';
 import { api, fetchAllAlerts, getAccessToken, refreshAccessToken } from './api';
 import { API_URL } from './config';
@@ -72,11 +72,12 @@ async function resync() {
   clearTimeout(resyncTimer);
   const seq = ++resyncSeq;
   try {
-    const [active, units] = await Promise.all([fetchAllAlerts(ACTIVE_STATUSES), api.units()]);
+    const [active, units, alarms] = await Promise.all([fetchAllAlerts(ACTIVE_STATUSES), api.units(), api.fieldAlarms()]);
     if (seq !== resyncSeq || !socket) return;
     const s = useStore.getState();
     ingest(active, s.loaded);
     s.setUnits(units);
+    s.setFieldAlarms(alarms);
     s.setLoaded(true);
   } catch (e) {
     if (seq !== resyncSeq || !socket) return;
@@ -152,6 +153,19 @@ export function connectRealtime(): void {
     const s = useStore.getState();
     s.applyDispatch(d);
     s.touchEvent(d.updatedAt);
+    // Los plazos vencidos de este despacho los cierra la base cuando la unidad responde: se releen.
+    if (Object.values(s.fieldAlarms).some((a) => a.dispatchId === d.id && (a.kind === 'LATE' || a.kind === 'NO_NEWS'))) {
+      api.fieldAlarms().then(s.setFieldAlarms, () => undefined);
+    }
+  });
+  // Terreno (0012): el pánico suena siempre (aunque el operador haya silenciado la central); el resto, como un SOS.
+  socket.on('field.alarm', (a: FieldAlarm) => {
+    const s = useStore.getState();
+    const isNew = !a.closedAt && !(a.id in s.fieldAlarms);
+    s.upsertFieldAlarm(a);
+    if (!isNew) return;
+    if (a.kind === 'PANIC') ping('panic');
+    else if (s.prefs.sound) ping(a.kind === 'SUPPORT' ? 'sos' : 'high');
   });
   socket.on('unit.updated', (u: Unit) => useStore.getState().upsertUnit(u));
   socket.on('alert.transferred', (p: AlertTransferred) => {

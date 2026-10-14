@@ -65,7 +65,7 @@ d('agente de clasificación', () => {
     admin = postgres(env.DATABASE_ADMIN_URL, { max: 1, onnotice: () => undefined });
     const incidents = new IncidentsService(dbs);
     const reads = new AlertReadService({ toPublic: async () => [] } as unknown as MediaService);
-    const realtime = { alertUpdated: () => undefined, citizenAlertStatus: () => undefined } as unknown as RealtimeService;
+    const realtime = { alertUpdated: () => undefined, fieldRefresh: () => undefined, citizenAlertStatus: () => undefined } as unknown as RealtimeService;
     const notifications = { notifyAlertStatus: async () => undefined } as unknown as NotificationsService;
     const alertsSvc = { enqueue: async () => true } as unknown as AlertsService;
     const metrics = { aiProcessing: { observe: () => undefined } } as unknown as MetricsService;

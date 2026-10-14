@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { AlertDetail, AlertStatus, AlertSummary, AlertType, Dispatch, Unit } from '@guardia/shared';
+import type { AlertDetail, AlertStatus, AlertSummary, AlertType, Dispatch, FieldAlarm, Unit } from '@guardia/shared';
 import { PREFS_KEY } from './config';
 
 export const ACTIVE_STATUSES: AlertStatus[] = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'];
@@ -33,6 +33,8 @@ const SORT_MODES: SortMode[] = ['newest', 'importance', 'oldest'];
 interface State {
   alerts: Record<string, AnyAlert>;
   units: Record<string, Unit>;
+  /** Avisos de terreno abiertos (0012): pánico, apoyo, plazos vencidos. */
+  fieldAlarms: Record<string, FieldAlarm>;
   selectedId: string | null;
   typeFilter: TypeFilter;
   showClosed: boolean;
@@ -54,6 +56,9 @@ interface State {
   removeAlert: (id: string) => void;
   setUnits: (list: Unit[]) => void;
   upsertUnit: (u: Unit) => void;
+  setFieldAlarms: (list: FieldAlarm[]) => void;
+  /** Uno cerrado sale de la lista. */
+  upsertFieldAlarm: (a: FieldAlarm) => void;
   select: (id: string | null) => void;
   setTypeFilter: (f: TypeFilter) => void;
   setShowClosed: (v: boolean) => void;
@@ -115,6 +120,7 @@ function spreadIncidents(alerts: Record<string, AnyAlert>, incoming: AnyAlert[])
 export const useStore = create<State>((set, get) => ({
   alerts: {},
   units: {},
+  fieldAlarms: {},
   selectedId: null,
   typeFilter: 'ALL',
   showClosed: false,
@@ -167,6 +173,14 @@ export const useStore = create<State>((set, get) => ({
 
   setUnits: (list) => set({ units: Object.fromEntries(list.map((u) => [u.id, u])) }),
   upsertUnit: (u) => set((s) => ({ units: { ...s.units, [u.id]: u } })),
+  setFieldAlarms: (list) => set({ fieldAlarms: Object.fromEntries(list.filter((a) => !a.closedAt).map((a) => [a.id, a])) }),
+  upsertFieldAlarm: (a) =>
+    set((s) => {
+      const next = { ...s.fieldAlarms };
+      if (a.closedAt) delete next[a.id];
+      else next[a.id] = a;
+      return { fieldAlarms: next };
+    }),
 
   select: (selectedId) => set({ selectedId }),
   setTypeFilter: (typeFilter) => set({ typeFilter }),

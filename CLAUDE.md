@@ -18,6 +18,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
 | P1 | Consola de plataforma (`apps/platform`, migración 0010) | implementada y probada en local (13-10-2026) |
 | PU | Uso indebido: faltas (0008), restricción, bloqueo con aprobación y revisión (0011) | implementado y probado en local (13-10-2026) |
+| PT | Terreno: rol FIELD, página `/terreno` de la central, avisos de terreno (0012) | implementado y probado en local (14-10-2026); falta Web Push (PT-4) |
 
 ## Comandos
 
@@ -45,13 +46,14 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   central y app: cualquier cambio de API empieza aquí.
 - `apps/api/src`: `auth/` (OTP, JWT, refresh rotativo), `alerts/` (camino crítico del SOS), `ops/`
   (acciones de la central), `ai/` (worker BullMQ, proveedores openai/mock, `triage.prompt.ts`), `realtime/` (Socket.io
-  `/ops` y `/citizen`), `media/` (S3 o disco local), `geo/` (comunas, traspaso entre municipios), `notifications/` (push Expo), `db/` (Drizzle +
+  `/ops`, `/citizen` y `/field`), `media/` (S3 o disco local), `geo/` (comunas, traspaso entre municipios), `notifications/` (push Expo), `db/` (Drizzle +
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA, tokens y códigos vencidos), `cli/`
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003), `accounts/` (estado de cuenta
-  del vecino, bloqueos, anulación de faltas y revisiones; migración 0011). `scripts/simulate.ts` es el simulador.
-- `apps/command/src`: `lib/` (api, session, store zustand, realtime, labels en español), `components/`
+  del vecino, bloqueos, anulación de faltas y revisiones; migración 0011), `field/` (terreno: turno con unidad, estado,
+  informe, posición, pánico, avisos y reloj de plazos; migración 0012). `scripts/simulate.ts` es el simulador.
+- `apps/command/src`: `lib/` (api, session, store zustand, realtime, field-realtime, labels en español), `components/`
   (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
-  `admin/AdminShell`). Páginas: `/` central, `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
+  FieldAlarmsBar, `admin/AdminShell`). Páginas: `/` central, `/terreno` (funcionario de terreno, en el teléfono), `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
   `/admin/cuentas` (bloqueos por aprobar, revisiones, faltas), `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
 - `apps/api/src/platform/`: consola de plataforma (TOTP propio sin dependencias, tokens y sesiones propias,
@@ -148,6 +150,18 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     vital (`capPriority`, `hasCriticalPhrase`). La app bloqueada solo muestra los números de emergencia, el plazo y
     "Pedir revisión" (`citizen_review`, la resuelve el municipio que sancionó). Cada decisión escribe `audit_log` en
     la misma transacción; el aviso (`account.updated` por WS y push) va después del commit.
+18. **Terreno** (migración 0012, `field/`, `docs/plan-plataforma.md` §5c): cada funcionario con su cuenta (rol
+    `FIELD`) en `/terreno`. **Denegado por defecto**: `AuthGuard` lo deja pasar solo donde `@Roles` nombra `FIELD`
+    (`/ops/field/*` y cambiar su contraseña); el socket `/ops` lo rechaza y usa `/field`, que no trae datos del caso
+    (`field.refresh` hace que la página relea su estado). Todo lo suyo corre en el contexto RLS `field`
+    (`DbService.asField`): su turno, su unidad (`app_field_unit()`), y el caso al que la despacharon
+    (`field_can_see_alert()`); nunca vecinos, la cola ni otros casos. Lo que se emite a la central se lee después
+    del commit en contexto system. La unidad informa y la central cierra (RT-8): un informe no resuelve ni rechaza
+    la alerta; "era otra situación" queda en `dispatch.proposed_category` hasta que la central la aplica;
+    `dispatch.outcome_via` dice quién informó. Avisos (`field_alarm`): pánico (nunca se limita; con o sin turno),
+    apoyo y plazos vencidos (`FieldWatchCron`, `FIELD_DEADLINES`, solo unidades con alguien de terreno en turno); el
+    trigger `dispatch_field_alarm_clear` cierra los plazos cuando el despacho se mueve. La posición se guarda solo con
+    un despacho abierto (última posición de la unidad, sin historial).
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
@@ -196,8 +210,8 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 - Base de datos: informe en `docs/revision-base-de-datos.md`. `0009_hardening.sql` aplicada en local (PK de
   texto corregidas, índices por municipio, privilegios, FK compuestas, RLS de `tenant` + `tenant_directory`,
-  `MaintenanceCron`). Falta `0012_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
-  piloto; `0010` es la consola de plataforma y `0011` el bloqueo por uso indebido.
+  `MaintenanceCron`). Falta `0013_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
+  piloto; `0010` es la consola de plataforma, `0011` el bloqueo por uso indebido y `0012` terreno.
 - Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
   Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
@@ -207,7 +221,9 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   región, planes, contratos, facturación, bitácora de errores, métricas; uso indebido con escalera de faltas;
   unidad en terreno que informa resultados). Etapas 1 (motivos de rechazo, faltas, resultado en terreno),
   2 (endurecimiento 0009 y consola P1) y 3 (resto de PU: restricción, bloqueo con aprobación, "Estado de tu cuenta" y
-  revisión) hechas el 13-10-2026. Siguen la app de terreno (PT) y P2 (errores y salud); decisiones en §9.
+  revisión) hechas el 13-10-2026. Terreno (PT, 0012) hecho el 14-10-2026 salvo PT-4: Web Push con el teléfono
+  bloqueado e instalación como app (hoy suena y vibra con la página abierta). Siguen P2 (errores y salud) y P3;
+  decisiones en §9.
 - Consola de plataforma (P1) sin hacer aún: QR para el segundo factor (hoy la clave se escribe a mano o se abre
   el enlace `otpauth://` en el teléfono; un QR requiere agregar una librería), estado "En negociación" y asignación
   comercial (RF-1.5), acceso de soporte (RF-4.4), avisos por correo al suspender. La primera alerta tras 30 s sin

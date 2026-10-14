@@ -8,6 +8,7 @@ import type {
   Dispatch,
   DispatchOutcome,
   DispatchStatus,
+  FieldAlarmKind,
   Priority,
   RejectReason,
   SuggestedAgency,
@@ -21,6 +22,7 @@ import {
   DISPATCH_OUTCOME,
   DISPATCH_STATUS,
   EVENT_KIND,
+  FIELD_ALARM,
   FLAG,
   formatAge,
   formatDateTime,
@@ -294,6 +296,7 @@ export function AlertDetailPanel() {
                           {DISPATCH_OUTCOME[d.outcome]}
                         </Tag>
                       ) : null}
+                      {d.outcomeVia === 'FIELD' ? <span className="text-xs text-ink-muted">desde terreno</span> : null}
                       {d.status === 'CLOSED' && !d.outcome ? (
                         <Button variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => setOutcomeFor(d)}>
                           Registrar resultado
@@ -303,6 +306,42 @@ export function AlertDetailPanel() {
                     </li>
                   ))}
                 </ul>
+                {/* "Era otra situación" desde terreno (0012): la unidad propone, la central aplica. */}
+                {detail.dispatches
+                  .filter((d) => d.proposedCategory)
+                  .map((d) => (
+                    <div key={`p-${d.id}`} className="mt-2 flex flex-wrap items-center gap-2 rounded-ctl border border-medium/40 bg-medium/10 px-2.5 py-1.5 text-sm">
+                      <span>
+                        {d.unitCode} propone: <strong>{classificationLabel(d.proposedCategory, d.proposedSubcategory)}</strong>
+                      </span>
+                      <Button
+                        variant="quiet"
+                        className="h-7 ml-auto"
+                        busy={busy === `apply-${d.id}`}
+                        onClick={() =>
+                          void run(
+                            `apply-${d.id}`,
+                            () =>
+                              api.recordOutcome(d.id, {
+                                outcome: 'DIFFERENT_SITUATION',
+                                category: d.proposedCategory!,
+                                subcategory: d.proposedSubcategory,
+                                notes: d.outcomeNote ?? undefined,
+                              }),
+                            'Clasificación de terreno aplicada',
+                          ).catch(() => undefined)
+                        }
+                      >
+                        Aplicar
+                      </Button>
+                    </div>
+                  ))}
+                {detail.status === 'DISPATCHED' &&
+                detail.dispatches.length > 0 &&
+                detail.dispatches.every((d) => d.status === 'CLOSED' || d.status === 'CANCELLED') &&
+                detail.dispatches.some((d) => d.outcome) ? (
+                  <p className="mt-2 text-xs text-medium">La unidad informó el resultado: falta cerrar el caso.</p>
+                ) : null}
               </section>
             ) : null}
 
@@ -467,7 +506,7 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
       text = `${p.unitCode ?? ''}${p.notes ? ` · ${p.notes}` : ''}`;
       break;
     case 'DISPATCH_STATUS':
-      text = `${p.unitCode ?? ''} ${p.status ? DISPATCH_STATUS[p.status as DispatchStatus]?.toLowerCase() ?? p.status : ''}${p.revertedToAck ? ' · la alerta vuelve a revisión' : ''}`;
+      text = `${p.unitCode ?? ''} ${p.status ? DISPATCH_STATUS[p.status as DispatchStatus]?.toLowerCase() ?? p.status : ''}${p.revertedToAck ? ' · la alerta vuelve a revisión' : ''}${p.via === 'FIELD' ? ' · desde terreno' : ''}`;
       break;
     case 'REJECTED':
       text = `${REJECT_REASON[p.reason as RejectReason] ?? p.reason ?? ''}${
@@ -490,7 +529,10 @@ function EventDetail({ kind, payload }: { kind: string; payload: Record<string, 
     case 'FIELD_REPORT':
       text = `${p.unitCode ?? ''} · ${DISPATCH_OUTCOME[p.outcome as DispatchOutcome] ?? p.outcome ?? ''}${
         p.category ? ` · ${classificationLabel(p.category as AlertCategory, p.subcategory as string | null)}` : ''
-      }${p.notes ? ` · ${p.notes}` : ''}`;
+      }${p.notes ? ` · ${p.notes}` : ''}${p.via === 'FIELD' ? ` · desde terreno${p.photos ? ` (${p.photos} foto${p.photos === 1 ? '' : 's'})` : ''}` : ''}`;
+      break;
+    case 'FIELD_ALARM':
+      text = `${p.unitCode ? `${p.unitCode} · ` : ''}${FIELD_ALARM[p.kind as FieldAlarmKind] ?? p.kind ?? ''}${p.acknowledged ? ' · atendido' : ''}${p.note ? ` · ${p.note}` : ''}`;
       break;
     case 'TRANSFERRED':
       text = `${p.auto ? 'Automático, por el agente: ' : ''}${p.reason ?? ''}`;

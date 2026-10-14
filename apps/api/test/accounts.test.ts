@@ -78,6 +78,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     const reads = new AlertReadService({ toPublic: async () => [] } as unknown as MediaService);
     const realtime = {
       alertUpdated: () => undefined,
+      fieldRefresh: () => undefined,
       dispatchUpdated: () => undefined,
       unitUpdated: () => undefined,
       citizenAlertStatus: () => undefined,

@@ -73,6 +73,11 @@ export class AuthGuard implements CanActivate {
     if (roles?.length && claims.kind === 'operator' && !roles.includes(claims.role)) {
       throw new AppError('FORBIDDEN', `Requiere rol ${roles.join(' o ')}`);
     }
+    // Terreno (0012): denegado por defecto. Un funcionario de terreno solo entra donde @Roles nombra FIELD
+    // (/ops/field y cambiar su contraseña); nunca a la cola, las fichas ni la administración de la central.
+    if (claims.kind === 'operator' && claims.role === 'FIELD' && !roles?.includes('FIELD')) {
+      throw new AppError('FORBIDDEN', 'Esta cuenta es de terreno: entra a /terreno');
+    }
     req.auth = claims;
     return true;
   }

@@ -8,14 +8,17 @@ import type {
   ContactCategory,
   DispatchOutcome,
   DispatchStatus,
+  FieldAlarmKind,
   ImportanceLevel,
   ImportanceReason,
   OperatorRole,
+  OutcomeVia,
   Priority,
   RejectReason,
   Subcategory,
   SuggestedAgency,
   TenantStatus,
+  UnitKind,
   UnitStatus,
 } from '@guardia/shared';
 
@@ -174,6 +177,30 @@ export const DISPATCH_OUTCOME_HELP: Record<DispatchOutcome, string> = {
   FALSE_ALARM_CONFIRMED: 'Se comprobó que fue broma o engaño. Cierra el despacho y luego rechaza la alerta.',
 };
 
+/** Quién informó el resultado (0012). */
+export const OUTCOME_VIA: Record<OutcomeVia, string> = {
+  CENTRAL: 'registrado por la central',
+  FIELD: 'informado desde terreno',
+};
+
+/** Lo mismo que DISPATCH_OUTCOME_HELP, dicho al funcionario de terreno. */
+export const FIELD_OUTCOME_HELP: Record<DispatchOutcome, string> = {
+  RESOLVED_ON_SITE: 'Lo resolviste. La central cierra el caso.',
+  REFERRED: 'Lo entregaste a Carabineros, SAMU o Bomberos. Di a quién en la nota.',
+  NEEDS_SUPPORT: 'Sigues en el lugar y necesitas otra unidad o una institución. La central recibe un aviso con sonido.',
+  NOT_FOUND: 'Nadie en el lugar ni señales del hecho.',
+  DIFFERENT_SITUATION: 'No era lo reportado. Elige qué era: la central lo confirma.',
+  FALSE_ALARM_CONFIRMED: 'Comprobaste que fue broma o engaño. Describe qué viste u oíste.',
+};
+
+/** Avisos de terreno en la central (0012). */
+export const FIELD_ALARM: Record<FieldAlarmKind, string> = {
+  PANIC: 'Pánico del funcionario',
+  SUPPORT: 'Pide apoyo',
+  LATE: 'No marcó "en camino"',
+  NO_NEWS: 'Sin noticias de la unidad',
+};
+
 export const DISPATCH_STATUS: Record<DispatchStatus, string> = {
   ASSIGNED: 'Asignada',
   EN_ROUTE: 'En camino',
@@ -181,6 +208,8 @@ export const DISPATCH_STATUS: Record<DispatchStatus, string> = {
   CLOSED: 'Cerrado',
   CANCELLED: 'Cancelado',
 };
+
+export const UNIT_KIND: Record<UnitKind, string> = { PATRULLA: 'Patrulla', MOTO: 'Moto', INSPECTOR: 'Inspector' };
 
 export const UNIT_STATUS: Record<UnitStatus, string> = {
   AVAILABLE: 'Disponible',
@@ -228,18 +257,21 @@ export const EVENT_KIND: Record<AlertEventKind, string> = {
   REFERRED: 'Derivado a otras instituciones',
   TRANSFERRED: 'Traspaso entre municipios',
   FIELD_REPORT: 'Resultado en terreno',
+  FIELD_ALARM: 'Aviso de terreno',
 };
 
 export const ROLE: Record<OperatorRole, string> = {
   ADMIN: 'Administrador',
   SUPERVISOR: 'Supervisor',
   OPERATOR: 'Operador',
+  FIELD: 'Terreno',
 };
 
 export const ROLE_HELP: Record<OperatorRole, string> = {
   ADMIN: 'Todo, incluidos usuarios',
   SUPERVISOR: 'Turnos, directorio, unidades y panel',
   OPERATOR: 'Atiende alertas y marca su turno',
+  FIELD: 'Inspector o patrullero: recibe despachos e informa desde su teléfono en /terreno',
 };
 
 export const CONTACT_CATEGORY: Record<ContactCategory, string> = {

@@ -11,6 +11,7 @@ import { unlockAudio } from '@/lib/sound';
 import { CLOSED_STATUSES, useStore } from '@/lib/store';
 import { AlertDetailPanel } from './AlertDetail';
 import { AlertQueue } from './AlertQueue';
+import { FieldAlarmsBar } from './FieldAlarmsBar';
 import { TopBar } from './TopBar';
 import { UnitsBar } from './UnitsBar';
 import { Spinner } from './ui';
@@ -40,13 +41,15 @@ export function Dashboard() {
       setSession(s);
       if (!s) router.replace('/login');
       else if (s.operator.mustChangePassword) router.replace('/cambiar-clave');
+      // Terreno (0012): la central no es para el funcionario de terreno (la API además se la niega).
+      else if (s.operator.role === 'FIELD') router.replace('/terreno');
     };
     apply(loadSession());
     return onSessionChange(apply);
   }, [router]);
 
   // WebSocket. Al conectar (y en cada reconexión) carga activas y unidades por REST, con reintento.
-  const operatorId = session?.operator.id;
+  const operatorId = session && session.operator.role !== 'FIELD' ? session.operator.id : undefined;
   useEffect(() => {
     if (!operatorId) return;
     connectRealtime();
@@ -87,13 +90,14 @@ export function Dashboard() {
           {TENANT_STATUS_NOTICE[session.operator.tenantStatus]}
         </div>
       ) : null}
-      <main className="flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_440px]">
+      <FieldAlarmsBar />
+      <main className="relative flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_440px]">
         <AlertQueue />
         <div className="relative min-h-0 xl:block">
           <MapView />
           <UnitsBar />
         </div>
-        <div className={`min-h-0 xl:static xl:w-auto xl:block absolute right-0 top-12 bottom-0 w-[440px] max-w-full ${selectedId ? '' : 'hidden'}`}>
+        <div className={`min-h-0 xl:static xl:w-auto xl:block absolute right-0 top-0 bottom-0 w-[440px] max-w-full ${selectedId ? '' : 'hidden'}`}>
           <AlertDetailPanel />
         </div>
       </main>

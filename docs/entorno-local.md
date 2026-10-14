@@ -46,6 +46,16 @@ puerto 3000 en red privada; en PowerShell **como administrador**:
 New-NetFirewallRule -DisplayName "Guard-IA API (dev)" -Direction Inbound -Protocol TCP -LocalPort 3000 -Profile Private -Action Allow
 ```
 
+## Terreno en el navegador (migración 0012)
+
+La central guarda la sesión en `localStorage`: en el mismo origen, entrar como funcionario de terreno cierra la
+sesión del operador en las otras pestañas. Para probar las dos a la vez, abre `/terreno` en
+`http://terreno.localhost:3001` (otro origen; Next lo permite en desarrollo) y agrega ese origen a `CORS_ORIGINS` del
+`.env` (reinicia la API). La cuenta de terreno se crea en la central (Usuarios → rol Terreno). El navegador de
+escritorio no tiene GPS: la posición y el pánico llegan sin ubicación (la página lo dice). En un teléfono de la misma
+red, Next en desarrollo bloquea la página si la IP no está en `allowedDevOrigins` (`apps/command/next.config.ts`),
+y la ubicación exige HTTPS; sin HTTPS se prueba el resto del flujo.
+
 ## Comunas de Chile (migraciones 0006 y 0007)
 
 El ruteo por comuna, el traspaso entre municipios y el aviso "estás en la comuna X" necesitan la tabla

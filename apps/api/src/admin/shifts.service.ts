@@ -5,13 +5,13 @@ import { AuditService } from '../auth/audit.service';
 import type { OperatorClaims } from '../auth/auth.guard';
 import { AppError } from '../common/app-error';
 import { DbService, type Tx } from '../db/db.service';
-import { operator, shift } from '../db/schema';
+import { operator, shift, unit } from '../db/schema';
 import { isUniqueViolation } from './operators.service';
 
 /** Un turno programado se puede iniciar desde 60 min antes. */
-const EARLY_START_MS = 60 * 60_000;
+export const EARLY_START_MS = 60 * 60_000;
 
-type ShiftRow = typeof shift.$inferSelect & { operatorName: string };
+type ShiftRow = Omit<typeof shift.$inferSelect, 'unitId'> & { operatorName: string; unitCode: string | null };
 
 /**
  * Turnos de la central: el supervisor programa (planned_*) y el operador marca inicio y término
@@ -87,7 +87,7 @@ export class ShiftsService {
         targetId: r.id,
         payload: { operatorId: body.operatorId, operatorName: who.name, plannedStart: body.plannedStart, plannedEnd: body.plannedEnd },
       });
-      return toShift({ ...r, operatorName: who.name });
+      return toShift({ ...r, operatorName: who.name, unitCode: null });
     });
   }
 
@@ -192,7 +192,12 @@ export class ShiftsService {
           last && last.handoverNote && last.endedAt
             ? { note: last.handoverNote, operatorName: last.operatorName, endedAt: last.endedAt.toISOString() }
             : null,
-        onDuty: onDuty.map((s) => ({ operatorId: s.operatorId, name: s.operatorName, startedAt: s.startedAt!.toISOString() })),
+        onDuty: onDuty.map((s) => ({
+          operatorId: s.operatorId,
+          name: s.operatorName,
+          startedAt: s.startedAt!.toISOString(),
+          unitCode: s.unitCode,
+        })),
       };
     });
   }
@@ -212,9 +217,11 @@ function selectShifts(tx: Tx) {
       createdBy: shift.createdBy,
       createdAt: shift.createdAt,
       operatorName: operator.name,
+      unitCode: unit.code,
     })
     .from(shift)
     .innerJoin(operator, eq(operator.id, shift.operatorId))
+    .leftJoin(unit, eq(unit.id, shift.unitId))
     .$dynamic();
 }
 
@@ -228,6 +235,7 @@ function toShift(r: ShiftRow): Shift {
     startedAt: r.startedAt?.toISOString() ?? null,
     endedAt: r.endedAt?.toISOString() ?? null,
     handoverNote: r.handoverNote,
+    unitCode: r.unitCode,
     createdAt: r.createdAt.toISOString(),
   };
 }

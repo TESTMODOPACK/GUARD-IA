@@ -60,6 +60,7 @@ d('uso indebido y resultado en terreno', () => {
     reads = new AlertReadService({ toPublic: async () => [] } as unknown as MediaService);
     const realtime = {
       alertUpdated: () => undefined,
+      fieldRefresh: () => undefined,
       dispatchUpdated: () => undefined,
       unitUpdated: () => undefined,
       citizenAlertStatus: () => undefined,

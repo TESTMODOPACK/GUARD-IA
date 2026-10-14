@@ -179,6 +179,8 @@ export class OpsService {
       detail = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, alertId));
     }
     this.realtime.alertUpdated(op.tenantId, detail);
+    // Una unidad en camino se entera de que la central cerró el caso (cancela su despacho).
+    this.realtime.fieldRefresh(detail.dispatches.map((d) => d.unitId));
     const notice = rejectNotice(body.reason, strikes);
     await this.notifyCitizen(detail, { title: notice.title, body: notice.body });
     return detail;
@@ -364,10 +366,12 @@ export class OpsService {
       return { detail: await this.reads.detail(tx, alertId), grouped };
     });
     this.realtime.alertUpdated(op.tenantId, detail);
+    this.realtime.fieldRefresh(detail.dispatches.map((d) => d.unitId));
     await this.notifyCitizen(detail, { title: 'Caso resuelto', body: 'La central cerró tu alerta. Gracias por reportar.' });
     for (const id of grouped) {
       const d = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, id));
       this.realtime.alertUpdated(op.tenantId, d);
+      this.realtime.fieldRefresh(d.dispatches.map((x) => x.unitId));
       await this.notifyCitizen(d, {
         title: 'Caso resuelto',
         body: 'La central resolvió el problema que reportaste (también lo reportaron otros vecinos). Gracias.',
@@ -529,6 +533,10 @@ export class OpsService {
           outcomeNote: body.notes ?? null,
           outcomeAt: now,
           outcomeBy: op.sub,
+          outcomeVia: 'CENTRAL',
+          // Lo que registra la central rige: una propuesta pendiente de la unidad queda atendida.
+          proposedCategory: null,
+          proposedSubcategory: null,
           ...(close ? { status: 'CLOSED' as const, closedAt: now } : {}),
         })
         .where(eq(dispatch.id, dispatchId))
@@ -677,7 +685,7 @@ export class OpsService {
   }
 }
 
-const STATUS_TEXT: Partial<Record<Dispatch['status'], { title: string; body: string }>> = {
+export const STATUS_TEXT: Partial<Record<Dispatch['status'], { title: string; body: string }>> = {
   EN_ROUTE: { title: 'Unidad en camino', body: 'La unidad {unit} va hacia tu ubicación.' },
   ON_SITE: { title: 'Unidad en el lugar', body: 'La unidad {unit} llegó a tu ubicación.' },
   CANCELLED: { title: 'Despacho cancelado', body: 'La central canceló el despacho de la unidad {unit}.' },

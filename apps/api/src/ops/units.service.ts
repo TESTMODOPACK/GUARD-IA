@@ -46,7 +46,7 @@ export class UnitsService {
   }
 
   async update(op: OperatorClaims, unitId: string, body: UpdateUnit): Promise<Unit> {
-    if (body.kind && op.role === 'OPERATOR') {
+    if (body.kind && op.role !== 'ADMIN' && op.role !== 'SUPERVISOR') {
       throw new AppError('FORBIDDEN', 'Solo ADMIN o SUPERVISOR cambian el tipo de unidad');
     }
     const u = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {

@@ -71,8 +71,14 @@ export type UnitStatus = (typeof UNIT_STATUSES)[number];
 export const UNIT_KINDS = ['PATRULLA', 'MOTO', 'INSPECTOR'] as const;
 export type UnitKind = (typeof UNIT_KINDS)[number];
 
-export const OPERATOR_ROLES = ['ADMIN', 'SUPERVISOR', 'OPERATOR'] as const;
+/**
+ * FIELD (migración 0012): funcionario de terreno. Entra con su propia cuenta a /terreno, elige su unidad al
+ * iniciar turno y solo ve el caso al que despacharon su unidad (contexto RLS `field`).
+ */
+export const OPERATOR_ROLES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'FIELD'] as const;
 export type OperatorRole = (typeof OPERATOR_ROLES)[number];
+/** Quienes trabajan en la central (todo /ops salvo /ops/field). */
+export const CENTRAL_ROLES: readonly OperatorRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR'];
 
 export const ACTOR_TYPES = ['CITIZEN', 'OPERATOR', 'SYSTEM', 'AI'] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
@@ -127,6 +133,33 @@ export const DISPATCH_OUTCOMES = [
 ] as const;
 export type DispatchOutcome = (typeof DISPATCH_OUTCOMES)[number];
 export const TERMINAL_OUTCOMES: readonly DispatchOutcome[] = ['RESOLVED_ON_SITE', 'REFERRED', 'NOT_FOUND', 'FALSE_ALARM_CONFIRMED'];
+/** Quién informó el resultado (0012): la central con lo que dijo la unidad por radio, o la unidad desde /terreno. */
+export const OUTCOME_VIA = ['CENTRAL', 'FIELD'] as const;
+export type OutcomeVia = (typeof OUTCOME_VIA)[number];
+
+/**
+ * Avisos de terreno a la central (0012, tipo field_alarm_kind): pánico del funcionario, pedido de apoyo y los
+ * plazos vencidos (no marcó "en camino" a tiempo, o lleva demasiado sin dar noticias).
+ */
+export const FIELD_ALARM_KINDS = ['PANIC', 'SUPPORT', 'LATE', 'NO_NEWS'] as const;
+export type FieldAlarmKind = (typeof FIELD_ALARM_KINDS)[number];
+
+/**
+ * Plazos de terreno (RT-7, docs/plan-plataforma.md §5c). Solo corren para unidades con un funcionario de terreno
+ * en turno: una unidad que se maneja por radio la actualiza la central.
+ */
+export const FIELD_DEADLINES = {
+  /** Despachada y sin "en camino". */
+  assignedSeconds: 120,
+  /** En camino y sin "llegué". */
+  enRouteMinutes: 20,
+  /** En el lugar y sin informar nada. */
+  onSiteMinutes: 30,
+} as const;
+
+/** Fotos por informe de terreno y cada cuánto manda su posición el teléfono con un despacho abierto. */
+export const FIELD_PHOTOS_MAX = 3;
+export const FIELD_LOCATION_EVERY_MS = 15_000;
 
 /** Bitácora del sistema (migración 0003, tipo audit_kind). */
 export const AUDIT_KINDS = [
@@ -194,6 +227,8 @@ export const ALERT_EVENT_KINDS = [
   'TRANSFERRED',
   /** Migración 0008: resultado informado desde terreno (por radio o, después, desde la unidad). */
   'FIELD_REPORT',
+  /** Migración 0012: aviso de terreno ligado al caso (pánico, apoyo, plazo vencido). */
+  'FIELD_ALARM',
 ] as const;
 export type AlertEventKind = (typeof ALERT_EVENT_KINDS)[number];
 

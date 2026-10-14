@@ -15,6 +15,8 @@ export type DbContext =
   | { role: 'system' }
   | { role: 'citizen'; citizenId: string }
   | { role: 'operator'; tenantId: string; operatorId: string }
+  /** Funcionario de terreno (0012): su turno, su unidad y el caso al que la despacharon; nada más. */
+  | { role: 'field'; tenantId: string; operatorId: string }
   /** Consola de plataforma (0010): ve municipios y comunas, nunca vecinos ni alertas. */
   | { role: 'platform'; userId: string };
 
@@ -57,8 +59,9 @@ export class DbService implements OnModuleDestroy {
         `withContext(${ctx.role}) anidado dentro de withContext(${outer.role}): usa la tx existente`,
       );
     }
-    const tenantId = ctx.role === 'operator' ? ctx.tenantId : '';
+    const tenantId = ctx.role === 'operator' || ctx.role === 'field' ? ctx.tenantId : '';
     const citizenId = ctx.role === 'citizen' ? ctx.citizenId : '';
+    const operatorId = ctx.role === 'operator' || ctx.role === 'field' ? ctx.operatorId : '';
 
     return this.depth.run(ctx, () =>
       withTimeout(
@@ -66,7 +69,8 @@ export class DbService implements OnModuleDestroy {
           await tx.execute(
             sql`select set_config('app.role', ${ctx.role}, true),
                        set_config('app.tenant_id', ${tenantId}, true),
-                       set_config('app.citizen_id', ${citizenId}, true)`,
+                       set_config('app.citizen_id', ${citizenId}, true),
+                       set_config('app.operator_id', ${operatorId}, true)`,
           );
           return fn(tx);
         }),
@@ -86,6 +90,10 @@ export class DbService implements OnModuleDestroy {
 
   asOperator<T>(tenantId: string, operatorId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
     return this.withContext({ role: 'operator', tenantId, operatorId }, fn);
+  }
+
+  asField<T>(tenantId: string, operatorId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+    return this.withContext({ role: 'field', tenantId, operatorId }, fn);
   }
 
   asPlatform<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {

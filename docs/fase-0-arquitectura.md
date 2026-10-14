@@ -139,6 +139,18 @@ ADMIN), `POST /ops/blocks/:id/lift` `{reason}`, `POST /ops/strikes/:id/annul` `{
 `{grant, response}`. `AlertSummary.citizenRestricted`, `CitizenStanding.openBlock` y `blockProposed` en el evento de
 rechazo. WS `/citizen`: `account.updated` `{level}` (la app relee la cuenta). Consola: `TenantDetail.misuse`.
 
+Terreno (migración 0012, 14-10-2026; `docs/plan-plataforma.md` §5c). Rol `FIELD` (JWT de operador): solo
+`/ops/field/*` y `POST /ops/me/password`; cualquier otro endpoint de `/ops` responde 403. `GET /ops/field/state`
+(turno con unidad, despacho abierto de su unidad tal como lo ve la unidad, unidades para elegir, pánico abierto);
+`POST /ops/field/shift/start` `{unitId}` y `/shift/end` (no con un despacho abierto); `POST
+/ops/field/dispatches/:id/status` `{status: EN_ROUTE|ON_SITE, location?}`; `POST /ops/field/dispatches/:id/report`
+multipart (`meta` = `{outcome, notes?, category?, subcategory?, location?}` y hasta 3 `photo`); `POST
+/ops/field/location` `{lat, lng, accuracyM?}` (204; solo con despacho abierto); `POST /ops/field/panic` `{location?,
+note?}`. Central (ADMIN, SUPERVISOR, OPERATOR): `GET /ops/field-alarms` (abiertos) y `POST /ops/field-alarms/:id/ack`
+`{note?}`. `Dispatch.outcomeVia` (CENTRAL|FIELD), `proposedCategory`/`proposedSubcategory` (los aplica la central con
+`POST /ops/dispatches/:id/outcome`); `Shift.unitCode`, `ShiftStatus.onDuty[].unitCode`; evento `FIELD_ALARM`. WS:
+`field.alarm` en `/ops`; namespace `/field` (rooms `unit:{id}` y `operator:{id}`) con `field.refresh` y `field.alarm`.
+
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
 Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas/common.ts`.
