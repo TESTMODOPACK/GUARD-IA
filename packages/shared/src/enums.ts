@@ -75,10 +75,30 @@ export type UnitKind = (typeof UNIT_KINDS)[number];
  * FIELD (migración 0012): funcionario de terreno. Entra con su propia cuenta a /terreno, elige su unidad al
  * iniciar turno y solo ve el caso al que despacharon su unidad (contexto RLS `field`).
  */
-export const OPERATOR_ROLES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'FIELD'] as const;
+export const OPERATOR_ROLES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'FIELD', 'ASSISTANT'] as const;
 export type OperatorRole = (typeof OPERATOR_ROLES)[number];
-/** Quienes trabajan en la central (todo /ops salvo /ops/field). */
-export const CENTRAL_ROLES: readonly OperatorRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR'];
+/** Quienes trabajan en la central (todo /ops salvo /ops/field). ASSISTANT (0013): apoyo administrativo, solo consulta. */
+export const CENTRAL_ROLES: readonly OperatorRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'ASSISTANT'];
+/** Quienes actúan sobre los casos (tomar, despachar, rechazar, cerrar, reclasificar, derivar). */
+export const OPERATING_ROLES: readonly OperatorRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR'];
+
+/**
+ * Áreas municipales (migración 0013): cómo llegó el aviso a su área. AUTO = la base al insertar (SOS al área de
+ * los SOS, reporte urbano según la categoría que eligió el vecino); AI = el agente lo corrigió; OPERATOR = lo
+ * reasignó una persona (manda: el agente ya no lo mueve).
+ */
+export const AREA_SOURCES = ['AUTO', 'AI', 'OPERATOR'] as const;
+export type AreaSource = (typeof AREA_SOURCES)[number];
+
+/** Áreas que la central sugiere al administrador cuando el municipio aún no tiene ninguna (las edita a gusto). */
+export const SUGGESTED_AREAS: readonly { name: string; receivesSos: boolean; categories: readonly CivicCategory[] }[] = [
+  { name: 'Seguridad', receivesSos: true, categories: [] },
+  { name: 'Aseo y ornato', receivesSos: false, categories: ['BASURA_MICROBASURAL', 'AREA_VERDE'] },
+  { name: 'Alumbrado', receivesSos: false, categories: ['LUMINARIA'] },
+  { name: 'Obras y vialidad', receivesSos: false, categories: ['BACHE', 'OTRO_URBANO'] },
+  { name: 'Tránsito', receivesSos: false, categories: ['SEMAFORO'] },
+  { name: 'Medio ambiente', receivesSos: false, categories: ['ANIMAL'] },
+];
 
 export const ACTOR_TYPES = ['CITIZEN', 'OPERATOR', 'SYSTEM', 'AI'] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
@@ -189,6 +209,12 @@ export const AUDIT_KINDS = [
   'CITIZEN_UNBLOCKED',
   'STRIKE_ANNULLED',
   'REVIEW_RESOLVED',
+  /** Migración 0013: áreas municipales. */
+  'AREA_CREATED',
+  'AREA_UPDATED',
+  'AREA_RULES_UPDATED',
+  'AREA_MODE_CHANGED',
+  'ALERT_AREA_CHANGED',
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
@@ -229,6 +255,8 @@ export const ALERT_EVENT_KINDS = [
   'FIELD_REPORT',
   /** Migración 0012: aviso de terreno ligado al caso (pánico, apoyo, plazo vencido). */
   'FIELD_ALARM',
+  /** Migración 0013: el caso pasó a otra área del municipio (el agente o una persona). */
+  'AREA_CHANGED',
 ] as const;
 export type AlertEventKind = (typeof ALERT_EVENT_KINDS)[number];
 

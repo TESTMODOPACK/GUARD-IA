@@ -7,8 +7,10 @@ import {
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import { WS_NAMESPACES, wsRooms, type WsHandshakeAuth } from '@guardia/shared';
+import { loadOperatorScope } from '../areas/area-scope';
 import { OperatorStatusService } from '../auth/operator-status.service';
 import { TokenService } from '../auth/token.service';
+import { DbService } from '../db/db.service';
 import { RealtimeService } from './realtime.service';
 
 /**
@@ -26,6 +28,7 @@ export class OpsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly tokens: TokenService,
     private readonly realtime: RealtimeService,
     private readonly operators: OperatorStatusService,
+    private readonly dbs: DbService,
   ) {}
 
   afterInit() {
@@ -41,6 +44,15 @@ export class OpsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!status || !status.active || status.tenantId !== claims.tenantId) throw new Error('La cuenta está desactivada');
       if (status.role === 'FIELD') throw new Error('Cuenta de terreno: usa /field');
       await client.join(wsRooms.tenant(claims.tenantId));
+      // Áreas (0013): los avisos llegan solo a las rooms de lo que puede ver (mismo criterio que la RLS).
+      const scope = await this.dbs.asSystem((tx) =>
+        loadOperatorScope(tx, { id: claims.sub, tenantId: claims.tenantId, role: status.role }),
+      );
+      if (scope.seesAll) await client.join(wsRooms.alertsAll(claims.tenantId));
+      else {
+        for (const a of scope.areas) await client.join(wsRooms.area(a.id));
+        if (scope.inSosArea) await client.join(wsRooms.security(claims.tenantId));
+      }
       client.data.claims = claims;
       this.logger.debug(`operador ${claims.sub} conectado a tenant ${claims.tenantId}`);
       if (auth.since) {

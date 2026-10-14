@@ -277,7 +277,8 @@ revisión, anular faltas. Falta de PT: la app de terreno.
 Etapa 2a hecha (migración 0009, endurecimiento de la base, informe en `docs/revision-base-de-datos.md`): sin PK de
 texto, índices y `tenant_id` explícito por municipio, privilegios mínimos (cada migración nueva declara sus
 `GRANT`), RLS en `tenant` con la vista `tenant_directory`, FK compuestas por municipio y purga de tokens y
-códigos vencidos. El particionado queda como `0013_scale.sql` (`0011` es el bloqueo por uso indebido y `0012` terreno).
+códigos vencidos. El particionado queda como `0014_scale.sql` (`0011` es el bloqueo por uso indebido, `0012` terreno y
+`0013` áreas).
 
 Etapa 2b hecha (migración 0010, P1): consola aparte (`apps/platform`, dominio propio en Caddy) con usuarios de
 plataforma y segundo factor TOTP, sesiones cortas y bloqueo por intentos; regiones de norte a sur y provincias;
@@ -320,6 +321,21 @@ caso de su unidad, nunca datos del vecino. **Falta PT-4**: aviso con el teléfon
 con la página agregada a la pantalla de inicio) e instalación como app; hoy el despacho suena y vibra con la página
 abierta, y la radio sigue de respaldo.
 
+PA hecho (14-10-2026, migración 0013): **áreas municipales**. El administrador municipal define las áreas en
+`/admin/areas` (o parte de las sugeridas: Seguridad, Aseo y ornato, Alumbrado, Obras y vialidad, Tránsito, Medio
+ambiente), cuál recibe los SOS (una sola), qué categoría de reporte urbano atiende cada una (con excepciones por
+subcategoría) y, en Usuarios, a qué áreas pertenece cada cuenta (una o más). El agente deriva: el reporte llega al
+área de su categoría y, si al clasificarlo (`triage-v3`) cambia la categoría, cambia de área. Un reporte urbano con
+**carácter de seguridad** (drogas, amenazas, armas, personas sospechosas, violencia; marca del modelo o regla fija
+`SEGURIDAD_EN_REPORTE`) lo ve además el área de los SOS, sin salir de la suya. Cada cuenta ve solo las alertas de sus
+áreas (lo exige la base con políticas RLS), el administrador ve todo y una persona puede pasar una alerta a otra área
+con motivo (manda sobre el agente; queda en la línea de tiempo y en la bitácora). La excepción: el municipio puede
+activar "todas las áreas ven todo", con motivo. Al cambiar las áreas o el rol de una cuenta, su central se recarga sola.
+Rol nuevo **Apoyo administrativo** (`ASSISTANT`): consulta alertas, panel y bitácora y escribe notas; no actúa sobre
+las alertas. Las categorías siguen siendo nacionales (las fija Guard-IA); el municipio solo decide quién las atiende.
+Queda: que la app del vecino descargue las categorías desde la API (hoy vienen en `shared`); despachos, unidades y
+avisos de terreno siguen siendo de todo el municipio.
+
 ## 6. Modelo de datos propuesto
 
 | Tabla | Llave | Contenido |
@@ -359,6 +375,7 @@ abierta, y la radio sigue de respaldo.
 | P1 Base de plataforma | Usuarios de plataforma con TOTP, guard y contexto RLS, bitácora de plataforma, `tenant.status`, regiones y provincias, navegación región → provincia → comuna con resumen y mapa, alta de municipio desde comuna, invitación al administrador municipal, activar/suspender/baja, lista de puesta en marcha, modo prueba | 6 días | Antes del piloto |
 | PU Uso indebido | Motivos de rechazo nuevos y sin valor por defecto, faltas con vencimiento, advertencias en la app y por push, cuenta restringida, propuesta y aprobación de bloqueo, "Estado de tu cuenta" y pedir revisión, números de emergencia en la app bloqueada | 4 a 5 días | Antes del piloto (al menos motivos y advertencias) |
 | PT Terreno | Resultados del despacho registrados desde la central (RT-9); después la app web de terreno: funcionario con unidad, recibir despacho, en camino y llegué, resultado con nota y foto, ubicación, pedir apoyo, pánico del funcionario, plazos | 1 a 2 días, más 5 la app | Resultados antes del piloto; app durante el piloto |
+| PA Áreas municipales | Áreas definidas por el municipio, reglas por categoría y subcategoría, cuentas por área, derivación por el agente, carácter de seguridad, reasignación con motivo, modo compartido, apoyo administrativo | 2 a 3 días | Hecho (14-10) |
 | P2 Errores y salud | `error_group`/`error_event`, filtro global, reporte desde central y app, panel de fallas con estados, avisos por correo, panel de salud | 4 días | Antes del piloto |
 | P3 Métricas de uso | `usage_daily` (job nocturno y contadores), panel global, por región y por municipio, límites del plan con avisos, calidad del agente | 4 días | Durante el piloto |
 | P4 Planes y contratos | Clientes, catálogo de planes versionado, contratos de una o varias comunas, documentos, renovaciones y avisos de vencimiento | 3 a 4 días | Antes del primer cobro |
@@ -382,6 +399,13 @@ abierta, y la radio sigue de respaldo.
 9. ~~Escalera de uso indebido: ¿3 faltas en 90 días y 30 días de bloqueo?~~ **Decidido (13-10):** sí.
 10. ~~Terreno: ¿app web dentro de la central o app nativa? ¿Cada funcionario con su cuenta o una por unidad?~~
     **Decidido (14-10):** página web dentro de la central (`/terreno`) y una cuenta por funcionario.
+11. ~~Áreas: ¿catálogo fijo o editable? ¿Una o varias áreas por cuenta? ¿A qué área van los SOS? ¿Qué hace el apoyo
+    administrativo?~~ **Decidido (14-10):** las define el administrador municipal, partiendo de un catálogo sugerido
+    que puede editar; una o más áreas por cuenta; todos los SOS al área que los recibe; el apoyo administrativo
+    consulta sin operar. Excepción del municipio: todas las áreas ven todo.
+12. ~~Categorías: ¿propias de cada municipio o nacionales?~~ **Decidido (14-10, revisable):** nacionales y fijas
+    (Guard-IA las mantiene, igual en la app, la central y el agente); el municipio asigna cada categoría o
+    subcategoría a un área.
 
 ## 10. Riesgos
 - Cortar el servicio a un municipio deja a los vecinos sin canal: la suspensión nunca corta el SOS y la baja

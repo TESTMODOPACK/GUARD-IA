@@ -44,12 +44,57 @@ export class RealtimeService {
     this.fieldNs = ns;
   }
 
+  /**
+   * Avisos por área (0013): a quienes ven todo, al área del aviso y, si tiene carácter de seguridad, al área de los SOS.
+   * Sin área (municipio sin áreas definidas) va a todo el municipio. Es el mismo criterio de la política
+   * alert_operator_area: nadie recibe por aquí lo que la base no le dejaría leer.
+   */
+  private alertRooms(tenantId: string, a: { area: { id: string } | null; securityRelevant: boolean }): string[] {
+    if (!a.area) return [wsRooms.tenant(tenantId)];
+    return [
+      wsRooms.alertsAll(tenantId),
+      wsRooms.area(a.area.id),
+      ...(a.securityRelevant ? [wsRooms.security(tenantId)] : []),
+    ];
+  }
+
   alertCreated(tenantId: string, alert: AlertSummary) {
-    this.ops?.to(wsRooms.tenant(tenantId)).emit('alert.created', alert);
+    this.ops?.to(this.alertRooms(tenantId, alert)).emit('alert.created', alert);
   }
 
   alertUpdated(tenantId: string, alert: AlertDetail) {
-    this.ops?.to(wsRooms.tenant(tenantId)).emit('alert.updated', alert);
+    this.ops?.to(this.alertRooms(tenantId, alert)).emit('alert.updated', alert);
+  }
+
+  /**
+   * El aviso cambió de área o perdió la marca de seguridad: quienes lo veían y ya no, lo sacan de su cola. Va antes de
+   * `alertUpdated` con el estado nuevo.
+   */
+  alertMoved(
+    tenantId: string,
+    alertId: string,
+    before: { areaId: string | null; securityRelevant: boolean },
+    after: { area: { id: string; name: string } | null; securityRelevant: boolean },
+  ) {
+    if (!this.ops || !before.areaId) return;
+    const prev = this.alertRooms(tenantId, { area: { id: before.areaId }, securityRelevant: before.securityRelevant });
+    const next = this.alertRooms(tenantId, after);
+    const lost = prev.filter((r) => !next.includes(r));
+    if (lost.length === 0) return;
+    this.ops.to(lost).except(next).emit('alert.removed', { alertId, areaName: after.area?.name ?? null });
+  }
+
+  /**
+   * Cambió lo que ven (sus áreas, su rol, el modo compartido): los sockets se cierran y la central se reconecta sola,
+   * relee /ops/me y entra a las rooms nuevas.
+   */
+  async reconnectOperators(tenantId: string, operatorIds?: string[]) {
+    if (!this.ops) return;
+    const sockets = await this.ops.in(wsRooms.tenant(tenantId)).fetchSockets();
+    for (const s of sockets) {
+      const sub = (s.data as { claims?: { sub: string } }).claims?.sub;
+      if (!operatorIds || (sub && operatorIds.includes(sub))) s.disconnect(true);
+    }
   }
 
   /** Cualquier cambio de un despacho llega a la central y avisa a quienes salieron con esa unidad. */

@@ -1,11 +1,12 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import type { AlertDetail, AlertSummary, AlertTransferred, Dispatch, FieldAlarm, ImportanceLevel, Unit } from '@guardia/shared';
+import type { AlertDetail, AlertSummary, AlertTransferred, Dispatch, FieldAlarm, ImportanceLevel, OperatorPublic, Unit } from '@guardia/shared';
 import { WS_NAMESPACES } from '@guardia/shared';
 import { api, fetchAllAlerts, getAccessToken, refreshAccessToken } from './api';
 import { API_URL } from './config';
-import { ACTIVE_STATUSES, useStore, type AnyAlert } from './store';
+import { updateOperator } from './session';
+import { ACTIVE_STATUSES, useStore, viewerOf, type AnyAlert, type Viewer } from './store';
 import { ping } from './sound';
 
 let socket: Socket | null = null;
@@ -63,8 +64,25 @@ function ingest(list: AnyAlert[], announce: boolean) {
   if (fresh.length > 0 && s.prefs.sound) ping('sos');
 }
 
+const scopeKey = (v: Viewer) => `${v.role}|${v.seesAll}|${[...v.areaIds].sort().join(',')}`;
+
 /**
- * Al conectar y en cada reconexión: alertas activas (todas las páginas) y unidades por REST.
+ * La cuenta tal como está en la base (0013). El administrador puede cambiar sus áreas o el modo del municipio; la API
+ * entonces cierra el socket y al reconectar se llega aquí. Si cambió lo que ve, la cola se vacía antes de cargar.
+ */
+function applyScope(me: OperatorPublic) {
+  const s = useStore.getState();
+  const next = viewerOf(me);
+  if (s.viewer && scopeKey(s.viewer) !== scopeKey(next)) {
+    s.resetAlerts();
+    s.notify('ok', 'Cambiaron las áreas que ves: la cola se volvió a cargar');
+  }
+  s.setViewer(next);
+  updateOperator(me);
+}
+
+/**
+ * Al conectar y en cada reconexión: la cuenta, y luego alertas activas (todas las páginas), unidades y áreas por REST.
  * Cubre el hueco entre la carga y el socket, y lo que el `sync` no trae (unidades, despachos).
  * Si falla, reintenta cada 5 s mientras el socket siga vivo.
  */
@@ -72,9 +90,18 @@ async function resync() {
   clearTimeout(resyncTimer);
   const seq = ++resyncSeq;
   try {
-    const [active, units, alarms] = await Promise.all([fetchAllAlerts(ACTIVE_STATUSES), api.units(), api.fieldAlarms()]);
+    const me = await api.me();
+    if (seq !== resyncSeq || !socket) return;
+    applyScope(me);
+    const [active, units, alarms, areaRefs] = await Promise.all([
+      fetchAllAlerts(ACTIVE_STATUSES),
+      api.units(),
+      api.fieldAlarms(),
+      api.areas.refs(),
+    ]);
     if (seq !== resyncSeq || !socket) return;
     const s = useStore.getState();
+    s.setAreaRefs(areaRefs);
     ingest(active, s.loaded);
     s.setUnits(units);
     s.setFieldAlarms(alarms);
@@ -172,6 +199,13 @@ export function connectRealtime(): void {
     const s = useStore.getState();
     s.removeAlert(p.alertId);
     s.notify('ok', `Alerta traspasada a ${p.toTenantName}${p.auto ? ' por el agente' : ''}: ${p.reason}`);
+  });
+  // Pasó a un área que esta cuenta no ve (0013).
+  socket.on('alert.removed', (p: { alertId: string; areaName: string | null }) => {
+    const s = useStore.getState();
+    if (!(p.alertId in s.alerts)) return;
+    s.removeAlert(p.alertId);
+    s.notify('ok', p.areaName ? `Una alerta pasó al área ${p.areaName} y salió de tu cola` : 'Una alerta salió de tu cola');
   });
   socket.on('sync', (p: { since: string; alerts: AlertSummary[] }) => ingest(p.alerts, true));
 }

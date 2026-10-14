@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Job } from 'bullmq';
 import { buildTriage, hasCriticalPhrase, type AlertType, type Priority } from '@guardia/shared';
 import { AlertReadService } from '../alerts/alert-read.service';
+import { refreshAlertArea, type AreaBefore } from '../areas/area-scope';
 import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
 import { alert, citizen, media, tenant, triageLabel } from '../db/schema';
@@ -94,7 +95,7 @@ export class AiProcessor extends WorkerHost {
 
     // Sin nada que analizar: reporte urbano con categoría elegida → SKIPPED.
     if (!audio && !row.userText?.trim()) {
-      await this.dbs.asSystem(async (tx) => {
+      const before = await this.dbs.asSystem(async (tx) => {
         await tx
           .update(alert)
           .set({
@@ -111,8 +112,9 @@ export class AiProcessor extends WorkerHost {
           kind: 'AI_PROCESSED',
           payload: { skipped: true, reason: 'sin audio ni texto' },
         });
+        return refreshAlertArea(tx, alertId, 'AI', null);
       });
-      await this.emitUpdated(alertId, row.tenantId);
+      await this.emitUpdated(alertId, row.tenantId, before);
       return;
     }
 
@@ -162,7 +164,7 @@ export class AiProcessor extends WorkerHost {
       restricted: row.citizenRestricted,
     });
 
-    const keptByOperator = await this.dbs.asSystem(async (tx) => {
+    const { kept: keptByOperator, before } = await this.dbs.asSystem(async (tx) => {
       // Si el operador ya corrigió la clasificación (p. ej. llamó al vecino mientras la IA corría o
       // pidió volver a analizar), manda la suya: la IA solo actualiza su propuesta en ai_triage.
       const [label] = await tx
@@ -213,7 +215,9 @@ export class AiProcessor extends WorkerHost {
           attempt: job.attemptsMade + 1,
         },
       });
-      return kept;
+      // Áreas (0013): el reporte urbano va al área de la categoría que quedó (salvo que una persona lo haya
+      // reasignado) y, si tiene carácter de seguridad, lo ve también el área de los SOS.
+      return { kept, before: await refreshAlertArea(tx, alertId, 'AI', triage.flags.security_relevant) };
     });
     if (keptByOperator) this.logger.debug(`alerta ${alertId}: se mantiene la clasificación del operador`);
     this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'done' }, (Date.now() - started) / 1000);
@@ -223,7 +227,7 @@ export class AiProcessor extends WorkerHost {
       this.logger.warn(`alerta ${alertId}: traspaso automático falló: ${e.message}`);
       return false;
     });
-    if (!moved) await this.emitUpdated(alertId, row.tenantId);
+    if (!moved) await this.emitUpdated(alertId, row.tenantId, before);
   }
 
   /** Último intento fallido: falla segura. Un SOS sin clasificar es HIGH y se muestra igual. */
@@ -238,7 +242,7 @@ export class AiProcessor extends WorkerHost {
     if (job.attemptsMade < attempts) return;
 
     const { alertId } = job.data;
-    const tenantId = await this.dbs.asSystem(async (tx) => {
+    const out = await this.dbs.asSystem(async (tx) => {
       const [row] = await tx.select().from(alert).where(eq(alert.id, alertId)).limit(1);
       if (!row) return null;
       // Sin IA (caída, sin cuota) igual se clasifica lo que se pueda: el clasificador sin red y las
@@ -290,10 +294,10 @@ export class AiProcessor extends WorkerHost {
           ...(fallback ? { fallback: 'reglas', category: fallback.category, priority: fallback.priority, rules: fallback.rules } : {}),
         },
       });
-      return row.tenantId;
+      return { tenantId: row.tenantId, before: await refreshAlertArea(tx, alertId, 'AI', fallback ? fallback.flags.security_relevant : null) };
     });
     this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'failed' }, 0);
-    await this.emitUpdated(alertId, tenantId);
+    await this.emitUpdated(alertId, out?.tenantId ?? null, out?.before);
   }
 
   /** Solo la ficha (sin recalcular el grupo): la clasificación llega después con emitUpdated. */
@@ -303,7 +307,7 @@ export class AiProcessor extends WorkerHost {
     this.realtime.alertUpdated(tenantId, detail);
   }
 
-  private async emitUpdated(alertId: string, tenantId: string | null) {
+  private async emitUpdated(alertId: string, tenantId: string | null, before?: AreaBefore | null) {
     if (!tenantId) return;
     // La IA fijó prioridad, categoría y señales: se agrupa (si no alcanzó al crear la alerta) y se
     // recalcula la importancia del grupo. Si falla, la alerta se emite igual sin grupo actualizado.
@@ -313,6 +317,8 @@ export class AiProcessor extends WorkerHost {
       this.logger.warn(`incidente de ${alertId} sin recalcular: ${(e as Error).message}`);
     }
     const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
+    if (before) this.realtime.alertMoved(tenantId, alertId, before, detail);
     this.realtime.alertUpdated(tenantId, detail);
   }
 }
+

@@ -13,6 +13,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import {
   AckFieldAlarmSchema,
+  CENTRAL_ROLES,
+  OPERATING_ROLES,
   FIELD_PHOTOS_MAX,
   FieldLocationSchema,
   FieldReportSchema,
@@ -115,7 +117,7 @@ export class FieldController {
 /** Avisos de terreno para la central (pánico, apoyo, plazos). */
 @Controller('ops/field-alarms')
 @Auth('operator')
-@Roles('ADMIN', 'SUPERVISOR', 'OPERATOR')
+@Roles(...CENTRAL_ROLES)
 export class FieldAlarmsController {
   constructor(private readonly alarms: FieldAlarmsService) {}
 
@@ -125,6 +127,7 @@ export class FieldAlarmsController {
   }
 
   @Post(':id/ack')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   ack(
     @CurrentAuth() op: OperatorClaims,

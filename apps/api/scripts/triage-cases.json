@@ -141,6 +141,14 @@
     { "id": "otro-01", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": "OTRO_URBANO", "text": "hay un auto abandonado hace meses, lleno de basura",
       "expect": { "category": "OTRO_URBANO", "subcategory": "VEHICULO_ABANDONADO", "priority": "LOW", "primary": ["OBRAS_ASEO", "SEGURIDAD_MUNICIPAL"] } },
     { "id": "otro-02", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": null, "text": "rayaron todas las paredes del consultorio",
-      "expect": { "category": "OTRO_URBANO", "subcategory": "RAYADOS", "priority": "LOW", "primary": ["OBRAS_ASEO", "SEGURIDAD_MUNICIPAL"] } }
+      "expect": { "category": "OTRO_URBANO", "subcategory": "RAYADOS", "priority": "LOW", "primary": ["OBRAS_ASEO", "SEGURIDAD_MUNICIPAL"] } },
+    { "id": "seg-01", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": "LUMINARIA", "text": "la luminaria de la plaza está apagada hace un mes y en la noche están asaltando a la gente que pasa",
+      "expect": { "category": "LUMINARIA", "priority": ["MEDIUM", "HIGH"], "flags": { "security_relevant": true } } },
+    { "id": "seg-02", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": "BASURA_MICROBASURAL", "text": "en el microbasural de la esquina se juntan en la noche a consumir drogas y molestan a los vecinos",
+      "expect": { "category": "BASURA_MICROBASURAL", "priority": ["LOW", "MEDIUM"], "flags": { "security_relevant": true } } },
+    { "id": "seg-03", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": null, "text": "en la casa abandonada del pasaje se meten a vender droga y hay peleas casi todas las noches",
+      "expect": { "category": "OTRO_URBANO", "priority": ["MEDIUM", "HIGH"], "flags": { "security_relevant": true } } },
+    { "id": "seg-04", "type": "CIVIC_REPORT", "via": "text", "chosenCategory": "BACHE", "text": "el bache de la avenida es peligroso, ya van dos autos con la rueda reventada",
+      "expect": { "category": "BACHE", "priority": ["LOW", "MEDIUM", "HIGH"], "flags": { "security_relevant": false } } }
   ]
 }

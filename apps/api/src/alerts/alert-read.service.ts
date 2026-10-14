@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import type { AlertDetail, AlertStatus, AlertSummary, AlertType, CitizenAlert, RejectReason, TriageLabel } from '@guardia/shared';
+import type { AlertDetail, AlertStatus, AlertSummary, AlertType, AreaRef, CitizenAlert, RejectReason, TriageLabel } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import {
   toAlertDetail,
@@ -14,6 +14,7 @@ import type { Tx } from '../db/db.service';
 import {
   alert,
   alertEvent,
+  area,
   citizen,
   citizenStrike,
   dispatch,
@@ -87,8 +88,20 @@ export class AlertReadService {
     return map;
   }
 
+  /** Nombre del área de cada aviso (0013). */
+  private async areaRefs(tx: Tx, ids: (string | null)[]): Promise<Map<string, AreaRef>> {
+    const wanted = [...new Set(ids.filter((x): x is string => !!x))];
+    if (wanted.length === 0) return new Map();
+    const rows = await tx
+      .select({ id: area.id, name: area.name, receivesSos: area.receivesSos })
+      .from(area)
+      .where(inArray(area.id, wanted));
+    return new Map(rows.map((r) => [r.id, r]));
+  }
+
   async summaries(tx: Tx, rows: AlertRow[]): Promise<AlertSummary[]> {
     const ex = await this.extras(tx, rows);
+    const areas = await this.areaRefs(tx, rows.map((r) => r.areaId));
     const incidents = await loadIncidentInfos(
       tx,
       rows.map((r) => r.incidentId).filter((x): x is string => !!x),
@@ -100,6 +113,7 @@ export class AlertReadService {
         hasPhoto: e.hasPhoto,
         citizenTrustScore: e.trust,
         incident: r.incidentId ? (incidents.get(r.incidentId) ?? null) : null,
+        area: r.areaId ? (areas.get(r.areaId) ?? null) : null,
       });
     });
   }
@@ -173,6 +187,7 @@ export class AlertReadService {
       hasPhoto: live.some((m) => m.kind === 'PHOTO'),
       citizenTrustScore: c?.trust ?? null,
       incident: incidentInfo,
+      area: row.areaId ? ((await this.areaRefs(tx, [row.areaId])).get(row.areaId) ?? null) : null,
       citizenPhone: c?.phone ?? null,
       citizenName: c?.name ?? null,
       citizenStrikes: await activeStrikes(tx, row.citizenId),

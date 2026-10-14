@@ -4,6 +4,7 @@ import type {
   AlertEventKind,
   AlertSource,
   AlertStatus,
+  AreaSource,
   AuditKind,
   ContactCategory,
   DispatchOutcome,
@@ -258,12 +259,14 @@ export const EVENT_KIND: Record<AlertEventKind, string> = {
   TRANSFERRED: 'Traspaso entre municipios',
   FIELD_REPORT: 'Resultado en terreno',
   FIELD_ALARM: 'Aviso de terreno',
+  AREA_CHANGED: 'Cambio de área',
 };
 
 export const ROLE: Record<OperatorRole, string> = {
   ADMIN: 'Administrador',
   SUPERVISOR: 'Supervisor',
   OPERATOR: 'Operador',
+  ASSISTANT: 'Apoyo administrativo',
   FIELD: 'Terreno',
 };
 
@@ -271,6 +274,7 @@ export const ROLE_HELP: Record<OperatorRole, string> = {
   ADMIN: 'Todo, incluidos usuarios',
   SUPERVISOR: 'Turnos, directorio, unidades y panel',
   OPERATOR: 'Atiende alertas y marca su turno',
+  ASSISTANT: 'Consulta alertas, panel y bitácora y escribe notas; no actúa sobre las alertas',
   FIELD: 'Inspector o patrullero: recibe despachos e informa desde su teléfono en /terreno',
 };
 
@@ -321,6 +325,18 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   CITIZEN_UNBLOCKED: 'Levantó el bloqueo de un vecino',
   STRIKE_ANNULLED: 'Anuló una falta',
   REVIEW_RESOLVED: 'Respondió una solicitud de revisión',
+  AREA_CREATED: 'Creó un área',
+  AREA_UPDATED: 'Modificó un área',
+  AREA_RULES_UPDATED: 'Cambió qué reportes atiende cada área',
+  AREA_MODE_CHANGED: 'Cambió el modo de las áreas',
+  ALERT_AREA_CHANGED: 'Pasó una alerta a otra área',
+};
+
+/** Cómo llegó una alerta a su área (0013). Se usa en "Área: Aseo y ornato, {source}". */
+export const AREA_SOURCE: Record<AreaSource, string> = {
+  AUTO: 'según las reglas del municipio',
+  AI: 'según la clasificación del agente',
+  OPERATOR: 'asignada por la central',
 };
 
 /** Aviso fijo bajo la barra superior según el estado del municipio (0010). Activo: sin aviso. */
@@ -390,6 +406,7 @@ export const FLAG: Record<string, string> = {
   people_injured: 'Heridos',
   minor_involved: 'Menor involucrado',
   language_other_than_spanish: 'Otro idioma',
+  security_relevant: 'Carácter de seguridad',
 };
 
 export function categoryLabel(c: AlertCategory | null, fallback = 'Sin clasificar') {

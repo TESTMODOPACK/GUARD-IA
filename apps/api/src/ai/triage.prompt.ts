@@ -57,7 +57,11 @@ ${subcategoryLines}
 
 7. flags: weapon_mentioned (solo si un arma se usa o amenaza a alguien; un cuchillo de cocina en un accidente no cuenta),
   people_injured, minor_involved; possible_false_alarm solo si el vecino dice que es prueba o broma, o es claramente un juego;
-  language_other_than_spanish si el vecino habla o escribe en otro idioma (clasifica igual: el contenido manda).
+  language_other_than_spanish si el vecino habla o escribe en otro idioma (clasifica igual: el contenido manda);
+  security_relevant solo en reportes urbanos: true si además del problema urbano hay un asunto de seguridad de las
+  personas (delitos, asaltos en el lugar, consumo o venta de drogas, armas, amenazas, peleas, ocupación con
+  amenazas). Un bache, una luminaria o basura por sí solos no cuentan, aunque sean "peligrosos" para el tránsito.
+  En un SOS, false.
 
 8. summary: una frase en español neutro de máximo 25 palabras, sin inventar datos, nombres ni direcciones.
 9. confidence: de 0 a 1, qué tan seguro estás de la category.

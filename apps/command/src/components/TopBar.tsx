@@ -1,6 +1,6 @@
 'use client';
 
-import type { OperatorRole } from '@guardia/shared';
+import type { AreaRef, OperatorRole } from '@guardia/shared';
 import { BookUser, CalendarClock, LayoutDashboard, LogOut, Volume2, VolumeX } from 'lucide-react';
 import Link from 'next/link';
 import type { TypeFilter } from '@/lib/store';
@@ -14,15 +14,41 @@ const FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'CIVIC_REPORT', label: 'Urbano' },
 ];
 
+/** Qué áreas ve la cuenta (0013). Sin áreas en el municipio no se muestra nada: todos ven todo. */
+function AreaScope({ areas, seesAll }: { areas: AreaRef[]; seesAll: boolean }) {
+  if (seesAll && areas.length === 0) return null;
+  const text = seesAll ? 'Todas las áreas' : areas.length ? areas.map((a) => a.name).join(', ') : 'Sin áreas asignadas';
+  const title = seesAll
+    ? 'Ves las alertas de todas las áreas del municipio'
+    : areas.length
+      ? `Ves las alertas de ${areas.length === 1 ? 'tu área' : 'tus áreas'}${areas.some((a) => a.receivesSos) ? ', los SOS y los reportes con carácter de seguridad' : ''}`
+      : 'Solo ves alertas sin área. Pide al administrador que te asigne una.';
+  return (
+    <span
+      title={title}
+      data-testid="area-scope"
+      className={`shrink min-w-0 max-w-[260px] truncate h-6 px-2 inline-flex items-center rounded-ctl border text-xs ${
+        !seesAll && areas.length === 0 ? 'border-medium/50 text-medium' : 'border-line text-ink-muted'
+      }`}
+    >
+      {text}
+    </span>
+  );
+}
+
 export function TopBar({
   tenantName,
   operatorName,
   role,
+  areas,
+  seesAll,
   onLogout,
 }: {
   tenantName: string;
   operatorName: string;
   role: OperatorRole;
+  areas: AreaRef[];
+  seesAll: boolean;
   onLogout: () => void;
 }) {
   const connection = useStore((s) => s.connection);
@@ -44,6 +70,7 @@ export function TopBar({
           GUARD<span className="text-accent">-IA</span>
         </span>
         <span className="text-ink-muted truncate">{tenantName}</span>
+        <AreaScope areas={areas} seesAll={seesAll} />
       </div>
 
       <div className="flex items-center gap-2 text-sm" aria-live="polite">
@@ -76,8 +103,8 @@ export function TopBar({
         <Link href="/directorio" aria-label="Directorio de contactos" title="Directorio de contactos" className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
           <BookUser size={16} />
         </Link>
-        {role === 'ADMIN' || role === 'SUPERVISOR' ? (
-          <Link href="/admin" aria-label="Administración" title="Administración: panel, usuarios, turnos y bitácora" className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
+        {role === 'ADMIN' || role === 'SUPERVISOR' || role === 'ASSISTANT' ? (
+          <Link href="/admin" aria-label="Administración" title={role === 'ASSISTANT' ? 'Panel, turnos y bitácora' : 'Administración: panel, usuarios, turnos y bitácora'} className="h-8 px-2 inline-flex items-center rounded-ctl hover:bg-surface-2">
             <LayoutDashboard size={16} />
           </Link>
         ) : (

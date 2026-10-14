@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Camera, Mic, Repeat, ShieldAlert, Users } from 'lucide-react';
+import { Camera, Mic, Repeat, Shield, ShieldAlert, Users } from 'lucide-react';
 import type { ImportanceLevel } from '@guardia/shared';
 import { AI_STATUS, classificationLabel, formatSince, formatTime, formatWait, IMPORTANCE, STATUS } from '@/lib/labels';
 import { lastReportAt, selectQueue, useStore, type AnyAlert, type SortMode } from '@/lib/store';
@@ -36,10 +36,23 @@ export function AlertQueue() {
   // haría que useSyncExternalStore vuelva a renderizar sin fin.
   const alerts = useStore((s) => s.alerts);
   const typeFilter = useStore((s) => s.typeFilter);
+  const areaFilter = useStore((s) => s.areaFilter);
+  const areaRefs = useStore((s) => s.areaRefs);
+  const setAreaFilter = useStore((s) => s.setAreaFilter);
+  const viewer = useStore((s) => s.viewer);
   const showClosed = useStore((s) => s.showClosed);
   const prefs = useStore((s) => s.prefs);
   const setSort = useStore((s) => s.setSort);
-  const queue = useMemo(() => selectQueue({ alerts, typeFilter, showClosed, prefs }), [alerts, typeFilter, showClosed, prefs]);
+  const queue = useMemo(
+    () => selectQueue({ alerts, typeFilter, areaFilter, areaRefs, showClosed, prefs }),
+    [alerts, typeFilter, areaFilter, areaRefs, showClosed, prefs],
+  );
+  // Filtro por área (0013): solo entre las áreas que esta cuenta ve, y solo si son más de una.
+  const myAreas = useMemo(
+    () => (viewer && !viewer.seesAll ? areaRefs.filter((a) => viewer.areaIds.includes(a.id)) : areaRefs),
+    [areaRefs, viewer],
+  );
+  const showArea = areaRefs.length > 1;
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
   const fresh = useStore((s) => s.fresh);
@@ -79,6 +92,25 @@ export function AlertQueue() {
             </span>
           ) : null}
         </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {myAreas.length > 1 ? (
+          <label className="flex items-center gap-2 text-xs text-ink-muted">
+            Área
+            <select
+              value={areaFilter}
+              onChange={(e) => setAreaFilter(e.target.value)}
+              className="h-7 px-1.5 rounded-ctl bg-bg border border-line text-xs text-ink max-w-[150px]"
+              data-testid="queue-area"
+            >
+              <option value="ALL">Todas</option>
+              {myAreas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {!showClosed ? (
           <label className="flex items-center gap-2 text-xs text-ink-muted">
             Ordenar por
@@ -96,6 +128,7 @@ export function AlertQueue() {
             </select>
           </label>
         ) : null}
+        </div>
       </div>
 
       <ul className="flex-1 overflow-y-auto gi-scroll">
@@ -105,7 +138,11 @@ export function AlertQueue() {
           </li>
         ) : queue.items.length === 0 ? (
           <li className="p-6 text-sm text-ink-muted">
-            {showClosed ? 'No hay alertas cerradas con este filtro.' : 'Sin alertas activas. Las nuevas aparecen aquí al instante.'}
+            {showClosed
+              ? 'No hay alertas cerradas con este filtro.'
+              : areaFilter !== 'ALL'
+                ? 'Sin alertas activas en esta área.'
+                : 'Sin alertas activas. Las nuevas aparecen aquí al instante.'}
           </li>
         ) : (
           queue.items.map((a) => (
@@ -113,6 +150,7 @@ export function AlertQueue() {
               key={a.id}
               alert={a}
               grouped={!showClosed}
+              showArea={showArea}
               media={!showClosed && a.incident ? groupMedia.get(a.incident.id) : undefined}
               selected={a.id === selectedId || (!showClosed && !!a.incident && a.incident.id === selectedIncident)}
               fresh={a.id in fresh}
@@ -129,6 +167,7 @@ export function AlertQueue() {
 function AlertRow({
   alert,
   grouped,
+  showArea,
   media,
   selected,
   fresh,
@@ -137,6 +176,8 @@ function AlertRow({
 }: {
   alert: AnyAlert;
   grouped: boolean;
+  /** El municipio tiene más de un área: cada tarjeta dice a cuál pertenece. */
+  showArea: boolean;
   media?: { audio: boolean; photo: boolean };
   selected: boolean;
   fresh: boolean;
@@ -201,6 +242,16 @@ function AlertRow({
           {lowTrust ? <span className="text-medium shrink-0">Baja confianza</span> : null}
           <span className="ml-auto inline-flex items-center gap-1.5 shrink-0">
             {fresh ? <span className="text-accent">Nueva</span> : null}
+            {alert.securityRelevant ? (
+              <span title="Carácter de seguridad: la ve también el área que recibe los SOS" className="inline-flex" data-testid="row-security">
+                <Shield size={12} className="text-medium" aria-label="Carácter de seguridad" />
+              </span>
+            ) : null}
+            {showArea && alert.area ? (
+              <span className="max-w-[110px] truncate h-5 px-1.5 inline-flex items-center rounded-ctl border border-line text-[11px]" data-testid="row-area">
+                {alert.area.name}
+              </span>
+            ) : null}
             {level ? (
               <span
                 className={`inline-flex items-center h-5 px-1.5 rounded-ctl border text-[11px] ${LEVEL_STYLE[level].chip}`}

@@ -51,7 +51,10 @@ d('administración de la central', () => {
     const audit = new AuditService();
     status = new OperatorStatusService(dbs);
     tokens = new TokenService(env, new JwtService(), dbs);
-    const realtime = { connectedOperatorIds: async () => new Set<string>() } as unknown as RealtimeService;
+    const realtime = {
+      connectedOperatorIds: async () => new Set<string>(),
+      reconnectOperators: async () => undefined,
+    } as unknown as RealtimeService;
     const rate = { hit: async () => undefined } as unknown as RateLimitService;
     operators = new OperatorsService(dbs, audit, status, tokens, rate, realtime);
     shifts = new ShiftsService(dbs, audit);
@@ -79,6 +82,8 @@ d('administración de la central', () => {
       await admin`DELETE FROM shift WHERE tenant_id IN ${admin(ids)}`;
       await admin`DELETE FROM contact WHERE tenant_id IN ${admin(ids)}`;
       await admin`DELETE FROM refresh_token WHERE subject_id IN (SELECT id FROM operator WHERE tenant_id IN ${admin(ids)})`;
+      await admin`DELETE FROM operator_area WHERE tenant_id IN ${admin(ids)}`;
+      await admin`DELETE FROM area WHERE tenant_id IN ${admin(ids)}`;
       await admin`UPDATE operator SET created_by = NULL WHERE tenant_id IN ${admin(ids)}`;
       await admin`DELETE FROM operator WHERE tenant_id IN ${admin(ids)}`;
       await admin`DELETE FROM tenant WHERE id IN ${admin(ids)}`;
@@ -204,5 +209,16 @@ d('administración de la central', () => {
     expect(second.items.some((i) => ids.has(i.id))).toBe(false);
     const sysB = await stats.activity(adminB, { source: 'system', limit: 50 });
     expect(sysB.items).toHaveLength(0);
+  });
+
+  it('asignar solo las áreas de una cuenta (sin otro cambio) funciona y queda en la bitácora', async () => {
+    const [area] = await admin<{ id: string }[]>`
+      INSERT INTO area (tenant_id, name, receives_sos) VALUES (${tenantA}, 'Seguridad', true) RETURNING id`;
+    const u = await operators.create(adminA, { email: `areas-${suffix}@test.cl`, name: 'Operador Tres', role: 'OPERATOR' });
+    const r = await operators.update(adminA, u.operator.id, { areaIds: [area.id] });
+    expect(r).toMatchObject({ name: 'Operador Tres', areaIds: [area.id] });
+    const [log] = await admin<{ payload: { changes: Record<string, unknown> } }[]>`
+      SELECT payload FROM audit_log WHERE target_id = ${u.operator.id} AND kind = 'OPERATOR_UPDATED'`;
+    expect(log.payload.changes).toEqual({ areaIds: [[], [area.id]] });
   });
 });

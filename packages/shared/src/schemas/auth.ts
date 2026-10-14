@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { OPERATOR_ROLES, TENANT_STATUSES } from '../enums';
 import { CitizenAccountSchema } from './account';
+import { AreaRefSchema } from './areas';
 import { PhoneSchema, UuidSchema } from './common';
 
 export const OtpRequestSchema = z.object({
@@ -70,6 +71,10 @@ export const OperatorPublicSchema = z.object({
   mustChangePassword: z.boolean(),
   /** Estado del municipio (0010): la central avisa si está suspendido. */
   tenantStatus: z.enum(TENANT_STATUSES),
+  /** Áreas a las que pertenece (0013). */
+  areas: z.array(AreaRefSchema).default([]),
+  /** Ve todos los avisos: administrador, municipio en modo compartido o sin áreas definidas. */
+  seesAll: z.boolean().default(true),
 });
 export type OperatorPublic = z.infer<typeof OperatorPublicSchema>;
 

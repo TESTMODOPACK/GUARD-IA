@@ -4,7 +4,7 @@ import { ADMIN_RANGES, type AdminOverview, type AdminRange } from '@guardia/shar
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiRequestError } from '@/lib/api';
 import { AI_STATUS, CATEGORY, formatDateTime, formatDuration, REJECT_REASON, ROLE, STATUS } from '@/lib/labels';
-import { AdminShell, Card, Notice, useOperatorSession } from '@/components/admin/AdminShell';
+import { AdminShell, Card, Notice, useOperatorSession, VIEWERS } from '@/components/admin/AdminShell';
 import { Spinner, Tag } from '@/components/ui';
 
 const RANGE_LABEL: Record<AdminRange, string> = { '24h': 'Últimas 24 h', '7d': '7 días', '30d': '30 días' };
@@ -12,7 +12,7 @@ const REFRESH_MS = 30_000;
 
 /** Panel del administrador: lo que pasa ahora y la actividad del período. Se actualiza cada 30 s. */
 export default function AdminPanelPage() {
-  const session = useOperatorSession(['ADMIN', 'SUPERVISOR']);
+  const session = useOperatorSession(VIEWERS);
   const [range, setRange] = useState<AdminRange>('7d');
   const [data, setData] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);

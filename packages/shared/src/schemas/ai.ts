@@ -14,7 +14,8 @@ import {
  * Agente de clasificación (triage). Versión del prompt y del schema: viaja en `alert.ai_triage`
  * y en las etiquetas del operador para comparar versiones con casos reales.
  */
-export const TRIAGE_VERSION = 'triage-v2';
+/** triage-v3 (0013): señal `security_relevant` para que el área de los SOS vea los reportes urbanos con carácter de seguridad. */
+export const TRIAGE_VERSION = 'triage-v3';
 
 export const AiFlagsSchema = z.object({
   possible_false_alarm: z.boolean(),
@@ -22,6 +23,11 @@ export const AiFlagsSchema = z.object({
   people_injured: z.boolean(),
   minor_involved: z.boolean(),
   language_other_than_spanish: z.boolean(),
+  /**
+   * triage-v3: un reporte urbano que además es un asunto de seguridad (delitos, drogas, armas, amenazas, peleas).
+   * Lo ve también el área de los SOS. En un SOS siempre es false. Default: los triage anteriores no la traen.
+   */
+  security_relevant: z.boolean().default(false),
 });
 export type AiFlags = z.infer<typeof AiFlagsSchema>;
 
@@ -255,7 +261,8 @@ export function normalizeClassification(
     summary: clip(raw.summary, TRIAGE_LIMITS.summary),
     questions,
     location,
-    flags: raw.flags,
+    // La señal de seguridad es solo para reportes urbanos (un SOS ya va al área de los SOS).
+    flags: { ...raw.flags, security_relevant: type === 'CIVIC_REPORT' && !!raw.flags.security_relevant },
     modelPriority: raw.priority,
     rules: [],
   };
@@ -327,6 +334,7 @@ export const AI_CLASSIFICATION_JSON_SCHEMA = {
           'people_injured',
           'minor_involved',
           'language_other_than_spanish',
+          'security_relevant',
         ],
         properties: {
           possible_false_alarm: { type: 'boolean' },
@@ -334,6 +342,7 @@ export const AI_CLASSIFICATION_JSON_SCHEMA = {
           people_injured: { type: 'boolean' },
           minor_involved: { type: 'boolean' },
           language_other_than_spanish: { type: 'boolean' },
+          security_relevant: { type: 'boolean' },
         },
       },
     },

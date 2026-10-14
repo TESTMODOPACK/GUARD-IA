@@ -1,6 +1,6 @@
 'use client';
 
-import { OPERATOR_ROLES, type OperatorAccount, type OperatorRole, type TemporaryPassword } from '@guardia/shared';
+import { OPERATOR_ROLES, type AreaRef, type OperatorAccount, type OperatorRole, type TemporaryPassword } from '@guardia/shared';
 import { Copy, KeyRound, Pencil, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -20,6 +20,8 @@ type DialogState =
 export default function UsersPage() {
   const session = useOperatorSession(['ADMIN', 'SUPERVISOR']);
   const [list, setList] = useState<OperatorAccount[] | null>(null);
+  /** Áreas activas del municipio (0013); vacío: el municipio no se divide en áreas. */
+  const [areas, setAreas] = useState<AreaRef[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -27,7 +29,9 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     try {
-      setList(await api.operators());
+      const [ops, refs] = await Promise.all([api.operators(), api.areas.refs()]);
+      setList(ops);
+      setAreas(refs);
       setError(null);
     } catch (e) {
       setError(errText(e));
@@ -42,6 +46,14 @@ export default function UsersPage() {
   const canManage = session.operator.role === 'ADMIN';
   const visible = list?.filter((o) => showInactive || o.active) ?? [];
   const inactiveCount = list?.filter((o) => !o.active).length ?? 0;
+
+  /** A qué áreas pertenece la cuenta. El administrador ve todas; terreno no usa la central. */
+  const areaCell = (o: OperatorAccount) => {
+    if (o.role === 'FIELD') return <span className="text-ink-faint">—</span>;
+    const names = o.areaIds.map((id) => areas.find((a) => a.id === id)?.name).filter(Boolean);
+    if (o.role === 'ADMIN') return names.length ? `Todas (${names.join(', ')})` : 'Todas';
+    return names.length ? names.join(', ') : <Tag tone="medium">Sin área</Tag>;
+  };
 
   const done = (text: string) => {
     setDialog(null);
@@ -86,6 +98,7 @@ export default function UsersPage() {
                   <th className="py-2 pr-3 font-medium">Nombre</th>
                   <th className="py-2 pr-3 font-medium">Correo</th>
                   <th className="py-2 pr-3 font-medium">Rol</th>
+                  {areas.length ? <th className="py-2 pr-3 font-medium">Áreas</th> : null}
                   <th className="py-2 pr-3 font-medium">Estado</th>
                   <th className="py-2 pr-3 font-medium">Último ingreso</th>
                   {canManage ? <th className="py-2 font-medium text-right">Acciones</th> : null}
@@ -102,6 +115,7 @@ export default function UsersPage() {
                       </td>
                       <td className="py-2 pr-3 text-ink-muted">{o.email}</td>
                       <td className="py-2 pr-3">{ROLE[o.role]}</td>
+                      {areas.length ? <td className="py-2 pr-3 text-ink-muted">{areaCell(o)}</td> : null}
                       <td className="py-2 pr-3">
                         <span className="inline-flex flex-wrap gap-1.5">
                           {!o.active ? <Tag>Desactivado</Tag> : null}
@@ -144,7 +158,7 @@ export default function UsersPage() {
       </Card>
 
       <Card title="Qué puede hacer cada rol">
-        <ul className="grid gap-2 sm:grid-cols-3 text-sm">
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm">
           {OPERATOR_ROLES.map((r) => (
             <li key={r}>
               <span className="font-medium">{ROLE[r]}:</span> <span className="text-ink-muted">{ROLE_HELP[r]}</span>
@@ -156,9 +170,10 @@ export default function UsersPage() {
       {dialog?.kind === 'create' ? (
         <OperatorForm
           title="Nuevo usuario"
+          areas={areas}
           onClose={() => setDialog(null)}
           onSubmit={async (v) => {
-            const result = await api.createOperator({ name: v.name, email: v.email, role: v.role });
+            const result = await api.createOperator({ name: v.name, email: v.email, role: v.role, areaIds: v.areaIds });
             setDialog({ kind: 'password', result, reason: 'created' });
             void load();
           }}
@@ -168,12 +183,14 @@ export default function UsersPage() {
         <OperatorForm
           title={`Editar a ${dialog.op.name}`}
           initial={dialog.op}
+          areas={areas}
           lockRole={dialog.op.id === session.operator.id}
           onClose={() => setDialog(null)}
           onSubmit={async (v) => {
             await api.updateOperator(dialog.op.id, {
               name: v.name,
               ...(dialog.op.id !== session.operator.id ? { role: v.role } : {}),
+              ...(areas.length ? { areaIds: v.areaIds } : {}),
             });
             done(`Se guardaron los cambios de ${v.name}.`);
           }}
@@ -219,19 +236,24 @@ export default function UsersPage() {
 function OperatorForm({
   title,
   initial,
+  areas,
   lockRole = false,
   onClose,
   onSubmit,
 }: {
   title: string;
   initial?: OperatorAccount;
+  areas: AreaRef[];
   lockRole?: boolean;
   onClose: () => void;
-  onSubmit: (v: { name: string; email: string; role: OperatorRole }) => Promise<void>;
+  onSubmit: (v: { name: string; email: string; role: OperatorRole; areaIds: string[] }) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
   const [role, setRole] = useState<OperatorRole>(initial?.role ?? 'OPERATOR');
+  // Solo áreas activas: una desactivada que tuviera la cuenta se suelta al guardar.
+  const [areaIds, setAreaIds] = useState<string[]>(() => (initial?.areaIds ?? []).filter((id) => areas.some((a) => a.id === id)));
+  const toggleArea = (id: string) => setAreaIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = name.trim().length >= 2 && /.+@.+\..+/.test(email.trim());
@@ -246,7 +268,8 @@ function OperatorForm({
           setBusy(true);
           setError(null);
           try {
-            await onSubmit({ name: name.trim(), email: email.trim().toLowerCase(), role });
+            // Terreno no usa la central: sin áreas.
+            await onSubmit({ name: name.trim(), email: email.trim().toLowerCase(), role, areaIds: role === 'FIELD' ? [] : areaIds });
           } catch (err) {
             setError(errText(err));
             setBusy(false);
@@ -276,6 +299,27 @@ function OperatorForm({
             ))}
           </select>
         </Field>
+        {areas.length && role !== 'FIELD' ? (
+          <fieldset data-testid="operator-areas">
+            <legend className="text-sm mb-1.5">Áreas</legend>
+            <div className="grid grid-cols-2 gap-1.5">
+              {areas.map((a) => (
+                <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input type="checkbox" checked={areaIds.includes(a.id)} onChange={() => toggleArea(a.id)} className="accent-[var(--color-accent)]" />
+                  {a.name}
+                  {a.receivesSos ? <span className="text-xs text-ink-faint">(SOS)</span> : null}
+                </label>
+              ))}
+            </div>
+            <p className={`mt-1.5 text-xs ${role !== 'ADMIN' && areaIds.length === 0 ? 'text-medium' : 'text-ink-faint'}`}>
+              {role === 'ADMIN'
+                ? 'El administrador ve todas las áreas; marcarlas solo indica a cuál pertenece.'
+                : areaIds.length === 0
+                  ? 'Sin área solo verá las alertas que aún no tienen área.'
+                  : 'Verá las alertas de estas áreas; si una recibe los SOS, también los reportes con carácter de seguridad.'}
+            </p>
+          </fieldset>
+        ) : null}
         {initial ? <p className="text-xs text-ink-faint">El correo no se cambia: es la identidad de la cuenta.</p> : null}
         {lockRole ? <p className="text-xs text-ink-faint">No puedes cambiar tu propio rol.</p> : null}
         {!initial ? <p className="text-xs text-ink-muted">Se generará una contraseña temporal para entregarle. Al entrar, deberá crear la suya.</p> : null}

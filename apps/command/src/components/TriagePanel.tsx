@@ -28,6 +28,8 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
   const upsertAlert = useStore((s) => s.upsertAlert);
   const notify = useStore((s) => s.notify);
   const removeAlert = useStore((s) => s.removeAlert);
+  // Apoyo administrativo (0013): ve la clasificación, no la corrige, no deriva ni traspasa.
+  const canOperate = useStore((s) => s.viewer?.canOperate ?? true);
   const [dialog, setDialog] = useState<'refer' | 'reclassify' | null>(null);
   const [transfer, setTransfer] = useState<{ tenantId: string | null; reason: string } | null>(null);
 
@@ -45,7 +47,7 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
   const geo = detail?.geo ?? null;
   const mentioned = geo?.mentioned ?? null;
   // Solo lo que nadie ha despachado todavía (lo mismo que exige transfer_alert en la base).
-  const canTransfer = !!detail && ['PENDING', 'ACKNOWLEDGED'].includes(alert.status) && detail.dispatches.length === 0;
+  const canTransfer = canOperate && !!detail && ['PENDING', 'ACKNOWLEDGED'].includes(alert.status) && detail.dispatches.length === 0;
 
   const save = async (fn: () => Promise<AlertDetail>, ok: string) => {
     const d = await fn();
@@ -149,6 +151,7 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
         </ul>
       </div>
 
+      {canOperate ? (
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="quiet" className="h-8 text-xs" onClick={() => setDialog('refer')} data-testid="action-refer">
           Derivado a…
@@ -162,6 +165,7 @@ export function TriagePanel({ alert, detail }: { alert: AlertSummary; detail: Al
           </Button>
         ) : null}
       </div>
+      ) : null}
 
       {transfer ? (
         <TransferDialog

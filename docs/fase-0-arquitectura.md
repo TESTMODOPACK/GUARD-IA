@@ -146,10 +146,23 @@ Terreno (migración 0012, 14-10-2026; `docs/plan-plataforma.md` §5c). Rol `FIEL
 /ops/field/dispatches/:id/status` `{status: EN_ROUTE|ON_SITE, location?}`; `POST /ops/field/dispatches/:id/report`
 multipart (`meta` = `{outcome, notes?, category?, subcategory?, location?}` y hasta 3 `photo`); `POST
 /ops/field/location` `{lat, lng, accuracyM?}` (204; solo con despacho abierto); `POST /ops/field/panic` `{location?,
-note?}`. Central (ADMIN, SUPERVISOR, OPERATOR): `GET /ops/field-alarms` (abiertos) y `POST /ops/field-alarms/:id/ack`
-`{note?}`. `Dispatch.outcomeVia` (CENTRAL|FIELD), `proposedCategory`/`proposedSubcategory` (los aplica la central con
+note?}`. Central: `GET /ops/field-alarms` (abiertos; también ASSISTANT) y `POST /ops/field-alarms/:id/ack`
+`{note?}` (ADMIN, SUPERVISOR, OPERATOR). `Dispatch.outcomeVia` (CENTRAL|FIELD), `proposedCategory`/`proposedSubcategory` (los aplica la central con
 `POST /ops/dispatches/:id/outcome`); `Shift.unitCode`, `ShiftStatus.onDuty[].unitCode`; evento `FIELD_ALARM`. WS:
 `field.alarm` en `/ops`; namespace `/field` (rooms `unit:{id}` y `operator:{id}`) con `field.refresh` y `field.alarm`.
+
+Áreas municipales (migración 0013, 14-10-2026; `docs/plan-plataforma.md` §5c, "PA hecho"). Solo ADMIN: `GET
+/ops/areas` (`{shared, areas[], rules[]}` con cuentas y alertas abiertas por área), `POST /ops/areas` `{name,
+receivesSos?}`, `POST /ops/areas/suggested` (solo sin áreas), `PATCH /ops/areas/:id` `{name?, active?, receivesSos?:
+true}`, `PUT /ops/areas/rules` `{rules: [{category, subcategory|null, areaId}]}` (reemplazo completo; cada categoría
+urbana con su regla general) y `POST /ops/areas/mode` `{shared, reason}`. Cualquier rol de la central: `GET
+/ops/areas/refs` (activas, `{id, name, receivesSos}`) y `GET /ops/me` (la cuenta con `areas[]` y `seesAll`; la central
+la relee al conectar). ADMIN, SUPERVISOR y OPERATOR: `POST /ops/alerts/:id/area` `{areaId, reason}` (devuelve la
+ficha). `POST|PATCH /ops/operators` aceptan `areaIds[]`; `OperatorAccount.areaIds`; `OperatorPublic.areas` y
+`seesAll`. `AlertSummary.area` (`{id, name, receivesSos}` o null), `areaSource` (AUTO|AI|OPERATOR) y
+`securityRelevant`; `AiFlags.security_relevant` (`triage-v3`). Evento `AREA_CHANGED` `{from, to, by, reason?,
+security?}`. Rol `ASSISTANT`: lee alertas, panel, bitácora y avisos de terreno y escribe notas; las acciones sobre la
+alerta responden 403.
 
 Sistema: `GET /health`, `GET /metrics`. Desarrollo: `GET /dev/otp/:phone` (solo con `OTP_DEBUG_ENDPOINT=true`).
 
@@ -157,9 +170,12 @@ Errores: `{ code, message, details? }`; códigos en `packages/shared/src/schemas
 
 ## 7. WebSocket
 
-Socket.io, JWT en `handshake.auth.token`. `/ops` (room `tenant:{id}`): `alert.created`, `alert.updated`,
-`dispatch.updated`, `unit.updated`, `sync` (al conectar con `since`). `/citizen` (room `citizen:{id}`):
-`alert.status`. Tipos en `packages/shared/src/ws-events.ts`.
+Socket.io, JWT en `handshake.auth.token`. `/ops` (room `tenant:{id}`): `dispatch.updated`, `unit.updated`,
+`field.alarm`, `alert.transferred`, `sync` (al conectar con `since`). Las alertas van por área (0013): `alert.created`
+y `alert.updated` a `alerts:{tenant}` (quien ve todo), `area:{id}` y, si tienen carácter de seguridad,
+`security:{tenant}`; `alert.removed` `{alertId, areaName}` a quien deja de verla. Si cambia lo que ve una cuenta, la
+API corta su socket y al reconectar entra a sus salas nuevas. `/citizen` (room `citizen:{id}`): `alert.status`. Tipos
+en `packages/shared/src/ws-events.ts`.
 
 ## 8. Pipeline IA
 

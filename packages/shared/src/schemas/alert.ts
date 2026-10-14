@@ -3,6 +3,7 @@ import {
   AI_STATUSES,
   ALERT_CATEGORIES,
   ALERT_EVENT_KINDS,
+  AREA_SOURCES,
   ALERT_SOURCES,
   ALERT_STATUSES,
   ALERT_TYPES,
@@ -19,6 +20,7 @@ import {
 import { LocationSchema, UuidSchema } from './common';
 import { AiFlagsSchema, TriageSchema } from './ai';
 import { IncidentInfoSchema } from './incident';
+import { AreaRefSchema } from './areas';
 
 /**
  * Campo `meta` (JSON) del multipart de POST /v1/alerts.
@@ -166,6 +168,11 @@ export const AlertSummarySchema = z.object({
   citizenRestricted: z.boolean(),
   /** Grupo de alertas sobre la misma situación (migración 0004); null mientras no se agrupa. */
   incident: IncidentInfoSchema.nullable(),
+  /** Área del municipio que lo atiende (0013); null si el municipio no define áreas (lo ven todos). */
+  area: AreaRefSchema.nullable(),
+  areaSource: z.enum(AREA_SOURCES).nullable(),
+  /** Reporte urbano con carácter de seguridad: también lo ve el área de los SOS. */
+  securityRelevant: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

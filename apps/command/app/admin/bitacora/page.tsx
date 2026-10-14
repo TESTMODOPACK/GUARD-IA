@@ -15,7 +15,7 @@ import {
   SOURCE,
   UNIT_STATUS,
 } from '@/lib/labels';
-import { AdminShell, Card, errText, Notice, useOperatorSession } from '@/components/admin/AdminShell';
+import { AdminShell, Card, errText, Notice, useOperatorSession, VIEWERS } from '@/components/admin/AdminShell';
 import { Button, Spinner } from '@/components/ui';
 
 type Source = 'cases' | 'system';
@@ -23,10 +23,19 @@ const str = (v: unknown) => (typeof v === 'string' ? v : v === null || v === und
 
 const ACTOR: Record<CaseActivity['actorType'], string> = { CITIZEN: 'Vecino', OPERATOR: 'Operador', SYSTEM: 'Sistema', AI: 'IA' };
 
+/** Nombre de un área por su id (0013); una desactivada ya no viene en la lista. */
+type AreaName = (id: unknown) => string;
+const areaList = (ids: unknown, area: AreaName) => (Array.isArray(ids) && ids.length ? ids.map(area).join(', ') : 'ninguna');
+
 /** Detalle legible de un evento de caso. El contenido del vecino nunca se muestra aquí. */
-function caseDetail(e: CaseActivity): string {
+function caseDetail(e: CaseActivity, area: AreaName): string {
   const p = e.payload;
   switch (e.kind) {
+    case 'AREA_CHANGED':
+      if (p.from === p.to) return p.security ? 'Carácter de seguridad: la ve también el área de los SOS' : 'Sin carácter de seguridad';
+      return `${area(p.from)} → ${area(p.to)}${p.by === 'AI' ? ' (agente)' : p.by === 'AUTO' ? ' (reglas del municipio)' : ''}${
+        p.reason ? ` · ${str(p.reason)}` : ''
+      }`;
     case 'CREATED':
       return `${e.alertType === 'EMERGENCY_SOS' ? 'SOS' : 'Reporte urbano'}${p.source ? ` por ${SOURCE[p.source as keyof typeof SOURCE] ?? str(p.source)}` : ''}`;
     case 'NOTE':
@@ -48,18 +57,48 @@ function caseDetail(e: CaseActivity): string {
   }
 }
 
-function systemDetail(e: SystemActivity): string {
+const AREA_CHANGE: Record<string, (to: unknown) => string> = {
+  name: (to) => `nombre "${str(to)}"`,
+  active: (to) => (to ? 'activada' : 'desactivada'),
+  receivesSos: (to) => (to ? 'ahora recibe los SOS' : 'deja de recibir los SOS'),
+};
+
+function systemDetail(e: SystemActivity, area: AreaName): string {
   const p = e.payload;
   switch (e.kind) {
+    case 'AREA_CREATED':
+      return Array.isArray(p.suggested) ? `Áreas sugeridas: ${p.suggested.map(str).join(', ')}` : `${str(p.name)}${p.receivesSos ? ' · recibe los SOS' : ''}`;
+    case 'AREA_UPDATED': {
+      const changes = (p.changes ?? {}) as Record<string, [unknown, unknown]>;
+      return `${str(p.name)}: ${Object.entries(changes)
+        .map(([k, [, to]]) => AREA_CHANGE[k]?.(to) ?? k)
+        .join(', ')}`;
+    }
+    case 'AREA_RULES_UPDATED':
+      return `${str(p.rules)} reglas${p.bySubcategory ? `, ${str(p.bySubcategory)} por subcategoría` : ''}`;
+    case 'AREA_MODE_CHANGED':
+      return `${p.shared ? 'Todas las áreas ven todas las alertas' : 'Cada área ve solo lo suyo'} · ${str(p.reason)}`;
+    case 'ALERT_AREA_CHANGED':
+      return `${area(p.from)} → ${area(p.to)} · ${str(p.reason)}`;
     case 'LOGIN':
     case 'LOGIN_FAILED':
       return [p.email ? str(p.email) : '', p.ip ? `desde ${str(p.ip)}` : ''].filter(Boolean).join(' ');
     case 'OPERATOR_CREATED':
-      return `${str(p.name)} (${str(p.email)}) · ${ROLE[p.role as keyof typeof ROLE] ?? str(p.role)}`;
+      return `${str(p.name)} (${str(p.email)}) · ${ROLE[p.role as keyof typeof ROLE] ?? str(p.role)}${
+        Array.isArray(p.areaIds) && p.areaIds.length ? ` · áreas: ${areaList(p.areaIds, area)}` : ''
+      }`;
     case 'OPERATOR_UPDATED': {
       const changes = (p.changes ?? {}) as Record<string, [unknown, unknown]>;
       const parts = Object.entries(changes).map(([k, [, to]]) =>
-        k === 'active' ? (to ? 'activada' : 'desactivada') : k === 'role' ? `rol ${ROLE[to as keyof typeof ROLE] ?? str(to)}` : `nombre "${str(to)}"`,
+        k === 'active'
+          ? to
+            ? 'activada'
+            : 'desactivada'
+          : k === 'role'
+            ? `rol ${ROLE[to as keyof typeof ROLE] ?? str(to)}`
+            : k === 'areaIds'
+              ? `áreas: ${areaList(to, area)}`
+              : `nombre "${str(to)}"`,
       );
       return `${str(p.email)}: ${parts.join(', ')}`;
     }
@@ -87,12 +126,21 @@ function systemDetail(e: SystemActivity): string {
 
 /** Bitácora: todo lo que pasó en los casos y en el sistema, lo más reciente primero. Solo lectura. */
 export default function LogPage() {
-  const session = useOperatorSession(['ADMIN', 'SUPERVISOR']);
+  const session = useOperatorSession(VIEWERS);
   const [source, setSource] = useState<Source>('system');
+  const [areaNames, setAreaNames] = useState<Record<string, string>>({});
   const [items, setItems] = useState<(CaseActivity | SystemActivity)[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    api.areas
+      .refs()
+      .then((list) => setAreaNames(Object.fromEntries(list.map((a) => [a.id, a.name]))))
+      .catch(() => undefined); // sin nombres, el detalle dice "área desactivada"
+  }, [session]);
 
   const fetchPage = useCallback((src: Source, c?: string) => (src === 'cases' ? api.caseActivity(c) : api.systemActivity(c)), []);
 
@@ -114,6 +162,7 @@ export default function LogPage() {
   }, [session, source, fetchPage]);
 
   if (!session) return null;
+  const area: AreaName = (id) => (typeof id === 'string' ? (areaNames[id] ?? 'área desactivada') : 'sin área');
 
   const more = async () => {
     if (!cursor) return;
@@ -154,7 +203,7 @@ export default function LogPage() {
     <AdminShell session={session} title="Bitácora" actions={tabs}>
       <p className="text-sm text-ink-muted -mt-3">
         {source === 'system'
-          ? 'Ingresos, intentos fallidos, cambios de usuarios, turnos, unidades y contactos. No se puede editar ni borrar.'
+          ? 'Ingresos, intentos fallidos, cambios de usuarios, áreas, turnos, unidades y contactos. No se puede editar ni borrar.'
           : 'Cada acción sobre las alertas: quién la hizo y cuándo. No se puede editar ni borrar.'}
       </p>
       {error ? <Notice kind="error">{error}</Notice> : null}
@@ -188,14 +237,14 @@ export default function LogPage() {
                         {e.category ? CATEGORY[e.category] : e.alertType === 'EMERGENCY_SOS' ? 'SOS' : 'Reporte'}
                         <span className="text-ink-faint font-mono text-xs"> #{e.alertId.slice(0, 8)}</span>
                       </td>
-                      <td className="py-2 text-ink-muted break-words">{caseDetail(e)}</td>
+                      <td className="py-2 text-ink-muted break-words">{caseDetail(e, area)}</td>
                     </tr>
                   ) : (
                     <tr key={e.id} className={`border-b border-line/60 last:border-0 align-top ${e.kind === 'LOGIN_FAILED' ? 'text-medium' : ''}`}>
                       <td className="py-2 pr-3 tabular-nums text-ink-muted whitespace-nowrap">{formatDateTime(e.createdAt)}</td>
                       <td className="py-2 pr-3">{e.actorName ?? '—'}</td>
                       <td className="py-2 pr-3">{AUDIT_KIND[e.kind]}</td>
-                      <td className="py-2 text-ink-muted break-words">{systemDetail(e)}</td>
+                      <td className="py-2 text-ink-muted break-words">{systemDetail(e, area)}</td>
                     </tr>
                   ),
                 )}

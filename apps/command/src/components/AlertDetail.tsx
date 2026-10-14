@@ -18,6 +18,7 @@ import {
   AGENCY,
   agencyList,
   AI_STATUS,
+  AREA_SOURCE,
   classificationLabel,
   DISPATCH_OUTCOME,
   DISPATCH_STATUS,
@@ -33,13 +34,13 @@ import {
   SOURCE,
   STATUS,
 } from '@/lib/labels';
-import { isDetail, useStore } from '@/lib/store';
+import { isDetail, useStore, viewerSees } from '@/lib/store';
 import { useNow } from './AlertQueue';
 import { AudioPlayer } from './AudioPlayer';
 import { ContactsHint } from './ContactsHint';
 import { IncidentPanel, Transcript } from './IncidentPanel';
 import { TriagePanel } from './TriagePanel';
-import { DispatchDialog, OutcomeDialog, RejectDialog, ResolveDialog } from './Dialogs';
+import { AreaDialog, DispatchDialog, OutcomeDialog, RejectDialog, ResolveDialog } from './Dialogs';
 import { Button, PriorityDot, Spinner, Tag, textareaClass } from './ui';
 
 export function AlertDetailPanel() {
@@ -50,9 +51,12 @@ export function AlertDetailPanel() {
   const clearFresh = useStore((s) => s.clearFresh);
   const notify = useStore((s) => s.notify);
   const units = useStore((s) => s.units);
+  const viewer = useStore((s) => s.viewer);
+  const areaRefs = useStore((s) => s.areaRefs);
+  const removeAlert = useStore((s) => s.removeAlert);
   const now = useNow();
 
-  const [dialog, setDialog] = useState<'dispatch' | 'reject' | 'resolve' | null>(null);
+  const [dialog, setDialog] = useState<'dispatch' | 'reject' | 'resolve' | 'area' | null>(null);
   const [outcomeFor, setOutcomeFor] = useState<Dispatch | null>(null);
   // "Falsa alarma confirmada" en terreno abre el rechazo con la evidencia de la unidad (el operador confirma).
   const [rejectInitial, setRejectInitial] = useState<{ reason: 'FALSE_ALARM'; notes: string } | undefined>(undefined);
@@ -110,11 +114,15 @@ export function AlertDetailPanel() {
     }
   };
 
-  const canAck = alert.status === 'PENDING';
-  const canDispatch = alert.status === 'PENDING' || alert.status === 'ACKNOWLEDGED';
+  // Apoyo administrativo (0013): consulta y anota, no actúa sobre la alerta (la API lo exige igual).
+  const canOperate = viewer?.canOperate ?? true;
+  const open = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(alert.status);
+  const canAck = canOperate && alert.status === 'PENDING';
+  const canDispatch = canOperate && (alert.status === 'PENDING' || alert.status === 'ACKNOWLEDGED');
   // DISPATCHED también: la unidad puede confirmar en terreno que fue un engaño.
-  const canReject = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(alert.status);
-  const canResolve = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(alert.status);
+  const canReject = canOperate && open;
+  const canResolve = canOperate && open;
+  const canChangeArea = canOperate && open && areaRefs.length > 1;
 
   return (
     <aside aria-label="Detalle de la alerta" className="h-full border-l border-line bg-surface flex flex-col min-h-0">
@@ -139,6 +147,16 @@ export function AlertDetailPanel() {
           </Tag>
           {alert.priority ? <Tag tone={alert.priority === 'HIGH' ? 'high' : alert.priority === 'MEDIUM' ? 'medium' : 'low'}>Prioridad {PRIORITY[alert.priority].toLowerCase()}</Tag> : null}
           {alert.suggestedAgency ? <Tag>Sugerido: {AGENCY[alert.suggestedAgency]}</Tag> : null}
+          {alert.area ? (
+            <span title={alert.areaSource ? `Área ${AREA_SOURCE[alert.areaSource]}` : undefined} data-testid="detail-area">
+              <Tag>Área: {alert.area.name}</Tag>
+            </span>
+          ) : null}
+          {alert.securityRelevant ? (
+            <span title="La ve también el área que recibe los SOS">
+              <Tag tone="medium">Carácter de seguridad</Tag>
+            </span>
+          ) : null}
           {lowTrust ? <Tag tone="medium">Vecino con baja confianza ({alert.citizenTrustScore})</Tag> : null}
           {detail && detail.citizenStrikes > 0 ? (
             <Tag tone="high">
@@ -166,7 +184,7 @@ export function AlertDetailPanel() {
               Despachar unidad
             </Button>
           ) : null}
-          {openDispatch ? <DispatchControls dispatch={openDispatch} busy={busy} run={run} onOutcome={() => setOutcomeFor(openDispatch)} /> : null}
+          {openDispatch && canOperate ? <DispatchControls dispatch={openDispatch} busy={busy} run={run} onOutcome={() => setOutcomeFor(openDispatch)} /> : null}
           {canResolve ? (
             <Button variant="quiet" onClick={() => setDialog('resolve')} data-testid="action-resolve">
               Resolver
@@ -177,6 +195,12 @@ export function AlertDetailPanel() {
               Rechazar
             </Button>
           ) : null}
+          {canChangeArea ? (
+            <Button variant="ghost" onClick={() => setDialog('area')} data-testid="action-area">
+              Cambiar de área
+            </Button>
+          ) : null}
+          {!canOperate ? <p className="text-xs text-ink-muted">Apoyo administrativo: puedes consultar la alerta y agregar notas.</p> : null}
         </div>
 
         <IncidentPanel alert={alert} />
@@ -220,7 +244,7 @@ export function AlertDetailPanel() {
                 </span>
               </div>
               {/* Llegó con la IA en modo de prueba o caída, o el operador duda: transcribir y clasificar de nuevo. */}
-              {(detail.hasAudio || detail.userText) && !['QUEUED', 'PROCESSING'].includes(detail.aiStatus) ? (
+              {canOperate && (detail.hasAudio || detail.userText) && !['QUEUED', 'PROCESSING'].includes(detail.aiStatus) ? (
                 <Button
                   variant="ghost"
                   className="mt-1 h-7 px-2 text-xs"
@@ -297,7 +321,7 @@ export function AlertDetailPanel() {
                         </Tag>
                       ) : null}
                       {d.outcomeVia === 'FIELD' ? <span className="text-xs text-ink-muted">desde terreno</span> : null}
-                      {d.status === 'CLOSED' && !d.outcome ? (
+                      {canOperate && d.status === 'CLOSED' && !d.outcome ? (
                         <Button variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => setOutcomeFor(d)}>
                           Registrar resultado
                         </Button>
@@ -314,6 +338,7 @@ export function AlertDetailPanel() {
                       <span>
                         {d.unitCode} propone: <strong>{classificationLabel(d.proposedCategory, d.proposedSubcategory)}</strong>
                       </span>
+                      {canOperate ? (
                       <Button
                         variant="quiet"
                         className="h-7 ml-auto"
@@ -334,6 +359,7 @@ export function AlertDetailPanel() {
                       >
                         Aplicar
                       </Button>
+                      ) : null}
                     </div>
                   ))}
                 {detail.status === 'DISPATCHED' &&
@@ -383,7 +409,7 @@ export function AlertDetailPanel() {
                   <li key={ev.id} className="flex gap-3">
                     <span className="text-xs text-ink-muted tabular-nums w-16 shrink-0 pt-0.5">{formatTime(ev.createdAt)}</span>
                     <div className="min-w-0">
-                      <p>{EVENT_KIND[ev.kind]}</p>
+                      <p>{eventTitle(ev.kind, ev.payload)}</p>
                       <EventDetail kind={ev.kind} payload={ev.payload} />
                     </div>
                   </li>
@@ -428,6 +454,25 @@ export function AlertDetailPanel() {
             if (body.outcome === 'FALSE_ALARM_CONFIRMED') {
               setRejectInitial({ reason: 'FALSE_ALARM', notes: `Confirmado en terreno por ${outcomeFor.unitCode}: ${body.notes ?? ''}`.trim() });
               setDialog('reject');
+            }
+          }}
+        />
+      ) : null}
+      {dialog === 'area' ? (
+        <AreaDialog
+          current={alert.area}
+          areas={areaRefs}
+          onClose={() => setDialog(null)}
+          onConfirm={async (areaId, reason) => {
+            const d = await api.reassignArea(alert.id, areaId, reason);
+            const name = areaRefs.find((a) => a.id === areaId)?.name ?? 'otra área';
+            // El WS también avisa a quien deja de verla; aquí se resuelve sin esperar, y sin volver a ponerla en la cola.
+            if (viewerSees(viewer, d)) {
+              upsertAlert(d);
+              notify('ok', `Alerta pasada al área ${name}`);
+            } else {
+              removeAlert(d.id);
+              notify('ok', `Alerta pasada al área ${name}: ya no está en tu cola`);
             }
           }}
         />
@@ -495,10 +540,26 @@ function DispatchControls({
   );
 }
 
+/** Un cambio de área que solo cambió la marca de seguridad se titula por la marca (0013). */
+function eventTitle(kind: AlertDetailT['events'][number]['kind'], payload: Record<string, unknown>): string {
+  if (kind === 'AREA_CHANGED' && payload.from === payload.to) return payload.security ? 'Carácter de seguridad' : 'Sin carácter de seguridad';
+  return EVENT_KIND[kind];
+}
+
 function EventDetail({ kind, payload }: { kind: string; payload: Record<string, unknown> }) {
+  const areaRefs = useStore((s) => s.areaRefs);
   const p = payload as Record<string, string | number | boolean | null | undefined>;
   let text: string | null = null;
   switch (kind) {
+    case 'AREA_CHANGED': {
+      const name = (id: unknown) => (id ? (areaRefs.find((a) => a.id === id)?.name ?? 'un área desactivada') : 'sin área');
+      const by = p.by === 'AI' ? 'Por el agente: ' : p.by === 'AUTO' ? 'Por las reglas del municipio: ' : '';
+      text =
+        p.from === p.to
+          ? `${by}${p.security ? 'la ve también el área que recibe los SOS' : 'ya no la ve el área que recibe los SOS'} · sigue en ${name(p.to)}`
+          : `${by}${name(p.from)} → ${name(p.to)}${p.security ? ' · carácter de seguridad' : ''}${p.reason ? ` · ${p.reason}` : ''}`;
+      break;
+    }
     case 'NOTE':
       text = String(p.text ?? '');
       break;

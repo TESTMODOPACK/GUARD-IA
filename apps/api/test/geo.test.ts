@@ -65,7 +65,7 @@ d('georreferencia y redirección', () => {
         summary: 'Incendio',
         operator_questions: [],
         location: { mentioned: null, comuna, elsewhere },
-        flags: { possible_false_alarm: false, weapon_mentioned: false, people_injured: false, minor_involved: false, language_other_than_spanish: false },
+        flags: { possible_false_alarm: false, weapon_mentioned: false, people_injured: false, minor_involved: false, language_other_than_spanish: false, security_relevant: false },
       },
       { provider: 'test', model: null },
     );
@@ -84,6 +84,7 @@ d('georreferencia y redirección', () => {
       alertCreated: (to: string) => calls.push(`created:${to}`),
       alertUpdated: () => undefined,
       fieldRefresh: () => undefined,
+      alertMoved: () => undefined,
       citizenAlertStatus: () => undefined,
     } as unknown as RealtimeService;
     const notifications = { notifyAlertStatus: async () => void calls.push('notify') } as unknown as NotificationsService;

@@ -1,13 +1,58 @@
 'use client';
 
 import { create } from 'zustand';
-import type { AlertDetail, AlertStatus, AlertSummary, AlertType, Dispatch, FieldAlarm, Unit } from '@guardia/shared';
+import {
+  OPERATING_ROLES,
+  type AlertDetail,
+  type AlertStatus,
+  type AlertSummary,
+  type AlertType,
+  type AreaRef,
+  type Dispatch,
+  type FieldAlarm,
+  type OperatorPublic,
+  type OperatorRole,
+  type Unit,
+} from '@guardia/shared';
 import { PREFS_KEY } from './config';
 
 export const ACTIVE_STATUSES: AlertStatus[] = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'];
 export const CLOSED_STATUSES: AlertStatus[] = ['RESOLVED', 'REJECTED', 'CANCELLED'];
 
 export type TypeFilter = 'ALL' | AlertType;
+/** 'ALL' o el id de un área (0013). */
+export type AreaFilter = 'ALL' | string;
+
+/**
+ * Quién mira la central y qué alcanza a ver (0013). La API y la RLS ya filtran: esto sirve para no dejar en la cola
+ * una alerta que la cuenta dejó de ver (p. ej. tras pasarla a otra área) y para ocultar lo que su rol no puede hacer.
+ */
+export interface Viewer {
+  role: OperatorRole;
+  /** Puede tomar, despachar, cerrar, reclasificar, derivar… (el apoyo administrativo solo consulta y anota). */
+  canOperate: boolean;
+  seesAll: boolean;
+  areaIds: string[];
+  /** Pertenece al área que recibe los SOS: ve además los reportes con carácter de seguridad. */
+  inSosArea: boolean;
+}
+
+export function viewerOf(op: OperatorPublic): Viewer {
+  return {
+    role: op.role,
+    canOperate: (OPERATING_ROLES as readonly OperatorRole[]).includes(op.role),
+    // Una sesión guardada antes de 0013 no trae áreas: ve todo hasta releer la cuenta al conectar.
+    seesAll: op.seesAll ?? true,
+    areaIds: (op.areas ?? []).map((a) => a.id),
+    inSosArea: (op.areas ?? []).some((a) => a.receivesSos),
+  };
+}
+
+/** Misma regla que las políticas de 0013: todo, sin área, de sus áreas o con carácter de seguridad si es del área de los SOS. */
+export function viewerSees(v: Viewer | null, a: Pick<AlertSummary, 'area' | 'securityRelevant'>): boolean {
+  if (!v || v.seesAll || !a.area) return true;
+  return v.areaIds.includes(a.area.id) || (a.securityRelevant && v.inSosArea);
+}
 export type Connection = 'connecting' | 'online' | 'offline';
 export type AnyAlert = AlertSummary | AlertDetail;
 
@@ -37,6 +82,10 @@ interface State {
   fieldAlarms: Record<string, FieldAlarm>;
   selectedId: string | null;
   typeFilter: TypeFilter;
+  areaFilter: AreaFilter;
+  /** Áreas activas del municipio (nombres para la cola, la ficha y el filtro). */
+  areaRefs: AreaRef[];
+  viewer: Viewer | null;
   showClosed: boolean;
   connection: Connection;
   /** Marca del último evento WS recibido; se usa como `since` al reconectar. */
@@ -52,7 +101,7 @@ interface State {
   upsertAlert: (a: AnyAlert, opts?: { fresh?: boolean }) => void;
   upsertMany: (list: AnyAlert[], freshIds?: string[]) => void;
   applyDispatch: (d: Dispatch) => void;
-  /** La alerta pasó a otro municipio: sale de la cola (la central ya no la puede leer). */
+  /** La alerta pasó a otro municipio o a un área que esta cuenta no ve: sale de la cola (ya no la puede leer). */
   removeAlert: (id: string) => void;
   setUnits: (list: Unit[]) => void;
   upsertUnit: (u: Unit) => void;
@@ -61,6 +110,11 @@ interface State {
   upsertFieldAlarm: (a: FieldAlarm) => void;
   select: (id: string | null) => void;
   setTypeFilter: (f: TypeFilter) => void;
+  setAreaFilter: (f: AreaFilter) => void;
+  setAreaRefs: (list: AreaRef[]) => void;
+  setViewer: (v: Viewer | null) => void;
+  /** Cambió lo que ve la cuenta (sus áreas o el modo del municipio): se vacía la cola y se vuelve a cargar. */
+  resetAlerts: () => void;
   setShowClosed: (v: boolean) => void;
   touchEvent: (iso: string) => void;
   clearFresh: (id: string) => void;
@@ -123,6 +177,9 @@ export const useStore = create<State>((set, get) => ({
   fieldAlarms: {},
   selectedId: null,
   typeFilter: 'ALL',
+  areaFilter: 'ALL',
+  areaRefs: [],
+  viewer: null,
   showClosed: false,
   connection: 'connecting',
   lastEventAt: null,
@@ -184,6 +241,11 @@ export const useStore = create<State>((set, get) => ({
 
   select: (selectedId) => set({ selectedId }),
   setTypeFilter: (typeFilter) => set({ typeFilter }),
+  setAreaFilter: (areaFilter) => set({ areaFilter }),
+  // Un área que ya no existe (o se desactivó) no puede seguir filtrando la cola.
+  setAreaRefs: (areaRefs) => set((s) => ({ areaRefs, areaFilter: areaRefs.some((a) => a.id === s.areaFilter) ? s.areaFilter : 'ALL' })),
+  setViewer: (viewer) => set({ viewer }),
+  resetAlerts: () => set({ alerts: {}, fresh: {}, selectedId: null, loaded: false }),
   // Al volver a "Activas" se sueltan las cerradas cargadas (salvo la abierta en el detalle), para que
   // un turno largo no acumule cientos de alertas en memoria; se recargan si se vuelve a "Cerradas".
   setShowClosed: (showClosed) =>
@@ -265,11 +327,22 @@ export interface QueueView {
   reports: number;
 }
 
-export function selectQueue(s: Pick<State, 'alerts' | 'typeFilter' | 'showClosed' | 'prefs'>): QueueView {
+/**
+ * Filtro por área: las alertas de esa área y, si es la que recibe los SOS, también los reportes con carácter de
+ * seguridad (los mismos que esa área ve sin filtro).
+ */
+function inArea(a: AnyAlert, f: AreaFilter, refs: AreaRef[]): boolean {
+  if (f === 'ALL') return true;
+  if (a.area?.id === f) return true;
+  return a.securityRelevant && !!refs.find((r) => r.id === f)?.receivesSos;
+}
+
+export function selectQueue(s: Pick<State, 'alerts' | 'typeFilter' | 'areaFilter' | 'areaRefs' | 'showClosed' | 'prefs'>): QueueView {
   const wanted = s.showClosed ? CLOSED_STATUSES : ACTIVE_STATUSES;
   const matching = Object.values(s.alerts)
     .filter((a) => wanted.includes(a.status))
-    .filter((a) => s.typeFilter === 'ALL' || a.type === s.typeFilter);
+    .filter((a) => s.typeFilter === 'ALL' || a.type === s.typeFilter)
+    .filter((a) => inArea(a, s.areaFilter, s.areaRefs));
   if (s.showClosed) {
     return { items: matching.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)), reports: matching.length };
   }

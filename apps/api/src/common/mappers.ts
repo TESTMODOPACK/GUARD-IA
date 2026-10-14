@@ -2,6 +2,7 @@ import type {
   AlertDetail,
   AlertEvent,
   AlertSummary,
+  AreaRef,
   CitizenAlert,
   Dispatch,
   GeoContext,
@@ -36,6 +37,8 @@ export interface AlertRowExtras {
   hasPhoto: boolean;
   citizenTrustScore: number | null;
   incident: IncidentInfo | null;
+  /** Área del aviso (0013), ya resuelta con su nombre. */
+  area: AreaRef | null;
 }
 
 export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
@@ -59,6 +62,9 @@ export function toAlertSummary(row: AlertRow, x: AlertRowExtras): AlertSummary {
     citizenTrustScore: x.citizenTrustScore,
     citizenRestricted: row.citizenRestricted,
     incident: x.incident,
+    area: x.area,
+    areaSource: row.areaSource,
+    securityRelevant: row.securityRelevant,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };

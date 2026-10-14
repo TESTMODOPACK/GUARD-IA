@@ -45,6 +45,8 @@ export const OperatorAccountSchema = z.object({
   online: z.boolean(),
   /** Con un turno iniciado y sin terminar. */
   onShift: z.boolean(),
+  /** Áreas del municipio a las que pertenece (0013); el administrador ve todas sin importar esta lista. */
+  areaIds: z.array(UuidSchema),
 });
 export type OperatorAccount = z.infer<typeof OperatorAccountSchema>;
 
@@ -52,16 +54,23 @@ export const CreateOperatorSchema = z.object({
   email: z.email().max(160).transform((v) => v.toLowerCase()),
   name: z.string().trim().min(2).max(80),
   role: z.enum(OPERATOR_ROLES),
+  areaIds: z.array(UuidSchema).max(20).default([]),
 });
-export type CreateOperator = z.infer<typeof CreateOperatorSchema>;
+/** Entrada (sin `areaIds` vale como lista vacía). */
+export type CreateOperator = z.input<typeof CreateOperatorSchema>;
 
 export const UpdateOperatorSchema = z
   .object({
     name: z.string().trim().min(2).max(80).optional(),
     role: z.enum(OPERATOR_ROLES).optional(),
     active: z.boolean().optional(),
+    /** Reemplaza sus áreas (0013). */
+    areaIds: z.array(UuidSchema).max(20).optional(),
   })
-  .refine((v) => v.name !== undefined || v.role !== undefined || v.active !== undefined, 'Nada que cambiar');
+  .refine(
+    (v) => v.name !== undefined || v.role !== undefined || v.active !== undefined || v.areaIds !== undefined,
+    'Nada que cambiar',
+  );
 export type UpdateOperator = z.infer<typeof UpdateOperatorSchema>;
 
 /** Respuesta al crear una cuenta o restablecer su contraseña: la temporal se muestra una sola vez. */

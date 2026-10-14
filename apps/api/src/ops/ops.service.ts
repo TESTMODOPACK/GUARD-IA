@@ -16,6 +16,7 @@ import {
   type DispatchAlert,
   type OpsAlertsQuery,
   type CitizenStanding,
+  type ReassignArea,
   type ReclassifyAlert,
   type RecordOutcome,
   type ReferAlert,
@@ -24,6 +25,7 @@ import {
   type UpdateDispatch,
 } from '@guardia/shared';
 import { AlertReadService, activeStrikes } from '../alerts/alert-read.service';
+import { refreshAlertArea, type AreaBefore } from '../areas/area-scope';
 import { AlertsService } from '../alerts/alerts.service';
 import { AppError } from '../common/app-error';
 import { toAlertEvent, toDispatch, toUnit } from '../common/mappers';
@@ -460,7 +462,7 @@ export class OpsService {
    * etiqueta para medir al agente junto con lo que la IA proponía en ese momento.
    */
   async reclassify(op: OperatorClaims, alertId: string, body: ReclassifyAlert): Promise<AlertDetail> {
-    const detail = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+    const before = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const row = await this.loadForUpdate(tx, alertId);
       if (!categoriesFor(row.type).includes(body.category)) {
         throw new AppError('VALIDATION_ERROR', 'La categoría no corresponde al tipo de alerta');
@@ -483,9 +485,38 @@ export class OpsService {
           confirmed: row.category === body.category && (row.subcategory ?? null) === subcategory,
         },
       });
-      return this.reads.detail(tx, alertId);
+      // Áreas (0013): el reporte pasa al área de su categoría nueva (salvo que una persona lo haya reasignado).
+      return refreshAlertArea(tx, alertId, 'AUTO', null);
     });
-    return this.afterTriageChange(op, alertId, detail);
+    // Puede haber pasado a un área que este operador no ve: la ficha se lee aparte (no revierte la corrección).
+    const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
+    return this.afterTriageChange(op, alertId, detail, before);
+  }
+
+  /**
+   * Pasar el aviso a otra área del municipio (0013). La decisión de una persona manda: el agente ya no lo mueve. La
+   * función SQL valida el área, deja el evento y la bitácora en la misma transacción.
+   */
+  async reassignArea(op: OperatorClaims, alertId: string, body: ReassignArea): Promise<AlertDetail> {
+    const previous = await this.dbs
+      .asOperator(op.tenantId, op.sub, async (tx) => {
+        const [row] = await tx.select({ id: alert.id }).from(alert).where(eq(alert.id, alertId)).limit(1);
+        if (!row) throw new AppError('NOT_FOUND', 'Alerta no encontrada');
+        const rows = (await tx.execute(
+          sql`SELECT reassign_alert_area(${alertId}::uuid, ${body.areaId}::uuid, ${op.sub}::uuid, ${body.reason}) AS prev`,
+        )) as unknown as { prev: string | null }[];
+        return rows[0]?.prev ?? null;
+      })
+      .catch((e: unknown) => {
+        const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;
+        if (code === '22023') throw new AppError('VALIDATION_ERROR', 'El área no existe o está desactivada');
+        if (code === 'P0002') throw new AppError('NOT_FOUND', 'Alerta no encontrada');
+        throw e;
+      });
+    const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
+    this.realtime.alertMoved(op.tenantId, alertId, { areaId: previous, securityRelevant: detail.securityRelevant }, detail);
+    this.realtime.alertUpdated(op.tenantId, detail);
+    return detail;
   }
 
   /** "Derivado a…": instituciones a las que la central derivó el caso (reemplaza la lista anterior). */
@@ -516,7 +547,7 @@ export class OpsService {
    * cierra el operador (resolver o, si la unidad confirmó un engaño, rechazar como aviso falso).
    */
   async recordOutcome(op: OperatorClaims, dispatchId: string, body: RecordOutcome): Promise<Dispatch> {
-    const { d, detail, reclassified, closed } = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
+    const { d, reclassified, closed, before } = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
       const [row] = await tx.select().from(dispatch).where(eq(dispatch.id, dispatchId)).for('update').limit(1);
       if (!row) throw new AppError('NOT_FOUND', 'Despacho no encontrado');
       if (row.status === 'CANCELLED') throw new AppError('CONFLICT', 'El despacho fue cancelado');
@@ -577,13 +608,14 @@ export class OpsService {
       });
       return {
         d: toDispatch(updated, u?.code ?? ''),
-        detail: await this.reads.detail(tx, row.alertId),
         reclassified,
         closed: close,
+        before: reclassified ? await refreshAlertArea(tx, row.alertId, 'AUTO', null) : null,
       };
     });
+    const detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, d.alertId));
     this.realtime.dispatchUpdated(op.tenantId, d);
-    if (reclassified) await this.afterTriageChange(op, d.alertId, detail);
+    if (reclassified) await this.afterTriageChange(op, d.alertId, detail, before);
     else this.realtime.alertUpdated(op.tenantId, detail);
     if (closed) await this.emitUnit(op, d.unitId);
     return d;
@@ -610,11 +642,17 @@ export class OpsService {
   }
 
   /** La categoría cambia el grupo (clasificación de la situación, importancia de un reporte urbano). */
-  private async afterTriageChange(op: OperatorClaims, alertId: string, detail: AlertDetail): Promise<AlertDetail> {
+  private async afterTriageChange(
+    op: OperatorClaims,
+    alertId: string,
+    detail: AlertDetail,
+    before?: AreaBefore | null,
+  ): Promise<AlertDetail> {
     if (detail.incident) {
       await this.incidents.attach(alertId).catch((e: Error) => this.logger.warn(`incidente de ${alertId}: ${e.message}`));
-      detail = await this.dbs.asOperator(op.tenantId, op.sub, (tx) => this.reads.detail(tx, alertId));
+      detail = await this.dbs.asSystem((tx) => this.reads.detail(tx, alertId));
     }
+    if (before) this.realtime.alertMoved(op.tenantId, alertId, before, detail);
     this.realtime.alertUpdated(op.tenantId, detail);
     return detail;
   }

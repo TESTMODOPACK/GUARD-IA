@@ -51,6 +51,7 @@ export function IncidentPanel({ alert }: { alert: AnyAlert }) {
   const select = useStore((s) => s.select);
   const upsertAlert = useStore((s) => s.upsertAlert);
   const notify = useStore((s) => s.notify);
+  const canOperate = useStore((s) => s.viewer?.canOperate ?? true);
   const [busy, setBusy] = useState(false);
   const members = useMemo(
     () =>
@@ -152,7 +153,7 @@ export function IncidentPanel({ alert }: { alert: AnyAlert }) {
         </div>
       ) : null}
 
-      {grouped ? (
+      {grouped && canOperate ? (
         <Button variant="ghost" className="h-8 px-2 text-xs" busy={busy} onClick={() => void detach()} data-testid="action-detach">
           No es la misma situación: separar este reporte
         </Button>

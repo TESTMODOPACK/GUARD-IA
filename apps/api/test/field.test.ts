@@ -107,6 +107,7 @@ d('terreno: funcionario con su unidad', () => {
       unitUpdated: () => undefined,
       citizenAlertStatus: () => undefined,
       fieldRefresh: () => undefined,
+      alertMoved: () => undefined,
       moveFieldOperator: async () => undefined,
       fieldAlarm: (_t: string, a: FieldAlarm) => emitted.push(a),
     } as unknown as RealtimeService;

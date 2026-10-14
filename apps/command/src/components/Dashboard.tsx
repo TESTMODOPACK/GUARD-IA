@@ -8,7 +8,7 @@ import { TENANT_STATUS_NOTICE } from '@/lib/labels';
 import { connectRealtime, disconnectRealtime } from '@/lib/realtime';
 import { loadSession, onSessionChange, type Session } from '@/lib/session';
 import { unlockAudio } from '@/lib/sound';
-import { CLOSED_STATUSES, useStore } from '@/lib/store';
+import { CLOSED_STATUSES, useStore, viewerOf } from '@/lib/store';
 import { AlertDetailPanel } from './AlertDetail';
 import { AlertQueue } from './AlertQueue';
 import { FieldAlarmsBar } from './FieldAlarmsBar';
@@ -34,6 +34,7 @@ export function Dashboard() {
   const toast = useStore((s) => s.toast);
   const clearToast = useStore((s) => s.clearToast);
   const selectedId = useStore((s) => s.selectedId);
+  const setViewer = useStore((s) => s.setViewer);
 
   // Guardia de sesión en cliente.
   useEffect(() => {
@@ -47,6 +48,11 @@ export function Dashboard() {
     apply(loadSession());
     return onSessionChange(apply);
   }, [router]);
+
+  // Quién mira y qué ve (0013); al conectar se relee la cuenta desde la API.
+  useEffect(() => {
+    setViewer(session ? viewerOf(session.operator) : null);
+  }, [session, setViewer]);
 
   // WebSocket. Al conectar (y en cada reconexión) carga activas y unidades por REST, con reintento.
   const operatorId = session && session.operator.role !== 'FIELD' ? session.operator.id : undefined;
@@ -80,6 +86,8 @@ export function Dashboard() {
         tenantName={session.operator.tenantName}
         operatorName={session.operator.name}
         role={session.operator.role}
+        areas={session.operator.areas ?? []}
+        seesAll={session.operator.seesAll ?? true}
         onLogout={() => {
           disconnectRealtime();
           void logout();

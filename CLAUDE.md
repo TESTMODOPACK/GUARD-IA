@@ -19,6 +19,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | P1 | Consola de plataforma (`apps/platform`, migración 0010) | implementada y probada en local (13-10-2026) |
 | PU | Uso indebido: faltas (0008), restricción, bloqueo con aprobación y revisión (0011) | implementado y probado en local (13-10-2026) |
 | PT | Terreno: rol FIELD, página `/terreno` de la central, avisos de terreno (0012) | implementado y probado en local (14-10-2026); falta Web Push (PT-4) |
+| PA | Áreas municipales: derivación por área, carácter de seguridad, rol Apoyo administrativo, agente `triage-v3` (0013) | implementado y probado en local (14-10-2026) |
 
 ## Comandos
 
@@ -50,10 +51,11 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   migraciones SQL a mano en `db/migrations`), `jobs/` (purga de retención, outbox IA, tokens y códigos vencidos), `cli/`
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003), `accounts/` (estado de cuenta
   del vecino, bloqueos, anulación de faltas y revisiones; migración 0011), `field/` (terreno: turno con unidad, estado,
-  informe, posición, pánico, avisos y reloj de plazos; migración 0012). `scripts/simulate.ts` es el simulador.
+  informe, posición, pánico, avisos y reloj de plazos; migración 0012), `areas/` (áreas del municipio, reglas por
+  categoría, modo compartido y alcance de cada cuenta; migración 0013). `scripts/simulate.ts` es el simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, field-realtime, labels en español), `components/`
   (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
-  FieldAlarmsBar, `admin/AdminShell`). Páginas: `/` central, `/terreno` (funcionario de terreno, en el teléfono), `/admin` panel, `/admin/usuarios`, `/admin/turnos`,
+  FieldAlarmsBar, `admin/AdminShell`). Páginas: `/` central, `/terreno` (funcionario de terreno, en el teléfono), `/admin` panel, `/admin/usuarios`, `/admin/areas` (solo ADMIN), `/admin/turnos`,
   `/admin/cuentas` (bloqueos por aprobar, revisiones, faltas), `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
 - `apps/api/src/platform/`: consola de plataforma (TOTP propio sin dependencias, tokens y sesiones propias,
@@ -162,13 +164,32 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     apoyo y plazos vencidos (`FieldWatchCron`, `FIELD_DEADLINES`, solo unidades con alguien de terreno en turno); el
     trigger `dispatch_field_alarm_clear` cierra los plazos cuando el despacho se mueve. La posición se guarda solo con
     un despacho abierto (última posición de la unidad, sin historial).
+19. **Áreas** (migración 0013, `areas/`, `/admin/areas`): las define el administrador municipal: nombre, la que
+    recibe los SOS (una sola, siempre activa), qué categoría o subcategoría urbana atiende cada una y qué cuentas
+    pertenecen a cuál. Las categorías son nacionales (`shared`); el municipio solo decide quién las atiende. Al
+    insertar, el trigger `alert_set_area` fija el área (`area_for`); al clasificar, `refresh_alert_area()` la recalcula
+    (salvo que una persona la haya reasignado: `area_source = 'OPERATOR'` manda), fija `security_relevant` (solo
+    urbanos: marca del agente o regla `SEGURIDAD_EN_REPORTE`) y deja el evento `AREA_CHANGED`. La única vía para mover
+    una alerta de área a mano es `reassign_alert_area()` (SECURITY DEFINER, evento y `audit_log`). Lo que ve cada
+    cuenta lo deciden políticas RESTRICTIVE en `alert` y sus tablas hijas (`operator_sees_all()`,
+    `operator_area_ids()`, `operator_in_sos_area()`): ADMIN, modo compartido (`tenant_area_mode`, la excepción) o
+    municipio sin áreas activas → todo; si no, sus áreas, las alertas sin área y, si es del área de los SOS, los
+    reportes con carácter de seguridad. Una cuenta sin área en un municipio con áreas solo ve alertas sin área.
+    Emisiones por sala (`alerts:{tenant}`, `area:{id}`, `security:{tenant}`); quien deja de ver una alerta recibe
+    `alert.removed`. Si cambia lo que ve una cuenta (áreas, rol, modo), `reconnectOperators` corta su socket y la
+    central relee `/ops/me` y recarga la cola. Tras un cambio de área, la ficha que se emite se lee en contexto system
+    después del commit. Rol `ASSISTANT` (apoyo administrativo): consulta, notas, panel y bitácora; nunca acciones
+    sobre la alerta (`OPERATING_ROLES` en `@Roles`). Las reglas nuevas rigen para alertas nuevas; despachos, unidades y
+    avisos de terreno siguen yendo a todo el municipio (`tenant:{id}`).
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
 NestJS 11 CommonJS (no 12, es ESM-only). Drizzle sobre postgres-js. `lat/lng` como columnas +
 `location` generada. Push Expo por HTTP sin SDK. Storage `local` solo en desarrollo/CI. IA `mock` si
-no hay `OPENAI_API_KEY`. Email de operador único global. Dashboard único con filtro por tipo (no una
-vista separada para Obras/Aseo). Cursor de la central `(prioridad, created_at µs, id)`.
+no hay `OPENAI_API_KEY`. Email de operador único global. Una sola central con filtro por tipo y por área (no una
+app separada para Obras/Aseo); desde 0013 (14-10-2026) cada cuenta ve solo las alertas de sus áreas, lo que
+reemplaza la decisión anterior de "dashboard único para todos" (la excepción del municipio, modo compartido, la
+recupera). Cursor de la central `(prioridad, created_at µs, id)`.
 `NEXT_PUBLIC_API_URL` se fija en el build de la central (una imagen por entorno).
 Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps/command/app/globals.css`
 (mismos valores; el rojo queda solo para SOS/prioridad alta). Íconos y símbolo generados desde
@@ -210,8 +231,12 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 - Base de datos: informe en `docs/revision-base-de-datos.md`. `0009_hardening.sql` aplicada en local (PK de
   texto corregidas, índices por municipio, privilegios, FK compuestas, RLS de `tenant` + `tenant_directory`,
-  `MaintenanceCron`). Falta `0013_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
-  piloto; `0010` es la consola de plataforma, `0011` el bloqueo por uso indebido y `0012` terreno.
+  `MaintenanceCron`). Falta `0014_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
+  piloto; `0010` es la consola de plataforma, `0011` el bloqueo por uso indebido, `0012` terreno y `0013` áreas.
+- Áreas (0013): las alertas que ya estaban abiertas al definir o cambiar reglas no se mueven solas (se pasan a mano
+  desde la ficha). Un incidente puede agrupar alertas de áreas distintas (la tarjeta muestra el área de la que lo
+  representa). En el municipio demo, `camila.rojas` no tiene área (solo ve alertas sin área); `aseo@demo` es de Aseo y
+  ornato y Alumbrado.
 - Comunas: cargadas en la base local las 345 de la DPA 2023 de SUBDERE (Antártica no viene en el archivo).
   Procedimiento en `docs/entorno-local.md` ("Comunas de Chile"); hay que repetirlo en cada base nueva (VPS).
   El ruteo usa `comuna_part` (trozos de ≤ 256 vértices, migración 0007): < 1 ms en todo el país.
@@ -222,8 +247,8 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
   unidad en terreno que informa resultados). Etapas 1 (motivos de rechazo, faltas, resultado en terreno),
   2 (endurecimiento 0009 y consola P1) y 3 (resto de PU: restricción, bloqueo con aprobación, "Estado de tu cuenta" y
   revisión) hechas el 13-10-2026. Terreno (PT, 0012) hecho el 14-10-2026 salvo PT-4: Web Push con el teléfono
-  bloqueado e instalación como app (hoy suena y vibra con la página abierta). Siguen P2 (errores y salud) y P3;
-  decisiones en §9.
+  bloqueado e instalación como app (hoy suena y vibra con la página abierta). Áreas municipales (PA, 0013) hechas el
+  14-10-2026. Siguen P2 (errores y salud) y P3; decisiones en §9.
 - Consola de plataforma (P1) sin hacer aún: QR para el segundo factor (hoy la clave se escribe a mano o se abre
   el enlace `otpauth://` en el teléfono; un QR requiere agregar una librería), estado "En negociación" y asignación
   comercial (RF-1.5), acceso de soporte (RF-4.4), avisos por correo al suspender. La primera alerta tras 30 s sin

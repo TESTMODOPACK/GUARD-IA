@@ -1,6 +1,9 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   AddNoteSchema,
+  CENTRAL_ROLES,
+  OPERATING_ROLES,
+  ReassignAreaSchema,
   CreateUnitSchema,
   DispatchAlertSchema,
   OpsAlertsQuerySchema,
@@ -17,6 +20,7 @@ import {
   type CreateUnit,
   type DispatchAlert,
   type OpsAlertsQuery,
+  type ReassignArea,
   type ReclassifyAlert,
   type RecordOutcome,
   type ReferAlert,
@@ -52,11 +56,13 @@ export class OpsController {
   }
 
   @Post('alerts/:id/ack')
+  @Roles(...OPERATING_ROLES)
   ack(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
     return this.ops.acknowledge(op, id);
   }
 
   @Post('alerts/:id/reject')
+  @Roles(...OPERATING_ROLES)
   reject(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,
@@ -66,6 +72,7 @@ export class OpsController {
   }
 
   @Post('alerts/:id/dispatch')
+  @Roles(...OPERATING_ROLES)
   dispatch(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,
@@ -75,6 +82,7 @@ export class OpsController {
   }
 
   @Post('alerts/:id/resolve')
+  @Roles(...OPERATING_ROLES)
   resolve(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,
@@ -85,6 +93,7 @@ export class OpsController {
 
   /** Transcribir y clasificar de nuevo (p. ej. llegó con la IA en modo de prueba o caída). */
   @Post('alerts/:id/reanalyze')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   reanalyze(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
     return this.ops.reanalyze(op, id);
@@ -92,6 +101,7 @@ export class OpsController {
 
   /** Sacar la alerta de su grupo: la central decidió que es otra situación. */
   @Post('alerts/:id/detach')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   detach(@CurrentAuth() op: OperatorClaims, @Param('id', zod(UuidSchema)) id: string) {
     return this.ops.detach(op, id);
@@ -99,6 +109,7 @@ export class OpsController {
 
   /** "Corregir clasificación": la categoría del operador manda sobre la de la IA. */
   @Post('alerts/:id/classification')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   reclassify(
     @CurrentAuth() op: OperatorClaims,
@@ -110,6 +121,7 @@ export class OpsController {
 
   /** "Derivado a…": instituciones a las que la central derivó el caso. */
   @Post('alerts/:id/referral')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   refer(
     @CurrentAuth() op: OperatorClaims,
@@ -121,6 +133,7 @@ export class OpsController {
 
   /** Traspaso manual al municipio donde ocurre el hecho (el agente lo hace solo cuando está claro). */
   @Post('alerts/:id/transfer')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   transfer(
     @CurrentAuth() op: OperatorClaims,
@@ -130,6 +143,18 @@ export class OpsController {
     return this.transfers.transferByOperator(op, id, body);
   }
 
+  /** Pasar el aviso a otra área del municipio (0013). */
+  @Post('alerts/:id/area')
+  @Roles(...OPERATING_ROLES)
+  @HttpCode(200)
+  reassignArea(
+    @CurrentAuth() op: OperatorClaims,
+    @Param('id', zod(UuidSchema)) id: string,
+    @Body(zod(ReassignAreaSchema)) body: ReassignArea,
+  ) {
+    return this.ops.reassignArea(op, id, body);
+  }
+
   /** Municipios de Guard-IA a los que se puede traspasar. */
   @Get('tenants')
   tenants(@CurrentAuth() op: OperatorClaims) {
@@ -137,6 +162,7 @@ export class OpsController {
   }
 
   @Post('alerts/:id/notes')
+  @Roles(...CENTRAL_ROLES)
   note(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,
@@ -147,6 +173,7 @@ export class OpsController {
 
   /** Resultado en terreno de un despacho (lo que informa la unidad). */
   @Post('dispatches/:id/outcome')
+  @Roles(...OPERATING_ROLES)
   @HttpCode(200)
   recordOutcome(
     @CurrentAuth() op: OperatorClaims,
@@ -163,6 +190,7 @@ export class OpsController {
   }
 
   @Patch('dispatches/:id')
+  @Roles(...OPERATING_ROLES)
   updateDispatch(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,
@@ -183,6 +211,7 @@ export class OpsController {
   }
 
   @Patch('units/:id')
+  @Roles(...OPERATING_ROLES)
   updateUnit(
     @CurrentAuth() op: OperatorClaims,
     @Param('id', zod(UuidSchema)) id: string,

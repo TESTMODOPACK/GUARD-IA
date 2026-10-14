@@ -79,6 +79,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     const realtime = {
       alertUpdated: () => undefined,
       fieldRefresh: () => undefined,
+      alertMoved: () => undefined,
       dispatchUpdated: () => undefined,
       unitUpdated: () => undefined,
       citizenAlertStatus: () => undefined,

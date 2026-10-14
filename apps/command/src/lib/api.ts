@@ -25,6 +25,11 @@ import type {
   AlertSummary,
   AlertType,
   ApiError,
+  AreaRef,
+  AreasConfig,
+  CreateArea,
+  SetAreaRules,
+  UpdateArea,
   Dispatch,
   DispatchStatus,
   FieldAlarm,
@@ -182,6 +187,9 @@ export const api = {
   reanalyze: (id: string) => request<AlertDetail>(`/ops/alerts/${id}/reanalyze`, { method: 'POST' }),
   reclassify: (id: string, category: AlertCategory, subcategory: string | null) =>
     request<AlertDetail>(`/ops/alerts/${id}/classification`, { method: 'POST', body: json({ category, subcategory }) }),
+  /** Pasar la alerta a otra área del municipio (0013). */
+  reassignArea: (id: string, areaId: string, reason: string) =>
+    request<AlertDetail>(`/ops/alerts/${id}/area`, { method: 'POST', body: json({ areaId, reason }) }),
   transfer: (id: string, tenantId: string, reason: string) =>
     request<{ toTenantName: string }>(`/ops/alerts/${id}/transfer`, { method: 'POST', body: json({ tenantId, reason }) }),
   tenants: () => request<TenantOption[]>('/ops/tenants'),
@@ -209,6 +217,8 @@ export const api = {
   mediaUrl: (mediaId: string) => request<SignedUrl>(`/ops/media/${mediaId}/url`),
 
   // ---- administración (migración 0003)
+  /** La cuenta propia con sus áreas (0013): se relee al conectar, porque el administrador puede cambiarlas. */
+  me: () => request<OperatorPublic>('/ops/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<OperatorPublic>('/ops/me/password', { method: 'POST', body: json({ currentPassword, newPassword }) }),
   operators: () => request<OperatorAccount[]>('/ops/operators'),
@@ -235,6 +245,17 @@ export const api = {
     request<ActivityPage<CaseActivity>>(`/ops/admin/activity?source=cases&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   systemActivity: (cursor?: string) =>
     request<ActivityPage<SystemActivity>>(`/ops/admin/activity?source=system&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+
+  // Áreas del municipio (0013): las define el administrador; los nombres los ve cualquier rol de la central.
+  areas: {
+    refs: () => request<AreaRef[]>('/ops/areas/refs'),
+    config: () => request<AreasConfig>('/ops/areas'),
+    create: (body: CreateArea) => request<AreasConfig>('/ops/areas', { method: 'POST', body: json(body) }),
+    suggested: () => request<AreasConfig>('/ops/areas/suggested', { method: 'POST' }),
+    update: (id: string, body: UpdateArea) => request<AreasConfig>(`/ops/areas/${id}`, { method: 'PATCH', body: json(body) }),
+    rules: (body: SetAreaRules) => request<AreasConfig>('/ops/areas/rules', { method: 'PUT', body: json(body) }),
+    mode: (shared: boolean, reason: string) => request<AreasConfig>('/ops/areas/mode', { method: 'POST', body: json({ shared, reason }) }),
+  },
 
   // Avisos de terreno en la central (0012).
   fieldAlarms: () => request<FieldAlarm[]>('/ops/field-alarms'),

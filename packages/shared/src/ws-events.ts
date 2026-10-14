@@ -17,6 +17,14 @@ export const wsRooms = {
   /** Sockets /field de quienes salieron con la unidad (el servidor los mueve al iniciar o terminar turno). */
   unit: (unitId: string) => `unit:${unitId}`,
   operator: (operatorId: string) => `operator:${operatorId}`,
+  /**
+   * Avisos por área (0013). `tenant:{id}` sigue llevando lo que no tiene datos del vecino (despachos, unidades,
+   * avisos de terreno, traspasos). Los avisos van a quienes ven todo, al área del aviso y, si tiene carácter de
+   * seguridad, a quienes pertenecen al área de los SOS.
+   */
+  alertsAll: (tenantId: string) => `alerts:${tenantId}`,
+  area: (areaId: string) => `area:${areaId}`,
+  security: (tenantId: string) => `security:${tenantId}`,
 };
 
 /** Eventos servidor → central (namespace /ops, room tenant:{id}). */
@@ -31,6 +39,8 @@ export interface OpsServerEvents {
   sync: (payload: { since: string; alerts: AlertSummary[] }) => void;
   /** Aviso de terreno nuevo o cerrado (0012): pánico, apoyo, plazo vencido. */
   'field.alarm': (alarm: FieldAlarm) => void;
+  /** El aviso pasó a un área que este operador no ve (0013): la central lo saca de su cola. */
+  'alert.removed': (payload: { alertId: string; areaName: string | null }) => void;
 }
 
 /**

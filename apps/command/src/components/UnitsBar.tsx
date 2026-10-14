@@ -11,11 +11,12 @@ export function UnitsBar() {
   const units = useStore((s) => s.units);
   const upsertUnit = useStore((s) => s.upsertUnit);
   const notify = useStore((s) => s.notify);
+  const canOperate = useStore((s) => s.viewer?.canOperate ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const list = useMemo(() => Object.values(units).sort((a, b) => a.code.localeCompare(b.code)), [units]);
 
   const toggle = async (u: Unit) => {
-    if (u.status === 'BUSY') return;
+    if (u.status === 'BUSY' || !canOperate) return;
     const next: UnitStatus = u.status === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE';
     setBusy(u.id);
     try {
@@ -37,8 +38,16 @@ export function UnitsBar() {
           <button
             key={u.id}
             onClick={() => toggle(u)}
-            disabled={u.status === 'BUSY' || busy === u.id}
-            title={u.status === 'BUSY' ? 'Ocupada en un despacho' : u.status === 'AVAILABLE' ? 'Marcar fuera de servicio' : 'Marcar disponible'}
+            disabled={u.status === 'BUSY' || busy === u.id || !canOperate}
+            title={
+              u.status === 'BUSY'
+                ? 'Ocupada en un despacho'
+                : !canOperate
+                  ? UNIT_STATUS[u.status]
+                  : u.status === 'AVAILABLE'
+                    ? 'Marcar fuera de servicio'
+                    : 'Marcar disponible'
+            }
             className={`h-7 px-2.5 rounded-ctl border text-xs backdrop-blur-sm ${tone} disabled:cursor-default`}
           >
             {u.code} · {UNIT_STATUS[u.status]}

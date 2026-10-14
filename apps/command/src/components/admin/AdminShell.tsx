@@ -11,15 +11,18 @@ import { loadSession, onSessionChange, type Session } from '@/lib/session';
 import { Button, Dialog } from '../ui';
 
 const MANAGERS: OperatorRole[] = ['ADMIN', 'SUPERVISOR'];
+/** Panel y bitácora: también el apoyo administrativo (0013), que consulta sin operar. */
+export const VIEWERS: OperatorRole[] = ['ADMIN', 'SUPERVISOR', 'ASSISTANT'];
 
 /** Secciones del módulo. `roles` vacío: cualquier operador. */
 const SECTIONS: { href: string; label: string; roles: OperatorRole[] }[] = [
-  { href: '/admin', label: 'Panel', roles: MANAGERS },
+  { href: '/admin', label: 'Panel', roles: VIEWERS },
   { href: '/admin/usuarios', label: 'Usuarios', roles: MANAGERS },
+  { href: '/admin/areas', label: 'Áreas', roles: ['ADMIN'] },
   { href: '/admin/turnos', label: 'Turnos', roles: [] },
   { href: '/directorio', label: 'Directorio', roles: [] },
   { href: '/admin/cuentas', label: 'Cuentas', roles: MANAGERS },
-  { href: '/admin/bitacora', label: 'Bitácora', roles: MANAGERS },
+  { href: '/admin/bitacora', label: 'Bitácora', roles: VIEWERS },
 ];
 
 /**

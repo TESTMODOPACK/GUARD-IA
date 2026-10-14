@@ -66,6 +66,14 @@ export class OperatorsController {
     return this.operators.resetPassword(op, id);
   }
 
+  /** La cuenta propia con sus áreas (0013): la central la relee al abrir y al reconectar. */
+  @Get('me')
+  @AllowPendingPassword()
+  @Roles(...OPERATOR_ROLES)
+  me(@CurrentAuth() op: OperatorClaims) {
+    return this.operators.me(op);
+  }
+
   /** Cualquier operador, incluso con la contraseña temporal pendiente de cambiar (también el de terreno). */
   @Post('me/password')
   @AllowPendingPassword()
@@ -154,10 +162,10 @@ export class ContactsController {
   }
 }
 
-/** Panel del administrador y bitácoras: ADMIN y SUPERVISOR. */
+/** Panel del administrador y bitácoras: ADMIN, SUPERVISOR y apoyo administrativo (consulta; 0013). */
 @Controller('ops/admin')
 @Auth('operator')
-@Roles('ADMIN', 'SUPERVISOR')
+@Roles('ADMIN', 'SUPERVISOR', 'ASSISTANT')
 export class AdminController {
   constructor(private readonly stats: StatsService) {}
 

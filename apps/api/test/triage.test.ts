@@ -7,6 +7,7 @@ import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import type { Job } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { TRIAGE_VERSION } from '@guardia/shared';
 import { AiProcessor } from '../src/ai/ai.processor';
 import type { ProcessAlertJob } from '../src/ai/ai.queue';
 import { MockAiProvider } from '../src/ai/mock.provider';
@@ -65,7 +66,7 @@ d('agente de clasificación', () => {
     admin = postgres(env.DATABASE_ADMIN_URL, { max: 1, onnotice: () => undefined });
     const incidents = new IncidentsService(dbs);
     const reads = new AlertReadService({ toPublic: async () => [] } as unknown as MediaService);
-    const realtime = { alertUpdated: () => undefined, fieldRefresh: () => undefined, citizenAlertStatus: () => undefined } as unknown as RealtimeService;
+    const realtime = { alertUpdated: () => undefined, fieldRefresh: () => undefined, alertMoved: () => undefined, citizenAlertStatus: () => undefined } as unknown as RealtimeService;
     const notifications = { notifyAlertStatus: async () => undefined } as unknown as NotificationsService;
     const alertsSvc = { enqueue: async () => true } as unknown as AlertsService;
     const metrics = { aiProcessing: { observe: () => undefined } } as unknown as MetricsService;
@@ -119,7 +120,7 @@ d('agente de clasificación', () => {
       suggested_agency: 'CARABINEROS',
     });
     const t = r.ai_triage as { version: string; rules: string[]; questions: string[]; provider: string };
-    expect(t.version).toBe('triage-v2');
+    expect(t.version).toBe(TRIAGE_VERSION);
     expect(t.provider).toBe('mock');
     expect(t.rules).toContain('VIF');
     expect(t.questions.length).toBeGreaterThan(0);
@@ -142,7 +143,7 @@ d('agente de clasificación', () => {
 
     const [label] = await admin<{ ai_category: string; ai_version: string }[]>`
       SELECT ai_category, ai_version FROM triage_label WHERE alert_id = ${id}`;
-    expect(label).toEqual({ ai_category: 'OTRO_EMERGENCIA', ai_version: 'triage-v2' });
+    expect(label).toEqual({ ai_category: 'OTRO_EMERGENCIA', ai_version: TRIAGE_VERSION });
 
     await admin`UPDATE alert SET ai_status = 'QUEUED' WHERE id = ${id}`;
     await analyze(id);

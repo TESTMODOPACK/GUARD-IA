@@ -601,7 +601,9 @@ El número de filas por sí solo no es el límite: 2,6 M de alertas al año se m
 > base real, el simulador y la prueba de plan de C3 (la cola usa `alert_open_queue_idx`) en verde. `0010` queda
 > para la consola de plataforma (`0010_platform.sql`), así que el particionado pasa a **`0011_scale.sql`**.
 > Después `0011` se usó para el bloqueo por uso indebido (`0011_misuse_blocks.sql`) y `0012` para terreno
-> (`0012_field.sql`): el particionado queda como **`0013_scale.sql`**.
+> (`0012_field.sql`) y `0013` para las áreas municipales (`0013_areas.sql`, 14-10-2026): el particionado queda como
+> **`0014_scale.sql`**. Al reconstruir `alert_event` hay que recrear también su política RESTRICTIVE de áreas
+> (`alert_event_operator_area`, de 0013), además de las de 0001 y 0012.
 > Lo que cambió respecto del texto de arriba:
 > - **A2:** con RLS en `tenant`, el operador solo ve su municipio. Para lo que necesita ver de los demás (lista
 >   de traspaso, comuna nombrada por el vecino, nombre del municipio en el historial de faltas) hay una vista
@@ -614,7 +616,7 @@ El número de filas por sí solo no es el límite: 2,6 M de alertas al año se m
 
 1. **Sin migración, ya:** `tenant_id` explícito en las consultas de operador (C3); `lock_timeout` en `attachInTx` (A6); `.orderBy(asc(alert.id))` en `resolve` (M7); `MaintenanceCron` con las purgas (A5).
 2. **`0009_hardening.sql`:** C1, C2, A1, A2, A3, A4, M1 (refresh_token), M2, M3, M4, M5 (alert y media), M6, M8, y los índices de C3.
-3. **`0013_scale.sql`** (antes `0010`, `0011` y `0012`): reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
+3. **`0014_scale.sql`** (antes `0010` a `0013`): reconstrucción particionada de `alert_event` y `audit_log`, función de particiones, `uuidv7()` y sus defaults. Hacerla antes del piloto, mientras las tablas son pequeñas.
 4. **Fase 2, opcional:** rol de base por contexto (C3 nivel 2); sesiones en lugar de una fila por rotación; `token_hash` como `bytea`.
 5. **Pruebas:** `pnpm --filter @guardia/api test:db` (RLS contra base real), `pnpm typecheck` y `pnpm simulate`. Añadir la prueba de plan de C3 y una prueba que verifique que `guardia_app` no puede escribir en `schema_migrations`.
 

@@ -109,7 +109,7 @@ export const TRIAGE_RULES: readonly TriageRule[] = [
     id: 'ROBO_EN_CURSO',
     label: 'Robo o asalto en curso',
     pattern:
-      /\b(?:(?:me|nos|lo|la|le|les)? ?(?:estan|esta) (?:robando|asaltando|apuntando)|(?:se|nos) (?:estan|esta) (?:metiendo|entrando)|(?:estan|esta) entrando a (?:mi|la|una|nuestra) casa|me quieren robar|turbazos?)/,
+      /\b(?:(?:me|nos|lo|la|le|les)? ?(?:estan|esta) (?:robando|asaltando|apuntando)|(?:se|nos) (?:estan|esta) (?:metiendo|entrando)|(?:estan|esta) entrando a (?:mi|la|una|nuestra) casa|me quieren robar|turbazos?\b)/,
     types: SOS,
     minPriority: 'HIGH',
     agencies: ['CARABINEROS'],
@@ -274,6 +274,17 @@ export const TRIAGE_RULES: readonly TriageRule[] = [
     types: CIVIC,
     minPriority: 'MEDIUM',
     set: { CIVIC_REPORT: { category: 'AREA_VERDE', subcategory: 'ARBOL_RIESGO' } },
+  },
+  {
+    // triage-v3 (0013): el reporte urbano sigue en su área y además lo ve el área de los SOS. No cambia la categoría
+    // ni la prioridad; "peligroso" a secas (un bache) no cuenta.
+    id: 'SEGURIDAD_EN_REPORTE',
+    label: 'El reporte urbano también es un asunto de seguridad',
+    pattern:
+      /\b(?:asalt\w*|rob(?:o|os|an|aron|ando|ar)\b|lanzas?\b|delincuen\w*|drogas?\b|pasta base|marihuana|narco\w*|traficantes?|venden? (?:droga|pasta)|consum\w* (?:de )?(?:droga|alcohol)|se juntan a (?:tomar|consumir|fumar|drogarse)|balacera|balazos?|disparos?|armad[oa]s?\b|pistolas?|cuchill\w*|amenaz\w*|peleas?\b|rinas?\b|okupas?\b|toma ilegal|acos\w*)/,
+    types: CIVIC,
+    agencies: ['SEGURIDAD_MUNICIPAL'],
+    flags: ['security_relevant'],
   },
 ];
 

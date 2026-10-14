@@ -21,6 +21,8 @@ export function FieldAlarmsBar() {
   const select = useStore((s) => s.select);
   const notify = useStore((s) => s.notify);
   const upsert = useStore((s) => s.upsertFieldAlarm);
+  // El apoyo administrativo ve los avisos de terreno; los atiende quien opera (0013).
+  const canOperate = useStore((s) => s.viewer?.canOperate ?? true);
   const alarms = useMemo(
     () => Object.values(alarmsMap).sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || b.createdAt.localeCompare(a.createdAt)),
     [alarmsMap],
@@ -76,9 +78,11 @@ export function FieldAlarmsBar() {
                   Ver caso
                 </Button>
               ) : null}
-              <Button variant={panic ? 'danger' : 'quiet'} className="h-8" busy={busy === a.id} onClick={() => void ack(a)}>
-                Atendido
-              </Button>
+              {canOperate ? (
+                <Button variant={panic ? 'danger' : 'quiet'} className="h-8" busy={busy === a.id} onClick={() => void ack(a)}>
+                  Atendido
+                </Button>
+              ) : null}
             </span>
           </div>
         );

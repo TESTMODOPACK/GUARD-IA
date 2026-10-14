@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 import { hash } from '@node-rs/argon2';
+import { SUGGESTED_AREAS } from '@guardia/shared';
 import { loadEnvFiles } from './load-env';
 
 const DEFAULT_BOUNDARY = {
@@ -64,6 +65,8 @@ async function main() {
     const operators = [
       { email: `admin@${slug}.guardia.cl`, name: 'Administrador Demo', role: 'ADMIN' },
       { email: `operador@${slug}.guardia.cl`, name: 'Operador Demo', role: 'OPERATOR' },
+      // Áreas (0013): una cuenta de ejemplo fuera de Seguridad, para ver la separación por área.
+      { email: `aseo@${slug}.guardia.cl`, name: 'Operadora Aseo Demo', role: 'OPERATOR' },
     ];
     for (const o of operators) {
       await sql`
@@ -86,6 +89,36 @@ async function main() {
         ON CONFLICT (tenant_id, code) DO NOTHING`;
     }
     console.log(`[seed] unidades: ${units.map((u) => u.code).join(', ')}`);
+
+    // Áreas sugeridas (0013), solo si el municipio aún no tiene: el administrador las edita en /admin/areas.
+    const [{ n }] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM area WHERE tenant_id = ${t.id}`;
+    if (n === 0) {
+      for (const a of SUGGESTED_AREAS) {
+        const [row] = await sql<{ id: string }[]>`
+          INSERT INTO area (tenant_id, name, receives_sos) VALUES (${t.id}, ${a.name}, ${a.receivesSos}) RETURNING id`;
+        for (const c of a.categories) {
+          await sql`INSERT INTO area_rule (tenant_id, category, area_id) VALUES (${t.id}, ${c}::alert_category, ${row.id})`;
+        }
+      }
+      console.log(`[seed] áreas: ${SUGGESTED_AREAS.map((a) => a.name).join(', ')}`);
+    }
+    const members: [string, string[]][] = [
+      [`operador@${slug}.guardia.cl`, ['Seguridad']],
+      [`aseo@${slug}.guardia.cl`, ['Aseo y ornato', 'Alumbrado']],
+    ];
+    for (const [email, names] of members) {
+      await sql`
+        INSERT INTO operator_area (operator_id, area_id, tenant_id)
+        SELECT o.id, a.id, ${t.id}::uuid FROM operator o JOIN area a ON a.tenant_id = o.tenant_id
+         WHERE o.email = ${email} AND a.name = ANY(${names}) AND a.active
+        ON CONFLICT DO NOTHING`;
+    }
+    // Los avisos abiertos de antes de las áreas toman la que les corresponde (los nuevos la reciben al llegar).
+    const moved = await sql`
+      UPDATE alert SET area_id = area_for(tenant_id, type, category, subcategory), area_source = 'AUTO'
+       WHERE tenant_id = ${t.id} AND area_id IS NULL AND status IN ('PENDING', 'ACKNOWLEDGED', 'DISPATCHED')
+         AND area_for(tenant_id, type, category, subcategory) IS NOT NULL`;
+    console.log(`[seed] operador@ en Seguridad; aseo@ en Aseo y ornato y Alumbrado; ${moved.count} avisos abiertos con área`);
   } finally {
     await sql.end({ timeout: 5 });
   }

@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
   smallint,
   text,
@@ -36,6 +37,7 @@ import {
   CITIZEN_BLOCK_STATUSES,
   CITIZEN_REVIEW_STATUSES,
   FIELD_ALARM_KINDS,
+  AREA_SOURCES,
   OUTCOME_VIA,
   UNIT_KINDS,
   UNIT_STATUSES,
@@ -71,6 +73,7 @@ export const citizenBlockStatusEnum = pgEnum('citizen_block_status', CITIZEN_BLO
 export const citizenReviewStatusEnum = pgEnum('citizen_review_status', CITIZEN_REVIEW_STATUSES);
 export const outcomeViaEnum = pgEnum('outcome_via', OUTCOME_VIA);
 export const fieldAlarmKindEnum = pgEnum('field_alarm_kind', FIELD_ALARM_KINDS);
+export const areaSourceEnum = pgEnum('area_source', AREA_SOURCES);
 export const platformRoleEnum = pgEnum('platform_role', PLATFORM_ROLES);
 export const platformActionEnum = pgEnum('platform_action', PLATFORM_ACTIONS);
 
@@ -197,6 +200,10 @@ export const alert = pgTable('alert', {
   comunaCut: integer('comuna_cut'),
   // 0011_misuse_blocks.sql: cuenta restringida al enviarla (la fija el trigger alert_account).
   citizenRestricted: boolean('citizen_restricted').notNull().default(false),
+  // 0013_areas.sql: área del municipio (la pone la base al insertar; la corrigen el agente o una persona).
+  areaId: uuid('area_id'),
+  areaSource: areaSourceEnum('area_source'),
+  securityRelevant: boolean('security_relevant').notNull().default(false),
   // 0009_hardening.sql: orden de la cola (HIGH 0, MEDIUM 1, LOW 2, sin prioridad 1), con índice.
   priorityRank: smallint('priority_rank').generatedAlwaysAs(
     sql`CASE priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 1 END`,
@@ -324,6 +331,58 @@ export const shift = pgTable('shift', {
   unitId: uuid('unit_id').references(() => unit.id),
   createdBy: uuid('created_by'),
   createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** Áreas del municipio (0013): las define el administrador municipal. */
+export const area = pgTable('area', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  name: text('name').notNull(),
+  receivesSos: boolean('receives_sos').notNull().default(false),
+  active: boolean('active').notNull().default(true),
+  createdBy: uuid('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** Qué área atiende cada categoría urbana (o una subcategoría). */
+export const areaRule = pgTable('area_rule', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  category: alertCategoryEnum('category').notNull(),
+  subcategory: text('subcategory'),
+  areaId: uuid('area_id')
+    .notNull()
+    .references(() => area.id),
+});
+
+export const operatorArea = pgTable(
+  'operator_area',
+  {
+    operatorId: uuid('operator_id')
+      .notNull()
+      .references(() => operator.id),
+    areaId: uuid('area_id')
+      .notNull()
+      .references(() => area.id),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+  },
+  (t) => [primaryKey({ columns: [t.operatorId, t.areaId] })],
+);
+
+/** Excepción: todas las áreas ven todo (una fila por municipio que lo configuró). */
+export const tenantAreaMode = pgTable('tenant_area_mode', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenant.id),
+  shared: boolean('shared').notNull().default(false),
+  updatedBy: uuid('updated_by'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
 /** Avisos de terreno (0012): pánico, apoyo y plazos vencidos. */
@@ -586,6 +645,10 @@ export const platformAuditLog = pgTable('platform_audit_log', {
 });
 
 export const schema = {
+  area,
+  areaRule,
+  operatorArea,
+  tenantAreaMode,
   fieldAlarm,
   citizenBlock,
   citizenReview,
@@ -619,6 +682,7 @@ export type Schema = typeof schema;
 export type AlertRow = typeof alert.$inferSelect;
 export type DispatchRow = typeof dispatch.$inferSelect;
 export type FieldAlarmRow = typeof fieldAlarm.$inferSelect;
+export type AreaRow = typeof area.$inferSelect;
 export type ShiftRow = typeof shift.$inferSelect;
 export type UnitRow = typeof unit.$inferSelect;
 export type CitizenRow = typeof citizen.$inferSelect;

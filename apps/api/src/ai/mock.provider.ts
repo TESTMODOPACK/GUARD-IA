@@ -79,6 +79,8 @@ export class MockAiProvider implements AiProvider {
         people_injured: /herid|sangr|inconscien/.test(text),
         minor_involved: /niñ|menor|hijo|hija/.test(text),
         language_other_than_spanish: false,
+        // La marca de seguridad la ponen las reglas fijas (SEGURIDAD_EN_REPORTE).
+        security_relevant: false,
       },
     };
   }

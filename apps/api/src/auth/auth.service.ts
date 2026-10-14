@@ -12,6 +12,7 @@ import type {
   TokenPair,
 } from '@guardia/shared';
 import { loadCitizenAccount } from '../accounts/account-read';
+import { loadOperatorScope, type OperatorScope } from '../areas/area-scope';
 import { AppError } from '../common/app-error';
 import { ENV, type Env } from '../config/env';
 import { DbService, type Tx } from '../db/db.service';
@@ -178,7 +179,8 @@ export class AuthService {
       await this.audit.record(tx, { tenantId: op.tenantId, actorId: op.id, kind: 'LOGIN', targetId: op.id, payload: { ip } });
       const claims: AccessClaims = { kind: 'operator', sub: op.id, tenantId: op.tenantId, role: op.role };
       const { refreshId: _id, ...pair } = await this.tokens.issuePair(tx, claims);
-      return { ...pair, operator: toOperatorPublic(op, t.name, t.status) };
+      const scope = await loadOperatorScope(tx, { id: op.id, tenantId: op.tenantId, role: op.role });
+      return { ...pair, operator: toOperatorPublic(op, t.name, t.status, scope) };
     });
   }
 
@@ -241,7 +243,12 @@ function toCitizenPublic(c: typeof citizen.$inferSelect, account: CitizenAccount
   };
 }
 
-function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string, tenantStatus: TenantStatus): OperatorPublic {
+function toOperatorPublic(
+  o: typeof operator.$inferSelect,
+  tenantName: string,
+  tenantStatus: TenantStatus,
+  scope: OperatorScope,
+): OperatorPublic {
   return {
     id: o.id,
     tenantId: o.tenantId,
@@ -251,5 +258,7 @@ function toOperatorPublic(o: typeof operator.$inferSelect, tenantName: string, t
     role: o.role,
     mustChangePassword: o.mustChangePassword,
     tenantStatus,
+    areas: scope.areas,
+    seesAll: scope.seesAll,
   };
 }

@@ -15,6 +15,7 @@ const NO_FLAGS = {
   people_injured: false,
   minor_involved: false,
   language_other_than_spanish: false,
+  security_relevant: false,
 };
 const meta = { provider: 'test', model: null };
 
@@ -194,5 +195,29 @@ describe('reglas fijas', () => {
   it('sin texto no cambia nada', () => {
     const base = normalizeClassification('EMERGENCY_SOS', raw(), meta);
     expect(applyTriageRules('EMERGENCY_SOS', base, '   ')).toEqual(base);
+  });
+});
+
+describe('carácter de seguridad en reportes urbanos (triage-v3)', () => {
+  const civic = (text: string, category: AiClassification['category'] = 'BASURA_MICROBASURAL') =>
+    triage('CIVIC_REPORT', text, { category, agencies: [{ agency: 'OBRAS_ASEO', reason: 'aseo' }] });
+
+  it('drogas, asaltos o peleas en el lugar marcan el reporte y suman a seguridad municipal', () => {
+    const t = civic('en el microbasural se juntan a consumir drogas y hay peleas');
+    expect(t.flags.security_relevant).toBe(true);
+    expect(t.rules).toContain('SEGURIDAD_EN_REPORTE');
+    expect(t.agencies.map((a) => a.agency)).toEqual(['OBRAS_ASEO', 'SEGURIDAD_MUNICIPAL']);
+    expect(t.category).toBe('BASURA_MICROBASURAL');
+    expect(civic('la luminaria está apagada y en la noche asaltan a la gente', 'LUMINARIA').flags.security_relevant).toBe(true);
+  });
+
+  it('"peligroso" a secas, o negado, no marca', () => {
+    expect(civic('el bache es peligroso, ya reventó dos ruedas', 'BACHE').flags.security_relevant).toBe(false);
+    expect(civic('no hay peleas, solo basura acumulada').flags.security_relevant).toBe(false);
+  });
+
+  it('en un SOS la señal queda en false aunque el modelo la ponga', () => {
+    const t = triage('EMERGENCY_SOS', 'me asaltaron', { flags: { ...NO_FLAGS, security_relevant: true } });
+    expect(t.flags.security_relevant).toBe(false);
   });
 });

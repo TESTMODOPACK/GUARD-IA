@@ -61,6 +61,7 @@ d('uso indebido y resultado en terreno', () => {
     const realtime = {
       alertUpdated: () => undefined,
       fieldRefresh: () => undefined,
+      alertMoved: () => undefined,
       dispatchUpdated: () => undefined,
       unitUpdated: () => undefined,
       citizenAlertStatus: () => undefined,

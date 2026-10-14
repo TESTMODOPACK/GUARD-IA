@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { AlertCategory, AlertType, CitizenStanding, DispatchOutcome, RecordOutcome, RejectReason, Unit } from '@guardia/shared';
+import type { AlertCategory, AlertType, AreaRef, CitizenStanding, DispatchOutcome, RecordOutcome, RejectReason, Unit } from '@guardia/shared';
 import { DISPATCH_OUTCOMES, SUBCATEGORIES, categoriesFor } from '@guardia/shared';
 import { api } from '@/lib/api';
 import {
@@ -83,6 +83,87 @@ export function DispatchDialog({
         </Button>
         <Button variant="primary" onClick={submit} busy={busy} disabled={!unitId} data-testid="dispatch-confirm">
           Despachar
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Pasar la alerta a otra área del municipio (0013). La decisión de una persona manda: desde ahí el agente ya no la
+ * mueve de área. El motivo queda en la línea de tiempo y en la bitácora.
+ */
+export function AreaDialog({
+  current,
+  areas,
+  onConfirm,
+  onClose,
+}: {
+  current: AreaRef | null;
+  areas: AreaRef[];
+  onConfirm: (areaId: string, reason: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const options = useMemo(() => areas.filter((a) => a.id !== current?.id), [areas, current]);
+  const [areaId, setAreaId] = useState(options[0]?.id ?? '');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = !!areaId && reason.trim().length >= 5;
+
+  const submit = async () => {
+    if (!ready) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm(areaId, reason.trim());
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog title="Cambiar de área" onClose={onClose} busy={busy}>
+      <div className="space-y-4">
+        <p className="text-sm text-ink-muted">
+          Ahora: {current ? current.name : 'sin área (la ve todo el municipio)'}. Después del cambio el agente ya no la mueve de área.
+          Si tu cuenta no ve el área nueva, la alerta sale de tu cola.
+        </p>
+        <Field label="Pasar a">
+          <select className={inputClass} value={areaId} onChange={(e) => setAreaId(e.target.value)} data-testid="area-select">
+            {options.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.receivesSos ? ' (recibe los SOS)' : ''}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Motivo (queda en la bitácora)">
+          <textarea
+            className={textareaClass}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={300}
+            placeholder="Ej.: es un poste caído, lo atiende Alumbrado"
+            data-testid="area-reason"
+          />
+        </Field>
+        {error ? (
+          <p role="alert" className="text-sm text-high">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button variant="primary" onClick={submit} busy={busy} disabled={!ready} data-testid="area-confirm">
+          Cambiar de área
         </Button>
       </div>
     </Dialog>
