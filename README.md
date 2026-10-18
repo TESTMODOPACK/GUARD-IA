@@ -153,8 +153,15 @@ sin firma vigente no se lee nada).
 
 ## Despliegue (Fase 4, ya preparado)
 
-Paso a paso para un VPS de Hostinger (clave de despliegue, SSH o Docker Manager, datos iniciales y respaldo):
-`infra/HOSTINGER.md`.
+En un VPS nuevo (Ubuntu, como root), un solo comando instala todo. Clona el repositorio en `/opt/guard-ia`, arma el
+`.env` con secretos al azar, levanta los contenedores, crea el primer superadministrador, carga las comunas y programa
+el respaldo. Se puede repetir sin riesgo. Detalle en `infra/HOSTINGER.md`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TESTMODOPACK/GUARD-IA/main/infra/install.sh | bash
+```
+
+A mano:
 
 ```bash
 cp .env.production.example .env               # en la raíz; completar (4 dominios: API, central, consola y media)

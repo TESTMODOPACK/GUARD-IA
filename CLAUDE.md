@@ -66,10 +66,11 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   guard propio, regiones y comunas, municipios, equipo, bitácora). `apps/platform/src`: `lib/` (api, sesión en
   sessionStorage, labels), `components/` (Shell, ComunaMap, TenantDialogs). Páginas: `/` Chile, `/region/[cut]`,
   `/municipio/[id]`, `/municipios`, `/subencargados`, `/incidentes` (0014), `/usuarios`, `/bitacora`, `/login`, `/cambiar-clave`.
-- `docker-compose.yml` en la raíz (db, redis, minio, migrate, api, command, platform, caddy; el Docker Manager de Hostinger
-  lo busca ahí), con `.dockerignore` y `.env.production.example`. Cada contenedor recibe solo sus variables (lista
-  explícita: si se agrega una en `config/env.ts`, se agrega también ahí) y los datos van en volúmenes con nombre. `infra/`:
-  Caddyfile, backup.sh, `HOSTINGER.md` (despliegue paso a paso) y `RESTAURAR.md`.
+- `docker-compose.yml` en la raíz (db, redis, minio, migrate, api, command, platform, caddy), con `.dockerignore` y
+  `.env.production.example`. Cada contenedor recibe solo sus variables (lista explícita: si se agrega una en
+  `config/env.ts`, se agrega también ahí) y los datos van en volúmenes con nombre. `infra/`: `install.sh` (instalador del
+  VPS, idempotente; `curl … | bash` clona en `/opt/guard-ia`; si cambian las variables obligatorias, se actualiza
+  también), Caddyfile, backup.sh, `HOSTINGER.md` (despliegue) y `RESTAURAR.md`.
 
 ## Reglas que no se rompen
 
@@ -222,8 +223,9 @@ Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps
   `pnpm seed --geojson limite.geojson --name "..." --slug ...`.
 - Audio ambiente de 15 s: un clip (Fase 3); encadenado post-piloto.
 - VPS y dominios: `.env.production.example` y `infra/HOSTINGER.md` (VPS de Hostinger).
-- Repositorio: GitHub privado `TESTMODOPACK/GUARD-IA` (`origin`, rama `main`, desde el 18-10-2026). El VPS lo clona
-  con una clave de despliegue de solo lectura; los secretos viven solo en el `.env` del servidor.
+- Repositorio: GitHub **público** `TESTMODOPACK/GUARD-IA` (`origin`, rama `main`, desde el 18-10-2026). Todo lo que se
+  sube es visible: nunca secretos ni datos reales. El VPS lo clona sin credenciales; los secretos viven solo en el
+  `.env` del servidor.
 
 ## App del vecino (apps/mobile) — cómo está hecha
 
