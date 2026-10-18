@@ -219,7 +219,8 @@ Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps
   `pnpm seed --geojson limite.geojson --name "..." --slug ...`.
 - Audio ambiente de 15 s: un clip (Fase 3); encadenado post-piloto.
 - VPS y dominios: `infra/.env.production.example`.
-- Repositorio: aún sin remoto.
+- Repositorio: GitHub privado `TESTMODOPACK/GUARD-IA` (`origin`, rama `main`, desde el 18-10-2026). El VPS lo clona
+  con una clave de despliegue de solo lectura; los secretos viven solo en el `.env` del servidor.
 
 ## App del vecino (apps/mobile) — cómo está hecha
 
