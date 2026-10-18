@@ -6,7 +6,7 @@
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RejectAlertSchema } from '@guardia/shared';
+import { ALERT_UPDATE_PUSH, RejectAlertSchema } from '@guardia/shared';
 import { AlertReadService } from '../src/alerts/alert-read.service';
 import type { AlertsService } from '../src/alerts/alerts.service';
 import type { OperatorClaims } from '../src/auth/auth.guard';
@@ -141,7 +141,8 @@ d('uso indebido y resultado en terreno', () => {
     const first = await sos(0);
     notices.length = 0;
     await ops.reject(op[0], first, { reason: 'FALSE_ALARM', notes: EVIDENCE });
-    expect(notices[0].title).toBe('Advertencia por aviso falso');
+    // En la pantalla bloqueada, neutro (0014); la app muestra la advertencia con closeReason y strikeCount.
+    expect(notices[0].title).toBe(ALERT_UPDATE_PUSH.title);
     expect(await citizenView(first)).toMatchObject({ closeReason: 'FALSE_ALARM', strikeCount: 1 });
     expect(await trust()).toBe(Math.max(0, before - 25));
 
@@ -149,7 +150,7 @@ d('uso indebido y resultado en terreno', () => {
     const second = await sos(1);
     notices.length = 0;
     await ops.reject(op[1], second, { reason: 'FALSE_ALARM', notes: EVIDENCE });
-    expect(notices[0].title).toBe('Segunda advertencia: cuenta restringida');
+    expect(notices[0].title).toBe(ALERT_UPDATE_PUSH.title);
 
     const next = await sos(0);
     const detail = await ops.detail(op[0], next);

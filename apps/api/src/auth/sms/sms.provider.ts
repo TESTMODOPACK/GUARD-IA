@@ -38,8 +38,9 @@ export class TwilioSmsProvider implements SmsProvider {
       body,
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      this.logger.error(`Twilio ${res.status}: ${detail.slice(0, 300)}`);
+      // Solo el código de error: el mensaje de Twilio suele repetir el número del vecino.
+      const detail = (await res.json().catch(() => null)) as { code?: number } | null;
+      this.logger.error(`Twilio ${res.status}${detail?.code ? ` (código ${detail.code})` : ''}`);
       throw new Error(`No se pudo enviar el SMS (${res.status})`);
     }
   }

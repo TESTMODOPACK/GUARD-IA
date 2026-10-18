@@ -1,15 +1,15 @@
 'use client';
 
-import type { PlatformAuditEntry, TenantDetail, TenantStatus, UpdateTenant } from '@guardia/shared';
+import type { PlatformAuditEntry, Subprocessor, TenantDetail, TenantStatus, UpdateTenant } from '@guardia/shared';
 import { ArrowLeft, CheckCircle2, Circle, KeyRound, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { PersonDialog, StatusDialog, TemporaryPasswordDialog, TestPhoneDialog } from '@/components/TenantDialogs';
 import { canManage, Shell, usePlatformSession } from '@/components/Shell';
-import { Button, Card, ErrorNote, Field, inputClass, Loading, StatusTag, Tag } from '@/components/ui';
+import { Button, Card, Dialog, ErrorNote, Field, inputClass, Loading, StatusTag, Tag } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { ACTION, formatDate, formatDateTime, READINESS, STATUS_ACTION } from '@/lib/labels';
+import { ACTION, formatDate, formatDateTime, READINESS, STATUS_ACTION, SUBPROCESSOR_SERVICE } from '@/lib/labels';
 
 type Secret = { title: string; email: string; password: string };
 
@@ -237,6 +237,7 @@ export default function TenantPage() {
             </div>
           </div>
 
+          <PrivacyCard tenant={t} editable={manager && t.status !== 'TERMINATED'} onChanged={() => void reload()} />
           <ProfileCard tenant={t} editable={manager && t.status !== 'TERMINATED'} onSaved={setT} />
 
           <Card title="Bitácora de este municipio" className="mt-5">
@@ -328,6 +329,10 @@ type ProfileForm = {
   billingContactEmail: string;
   contractSignedAt: string;
   dpaSignedAt: string;
+  contractRef: string;
+  dpaRef: string;
+  dpiaApprovedAt: string;
+  dpiaRef: string;
   audioRetentionDays: string;
 };
 
@@ -344,11 +349,18 @@ function toForm(t: TenantDetail): ProfileForm {
     billingContactEmail: t.billingContactEmail ?? '',
     contractSignedAt: t.contractSignedAt ?? '',
     dpaSignedAt: t.dpaSignedAt ?? '',
+    contractRef: t.contractRef ?? '',
+    dpaRef: t.dpaRef ?? '',
+    dpiaApprovedAt: t.dpiaApprovedAt ?? '',
+    dpiaRef: t.dpiaRef ?? '',
     audioRetentionDays: String(t.audioRetentionDays),
   };
 }
 
-/** Ficha del municipio (RF-3.1, 3.7). La fecha de firma del contrato y del anexo es requisito para activar. */
+/**
+ * Ficha del municipio (RF-3.1, 3.7). Para activar: fecha y referencia del contrato y del contrato de encargo, y la
+ * evaluación de impacto aprobada por el municipio (Ley 21.719, 0014).
+ */
 function ProfileCard({ tenant, editable, onSaved }: { tenant: TenantDetail; editable: boolean; onSaved: (t: TenantDetail) => void }) {
   const [form, setForm] = useState<ProfileForm>(() => toForm(tenant));
   const [busy, setBusy] = useState(false);
@@ -384,6 +396,10 @@ function ProfileCard({ tenant, editable, onSaved }: { tenant: TenantDetail; edit
       billingContactEmail: orNull(form.billingContactEmail),
       contractSignedAt: orNull(form.contractSignedAt),
       dpaSignedAt: orNull(form.dpaSignedAt),
+      contractRef: orNull(form.contractRef),
+      dpaRef: orNull(form.dpaRef),
+      dpiaApprovedAt: orNull(form.dpiaApprovedAt),
+      dpiaRef: orNull(form.dpiaRef),
       audioRetentionDays: Number(form.audioRetentionDays),
     };
     try {
@@ -410,7 +426,11 @@ function ProfileCard({ tenant, editable, onSaved }: { tenant: TenantDetail; edit
           {text('billingContactName', 'Contacto de facturación')}
           {text('billingContactEmail', 'Correo de facturación', 'email')}
           {text('contractSignedAt', 'Contrato firmado el', 'date')}
-          {text('dpaSignedAt', 'Anexo de tratamiento de datos firmado el', 'date')}
+          {text('contractRef', 'Referencia del contrato', 'text', 'Número, versión o decreto')}
+          {text('dpaSignedAt', 'Contrato de encargo de datos firmado el', 'date')}
+          {text('dpaRef', 'Referencia del contrato de encargo', 'text', 'Ley 21.719, art. 15 bis')}
+          {text('dpiaApprovedAt', 'Evaluación de impacto aprobada el', 'date')}
+          {text('dpiaRef', 'Referencia de la evaluación de impacto', 'text', 'Ley 21.719, art. 15 ter')}
           {text('audioRetentionDays', 'Retención de audio (días)', 'number')}
         </div>
         <ErrorNote>{error}</ErrorNote>
@@ -424,5 +444,209 @@ function ProfileCard({ tenant, editable, onSaved }: { tenant: TenantDetail; edit
         ) : null}
       </form>
     </Card>
+  );
+}
+
+/**
+ * Privacidad del municipio (Ley 21.719, 0014). El contacto lo fija el administrador municipal en su central (el
+ * municipio es el responsable); aquí se registra la autorización escrita de cada subencargado (art. 15 bis): sin ella,
+ * Guard-IA no envía datos de ese municipio a ese proveedor.
+ */
+function PrivacyCard({ tenant, editable, onChanged }: { tenant: TenantDetail; editable: boolean; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busyRow, setBusyRow] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const p = tenant.privacy;
+  return (
+    <Card
+      title="Privacidad y subencargados"
+      className="mt-5"
+      actions={
+        editable ? (
+          <Button variant="quiet" className="h-8" onClick={() => setOpen(true)}>
+            Registrar autorización
+          </Button>
+        ) : null
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="text-sm">
+          <h3 className="text-xs text-ink-muted mb-1">Contacto para los vecinos</h3>
+          {p ? (
+            <>
+              <p>{p.contactEmail}</p>
+              {p.dpoName ? (
+                <p className="text-ink-muted">
+                  Delegado: {p.dpoName}
+                  {p.dpoEmail ? ` · ${p.dpoEmail}` : ''}
+                </p>
+              ) : null}
+              {p.policyUrl ? (
+                <p className="text-ink-muted break-all">
+                  Política {p.policyVersion ?? ''}: {p.policyUrl}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-ink-muted">Falta. Lo fija el administrador municipal en «Privacidad» de su central.</p>
+          )}
+        </div>
+        <div className="text-sm">
+          <h3 className="text-xs text-ink-muted mb-1">Subencargados autorizados por escrito</h3>
+          {tenant.subprocessors.length === 0 ? (
+            <p className="text-ink-muted">Ninguno. Sin autorización, las alertas de este municipio se clasifican sin IA externa.</p>
+          ) : (
+            <ul className="divide-y divide-line -my-1">
+              {tenant.subprocessors.map((a) => (
+                <li key={a.id} className="flex items-start gap-3 py-1.5">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{a.name}</span> <Tag>{SUBPROCESSOR_SERVICE[a.service]}</Tag>
+                    <p className="text-xs text-ink-muted">
+                      {formatDate(a.authorizedAt)} · {a.authorizedBy} · {a.documentRef}
+                    </p>
+                  </div>
+                  {editable ? (
+                    <Button
+                      variant="ghost"
+                      className="h-8 px-2"
+                      aria-label={`Revocar ${a.name}`}
+                      busy={busyRow === a.id}
+                      onClick={async () => {
+                        if (!window.confirm(`¿Revocar la autorización de ${a.name}? Desde ahora no se le envían datos de este municipio.`)) return;
+                        setBusyRow(a.id);
+                        setError(null);
+                        try {
+                          await api.revokeSubprocessor(tenant.id, a.id);
+                          onChanged();
+                        } catch (e) {
+                          setError(errorMessage(e));
+                        } finally {
+                          setBusyRow(null);
+                        }
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+      {open ? (
+        <AuthorizeDialog
+          tenant={tenant}
+          onClose={() => setOpen(false)}
+          onDone={() => {
+            setOpen(false);
+            onChanged();
+          }}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
+function AuthorizeDialog({ tenant, onClose, onDone }: { tenant: TenantDetail; onClose: () => void; onDone: () => void }) {
+  const [catalog, setCatalog] = useState<Subprocessor[] | null>(null);
+  const [subprocessorId, setSubprocessorId] = useState('');
+  const [authorizedAt, setAuthorizedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [authorizedBy, setAuthorizedBy] = useState('');
+  const [documentRef, setDocumentRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const taken = new Set(tenant.subprocessors.map((a) => a.subprocessorId));
+    api
+      .subprocessors()
+      .then((l) => {
+        const free = l.filter((s) => !taken.has(s.id));
+        setCatalog(free);
+        setSubprocessorId(free.find((s) => s.inUse)?.id ?? free[0]?.id ?? '');
+      })
+      .catch((e) => setError(errorMessage(e)));
+  }, [tenant.subprocessors]);
+
+  return (
+    <Dialog title="Registrar autorización de un subencargado" onClose={onClose} busy={busy}>
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError(null);
+          try {
+            await api.authorizeSubprocessor(tenant.id, {
+              subprocessorId,
+              authorizedAt,
+              authorizedBy: authorizedBy.trim(),
+              documentRef: documentRef.trim(),
+            });
+            onDone();
+          } catch (err) {
+            setError(errorMessage(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="text-sm text-ink-muted">
+          La autorización la firma el municipio (Ley 21.719, art. 15 bis). Aquí queda cuándo, quién firmó y dónde consta; el
+          municipio la ve en su bitácora.
+        </p>
+        {!catalog ? (
+          <Loading />
+        ) : catalog.length === 0 ? (
+          <p className="text-sm text-ink-muted">Todos los subencargados del catálogo ya están autorizados.</p>
+        ) : (
+          <>
+            <Field label="Subencargado">
+              <select className={inputClass} value={subprocessorId} onChange={(e) => setSubprocessorId(e.target.value)} required>
+                {catalog.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {SUBPROCESSOR_SERVICE[s.service]} · {s.country}
+                    {s.inUse ? ' (en uso)' : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Fecha del documento">
+              <input className={inputClass} type="date" value={authorizedAt} onChange={(e) => setAuthorizedAt(e.target.value)} required />
+            </Field>
+            <Field label="Quién firmó por el municipio">
+              <input
+                className={inputClass}
+                value={authorizedBy}
+                onChange={(e) => setAuthorizedBy(e.target.value)}
+                required
+                minLength={2}
+                maxLength={120}
+              />
+            </Field>
+            <Field label="Dónde consta" hint="Ej.: anexo 2 del contrato de encargo, decreto N° 123">
+              <input
+                className={inputClass}
+                value={documentRef}
+                onChange={(e) => setDocumentRef(e.target.value)}
+                required
+                minLength={2}
+                maxLength={200}
+              />
+            </Field>
+          </>
+        )}
+        <ErrorNote>{error}</ErrorNote>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary" busy={busy} disabled={!subprocessorId}>
+            Registrar
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

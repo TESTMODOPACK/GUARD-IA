@@ -5,10 +5,12 @@ import type {
   CitizenEraseResult,
   CitizenExport,
   CitizenPublic,
+  Consent,
   CreateAlertMeta,
   CreateAlertResponse,
   CreateReview,
   DeviceUpsert,
+  LegalNotice,
   TokenPair,
 } from '@guardia/shared';
 import { Platform } from 'react-native';
@@ -143,7 +145,12 @@ export const api = {
   /** Solo desarrollo (la API lo expone con OTP_DEBUG_ENDPOINT=true; en producción responde 404). */
   devOtp: (phone: string) => request<{ hint: string }>(`/dev/otp/${encodeURIComponent(phone)}`, {}, { auth: false }),
   me: () => request<CitizenPublic>('/me'),
-  consent: (version: string) => request<null>('/me/consent', { method: 'POST', body: json({ version }) }),
+  /** Primera capa del aviso (0014): pública, con el proveedor que de verdad se usa y su hash. */
+  legalNotice: () => request<LegalNotice>('/legal/notice', {}, { auth: false }),
+  consent: (body: Consent) => request<null>('/me/consent', { method: 'POST', body: json(body) }),
+  /** Oponerse al análisis con IA externa, o volver a aceptarlo (0014). */
+  setExternalAi: (enabled: boolean) =>
+    request<CitizenPublic>('/me/privacy/external-ai', { method: 'PUT', body: json({ enabled }) }),
   upsertDevice: (d: DeviceUpsert) => request<null>('/me/devices', { method: 'PUT', body: json(d) }),
   cancelAlert: (id: string) => request<CitizenAlert>(`/alerts/${id}/cancel`, { method: 'POST' }),
   alert: (id: string) => request<CitizenAlert>(`/alerts/${id}`),

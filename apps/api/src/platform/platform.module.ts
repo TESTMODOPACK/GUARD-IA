@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { PlatformComplianceController } from './compliance.controller';
+import { PlatformComplianceService } from './compliance.service';
 import { PlatformAuditService } from './platform-audit.service';
 import { PlatformAuthService } from './platform-auth.service';
 import { PlatformTokensService } from './platform-tokens.service';
@@ -16,7 +18,7 @@ import { TerritoryService } from './territory.service';
  */
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [PlatformAuthController, PlatformController],
+  controllers: [PlatformAuthController, PlatformController, PlatformComplianceController],
   providers: [
     PlatformTokensService,
     PlatformUserStatusService,
@@ -25,6 +27,7 @@ import { TerritoryService } from './territory.service';
     PlatformAuthService,
     PlatformUsersService,
     PlatformTenantsService,
+    PlatformComplianceService,
     TerritoryService,
   ],
   exports: [PlatformTokensService],

@@ -3,7 +3,19 @@ import { asc, eq, inArray, sql } from 'drizzle-orm';
 import type { CitizenEraseResult, CitizenExport } from '@guardia/shared';
 import { AppError } from '../common/app-error';
 import { DbService } from '../db/db.service';
-import { alert, alertEvent, citizen, citizenBlock, citizenReview, citizenStrike, device, media, tenant } from '../db/schema';
+import {
+  alert,
+  alertEvent,
+  citizen,
+  citizenBlock,
+  citizenReview,
+  citizenStrike,
+  consentNotice,
+  consentRecord,
+  device,
+  media,
+  tenant,
+} from '../db/schema';
 import { MediaService } from '../media/media.service';
 
 /** Derechos ARCO del vecino (Ley 21.719): acceso (export) y supresión (anonimización). */
@@ -49,6 +61,18 @@ export class PrivacyService {
         .from(citizenReview)
         .where(eq(citizenReview.citizenId, citizenId))
         .orderBy(asc(citizenReview.createdAt));
+      // Historial de consentimientos (0014): cada aceptación o revocación con la versión del aviso que vio.
+      const consents = await tx
+        .select({
+          purpose: consentRecord.purpose,
+          action: consentRecord.action,
+          version: consentNotice.version,
+          createdAt: consentRecord.createdAt,
+        })
+        .from(consentRecord)
+        .innerJoin(consentNotice, eq(consentNotice.id, consentRecord.noticeId))
+        .where(eq(consentRecord.citizenId, citizenId))
+        .orderBy(asc(consentRecord.createdAt));
       const events = ids.length
         ? await tx
             .select({ alertId: alertEvent.alertId, kind: alertEvent.kind, createdAt: alertEvent.createdAt })
@@ -66,8 +90,10 @@ export class PrivacyService {
           trustScore: c.trustScore,
           consentVersion: c.consentVersion,
           consentAt: c.consentAt?.toISOString() ?? null,
+          externalAi: c.externalAi,
           createdAt: c.createdAt.toISOString(),
         },
+        consents: consents.map((x) => ({ ...x, createdAt: x.createdAt.toISOString() })),
         strikes: strikes.map((st) => ({
           municipality: st.tenantName,
           createdAt: st.createdAt.toISOString(),

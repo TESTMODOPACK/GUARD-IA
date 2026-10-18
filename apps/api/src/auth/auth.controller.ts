@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Ip, Param, Post, Put } from '@nestjs/c
 import {
   ConsentSchema,
   DeviceUpsertSchema,
+  ExternalAiPreferenceSchema,
   OperatorLoginSchema,
   OtpRequestSchema,
   OtpVerifySchema,
@@ -9,6 +10,7 @@ import {
   RefreshSchema,
   type Consent,
   type DeviceUpsert,
+  type ExternalAiPreference,
   type OperatorLogin,
   type OtpRequest,
   type OtpVerify,
@@ -56,7 +58,14 @@ export class AuthController {
   @Auth('citizen')
   @HttpCode(204)
   async consent(@CurrentAuth() auth: CitizenClaims, @Body(zod(ConsentSchema)) body: Consent) {
-    await this.auth.acceptConsent(auth.sub, body.version);
+    await this.auth.acceptConsent(auth.sub, body);
+  }
+
+  /** Oponerse al análisis con IA externa, o volver a aceptarlo (0014). */
+  @Put('me/privacy/external-ai')
+  @Auth('citizen')
+  externalAi(@CurrentAuth() auth: CitizenClaims, @Body(zod(ExternalAiPreferenceSchema)) body: ExternalAiPreference) {
+    return this.auth.setExternalAi(auth.sub, body.enabled);
   }
 
   @Put('me/devices')

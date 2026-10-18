@@ -119,6 +119,33 @@ async function main() {
        WHERE tenant_id = ${t.id} AND area_id IS NULL AND status IN ('PENDING', 'ACKNOWLEDGED', 'DISPATCHED')
          AND area_for(tenant_id, type, category, subcategory) IS NOT NULL`;
     console.log(`[seed] operador@ en Seguridad; aseo@ en Aseo y ornato y Alumbrado; ${moved.count} avisos abiertos con área`);
+
+    // Ley 21.719 (0014), solo en el municipio de demostración: contacto de privacidad, contratos y autorización de
+    // los subencargados del catálogo, todo marcado como demostración. Sin la autorización el worker no enviaría las
+    // alertas a la IA externa. Nunca para un municipio real: esos registros los crea la consola con los documentos
+    // firmados.
+    if (slug === 'demo') {
+      await sql`
+        INSERT INTO tenant_privacy (tenant_id, contact_email, dpo_name, dpo_email, policy_version)
+        VALUES (${t.id}, 'privacidad@demo.guardia.cl', 'Delegado de demostración', 'delegado@demo.guardia.cl', 'demo')
+        ON CONFLICT (tenant_id) DO NOTHING`;
+      await sql`
+        UPDATE tenant
+           SET contract_signed_at = coalesce(contract_signed_at, current_date),
+               contract_ref = coalesce(contract_ref, 'Contrato de demostración (no válido)'),
+               dpa_signed_at = coalesce(dpa_signed_at, current_date),
+               dpa_ref = coalesce(dpa_ref, 'Contrato de encargo de demostración (no válido)'),
+               dpia_approved_at = coalesce(dpia_approved_at, current_date),
+               dpia_ref = coalesce(dpia_ref, 'Evaluación de impacto de demostración (no válida)')
+         WHERE id = ${t.id}`;
+      const auth = await sql`
+        INSERT INTO tenant_subprocessor (tenant_id, subprocessor_id, authorized_at, authorized_by, document_ref)
+        SELECT ${t.id}, s.id, current_date, 'Demostración', 'Autorización de demostración (no válida)'
+          FROM subprocessor s
+         WHERE NOT EXISTS (SELECT 1 FROM tenant_subprocessor ts
+                            WHERE ts.tenant_id = ${t.id} AND ts.subprocessor_id = s.id AND ts.revoked_at IS NULL)`;
+      console.log(`[seed] demo: contacto de privacidad, contratos de demostración y ${auth.count} subencargados autorizados`);
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }

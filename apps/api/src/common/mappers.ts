@@ -171,6 +171,7 @@ export function toCitizenAlert(
   active: { unitCode: string; status: DispatchRow['status']; updatedAt: Date } | null,
   comunaName: string | null = null,
   closed: { reason: RejectReason; strikeCount: number | null } | null = null,
+  tenantPrivacyEmail: string | null = null,
 ): CitizenAlert {
   return {
     id: row.id,
@@ -179,6 +180,7 @@ export function toCitizenAlert(
     category: row.category,
     status: row.status,
     tenantName,
+    tenantPrivacyEmail,
     comunaName,
     closeReason: closed?.reason ?? null,
     strikeCount: closed?.strikeCount ?? null,

@@ -41,6 +41,11 @@ import {
   OUTCOME_VIA,
   UNIT_KINDS,
   UNIT_STATUSES,
+  CONSENT_ACTIONS,
+  CONSENT_PURPOSES,
+  INCIDENT_NATURES,
+  SECURITY_INCIDENT_STATUSES,
+  SUBPROCESSOR_SERVICES,
   type SuggestedAgency,
   type Triage,
 } from '@guardia/shared';
@@ -76,6 +81,11 @@ export const fieldAlarmKindEnum = pgEnum('field_alarm_kind', FIELD_ALARM_KINDS);
 export const areaSourceEnum = pgEnum('area_source', AREA_SOURCES);
 export const platformRoleEnum = pgEnum('platform_role', PLATFORM_ROLES);
 export const platformActionEnum = pgEnum('platform_action', PLATFORM_ACTIONS);
+export const consentPurposeEnum = pgEnum('consent_purpose', CONSENT_PURPOSES);
+export const consentActionEnum = pgEnum('consent_action', CONSENT_ACTIONS);
+export const subprocessorServiceEnum = pgEnum('subprocessor_service', SUBPROCESSOR_SERVICES);
+export const incidentNatureEnum = pgEnum('incident_nature', INCIDENT_NATURES);
+export const securityIncidentStatusEnum = pgEnum('security_incident_status', SECURITY_INCIDENT_STATUSES);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -103,6 +113,11 @@ export const tenant = pgTable('tenant', {
   billingContactEmail: text('billing_contact_email'),
   contractSignedAt: date('contract_signed_at', { mode: 'string' }),
   dpaSignedAt: date('dpa_signed_at', { mode: 'string' }),
+  // 0014_privacy_records.sql: referencia de cada documento y evaluación de impacto.
+  contractRef: text('contract_ref'),
+  dpaRef: text('dpa_ref'),
+  dpiaApprovedAt: date('dpia_approved_at', { mode: 'string' }),
+  dpiaRef: text('dpia_ref'),
   statusReason: text('status_reason'),
   statusChangedAt: ts('status_changed_at').notNull().defaultNow(),
   goLiveAt: ts('go_live_at'),
@@ -118,6 +133,9 @@ export const citizen = pgTable('citizen', {
   consentAt: ts('consent_at'),
   blockedAt: ts('blocked_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
+  // 0014: oposición al análisis con IA externa y edad declarada.
+  externalAi: boolean('external_ai').notNull().default(true),
+  ageDeclaredAt: ts('age_declared_at'),
 });
 
 export const device = pgTable('device', {
@@ -644,7 +662,123 @@ export const platformAuditLog = pgTable('platform_audit_log', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------- 0014_privacy_records.sql (Ley 21.719)
+
+export const consentNotice = pgTable('consent_notice', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  version: text('version').notNull(),
+  textHash: text('text_hash').notNull().unique(),
+  body: jsonb('body').$type<Record<string, unknown>>().notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const consentRecord = pgTable('consent_record', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  citizenId: uuid('citizen_id')
+    .notNull()
+    .references(() => citizen.id),
+  noticeId: uuid('notice_id')
+    .notNull()
+    .references(() => consentNotice.id),
+  purpose: consentPurposeEnum('purpose').notNull(),
+  action: consentActionEnum('action').notNull(),
+  appVersion: text('app_version'),
+  platform: text('platform'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const tenantPrivacy = pgTable('tenant_privacy', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenant.id),
+  contactEmail: text('contact_email').notNull(),
+  contactAddress: text('contact_address'),
+  dpoName: text('dpo_name'),
+  dpoEmail: text('dpo_email'),
+  policyUrl: text('policy_url'),
+  policyVersion: text('policy_version'),
+  updatedBy: uuid('updated_by'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const subprocessor = pgTable('subprocessor', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  service: subprocessorServiceEnum('service').notNull(),
+  country: text('country').notNull(),
+  dataCategories: text('data_categories').notNull(),
+  guarantee: text('guarantee'),
+  inUse: boolean('in_use').notNull().default(false),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const tenantSubprocessor = pgTable('tenant_subprocessor', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  subprocessorId: uuid('subprocessor_id')
+    .notNull()
+    .references(() => subprocessor.id),
+  authorizedAt: date('authorized_at', { mode: 'string' }).notNull(),
+  authorizedBy: text('authorized_by').notNull(),
+  documentRef: text('document_ref').notNull(),
+  revokedAt: ts('revoked_at'),
+  createdBy: uuid('created_by').references(() => platformUser.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const securityIncident = pgTable('security_incident', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // La pone la secuencia de la base (se muestra como INC-0001).
+  number: integer('number')
+    .notNull()
+    .default(sql`nextval('security_incident_number_seq')`),
+  detectedAt: ts('detected_at').notNull(),
+  startedAt: ts('started_at'),
+  detectedBy: text('detected_by').notNull(),
+  nature: incidentNatureEnum('nature').notNull(),
+  summary: text('summary').notNull(),
+  dataCategories: text('data_categories').notNull(),
+  affectedEstimate: integer('affected_estimate'),
+  sensitiveData: boolean('sensitive_data').notNull().default(false),
+  measures: text('measures'),
+  status: securityIncidentStatusEnum('status').notNull().default('OPEN'),
+  closedAt: ts('closed_at'),
+  createdBy: uuid('created_by').references(() => platformUser.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const securityIncidentTenant = pgTable(
+  'security_incident_tenant',
+  {
+    incidentId: uuid('incident_id')
+      .notNull()
+      .references(() => securityIncident.id),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    notifiedAt: ts('notified_at').notNull().defaultNow(),
+    agencyReportedAt: ts('agency_reported_at'),
+    agencyRef: text('agency_ref'),
+    subjectsNotifiedAt: ts('subjects_notified_at'),
+    subjectsNote: text('subjects_note'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.incidentId, t.tenantId] })],
+);
+
 export const schema = {
+  consentNotice,
+  consentRecord,
+  tenantPrivacy,
+  subprocessor,
+  tenantSubprocessor,
+  securityIncident,
+  securityIncidentTenant,
   area,
   areaRule,
   operatorArea,

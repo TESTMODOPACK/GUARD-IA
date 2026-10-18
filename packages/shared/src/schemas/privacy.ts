@@ -10,6 +10,7 @@ import {
   MEDIA_KINDS,
 } from '../enums';
 import { CitizenPublicSchema } from './auth';
+import { ConsentHistoryItemSchema } from './legal';
 import { LocationSchema, UuidSchema } from './common';
 
 /**
@@ -20,6 +21,8 @@ import { LocationSchema, UuidSchema } from './common';
 export const CitizenExportSchema = z.object({
   exportedAt: z.iso.datetime(),
   citizen: CitizenPublicSchema.extend({ createdAt: z.iso.datetime() }),
+  /** Historial de consentimientos (0014): cada aceptación o revocación, con la versión del aviso. */
+  consents: z.array(ConsentHistoryItemSchema),
   /** Faltas por aviso falso (migración 0008), con la evidencia que escribió la central. */
   strikes: z.array(
     z.object({

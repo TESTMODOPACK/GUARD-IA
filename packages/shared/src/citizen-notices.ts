@@ -1,8 +1,8 @@
 import type { RejectReason } from './enums';
 
 /**
- * Lo que se le dice al vecino cuando la central cierra su alerta sin despacho (push y pantalla de la
- * alerta en la app). Un solo lugar para que la API y la app digan lo mismo y para revisarlo con
+ * Lo que se le dice al vecino cuando la central cierra su alerta sin despacho (pantalla de la alerta en la
+ * app; el push usa alertPushText). Un solo lugar para que la API y la app digan lo mismo y para revisarlo con
  * asesoría legal (docs/plan-plataforma.md §5b). Nunca culpar al vecino por un error de buena fe.
  */
 export interface CitizenNotice {
@@ -76,38 +76,28 @@ export function rejectNotice(reason: RejectReason, activeStrikes: number | null)
     : BY_REASON[reason];
 }
 
-/** "30 días", "6 meses" o "hasta nuevo aviso". */
-export function blockTerm(days: number | null): string {
-  if (days === null) return 'hasta nuevo aviso';
-  return days === 180 ? 'por 6 meses' : `por ${days} días`;
+/** Texto de un aviso push: lo que se ve en la pantalla bloqueada del teléfono. */
+export interface PushText {
+  title: string;
+  body: string;
 }
 
-/** Bloqueo aprobado por el supervisor (0011). La app queda sin uso; siempre recuerda los números de emergencia. */
-export function blockNotice(days: number | null, tenantName: string): CitizenNotice {
-  return {
-    title: 'Tu cuenta fue bloqueada',
-    body: `${tenantName} bloqueó tu cuenta ${blockTerm(days)} por avisos falsos reiterados. No podrás enviar alertas desde la app. Ante una emergencia llama al 133, 131 o 132. Puedes pedir revisión en "Estado de tu cuenta".`,
-    warning: true,
-  };
-}
-
-export const UNBLOCK_NOTICE: CitizenNotice = {
-  title: 'Tu cuenta fue desbloqueada',
-  body: 'Ya puedes volver a usar la app. El SOS es solo para emergencias reales.',
-  warning: false,
+/**
+ * Pantalla bloqueada (Ley 21.719, art. 14 bis): quien mire el teléfono no debe leer «aviso falso», «bloqueo» ni la
+ * respuesta del municipio. Todo lo de la cuenta (faltas, bloqueo, desbloqueo, revisión) y las advertencias van con
+ * este texto neutro; el detalle lo muestra la app al abrirla («Estado de tu cuenta» y la pantalla de la alerta).
+ */
+export const ACCOUNT_PUSH: PushText = {
+  title: 'Novedades en tu cuenta',
+  body: 'Abre Guard-IA para ver el detalle.',
 };
 
-export const STRIKE_ANNULLED_NOTICE: CitizenNotice = {
-  title: 'Anulamos una advertencia',
-  body: 'Revisamos un aviso que habíamos marcado como falso y lo anulamos. Disculpa las molestias.',
-  warning: false,
+export const ALERT_UPDATE_PUSH: PushText = {
+  title: 'Novedades sobre tu alerta',
+  body: 'Abre Guard-IA para ver el detalle.',
 };
 
-/** Respuesta a una solicitud de revisión: siempre con el texto que escribió el municipio. */
-export function reviewNotice(granted: boolean, response: string): CitizenNotice {
-  return {
-    title: granted ? 'Acogimos tu solicitud de revisión' : 'Revisamos tu solicitud',
-    body: response,
-    warning: false,
-  };
+/** Push al cerrar una alerta sin despacho: el aviso tal cual, salvo una advertencia, que va neutra. */
+export function alertPushText(notice: CitizenNotice): PushText {
+  return notice.warning ? ALERT_UPDATE_PUSH : { title: notice.title, body: notice.body };
 }

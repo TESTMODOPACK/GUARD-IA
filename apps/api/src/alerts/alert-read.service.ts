@@ -21,6 +21,7 @@ import {
   media,
   operator,
   tenant,
+  tenantPrivacy,
   triageLabel,
   unit,
   type AlertRow,
@@ -227,9 +228,17 @@ export class AlertReadService {
 
   async citizenViewFromRow(tx: Tx, row: AlertRow): Promise<CitizenAlert> {
     let tenantName: string | null = null;
+    let privacyEmail: string | null = null;
     if (row.tenantId) {
       const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, row.tenantId)).limit(1);
       tenantName = t?.name ?? null;
+      // A quién pedir sus derechos sobre este caso (0014).
+      const [p] = await tx
+        .select({ email: tenantPrivacy.contactEmail })
+        .from(tenantPrivacy)
+        .where(eq(tenantPrivacy.tenantId, row.tenantId))
+        .limit(1);
+      privacyEmail = p?.email ?? null;
     }
     const [active] = await tx
       .select({ unitCode: unit.code, status: dispatch.status, updatedAt: dispatch.updatedAt })
@@ -250,6 +259,6 @@ export class AlertReadService {
       const p = (ev?.payload ?? {}) as { reason?: RejectReason; strikeCount?: number };
       if (p.reason) closed = { reason: p.reason, strikeCount: p.strikeCount ?? null };
     }
-    return toCitizenAlert(row, tenantName, active ?? null, await comunaName(tx, row.comunaCut), closed);
+    return toCitizenAlert(row, tenantName, active ?? null, await comunaName(tx, row.comunaCut), closed, privacyEmail);
   }
 }

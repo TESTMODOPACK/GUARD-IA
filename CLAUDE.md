@@ -20,6 +20,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | PU | Uso indebido: faltas (0008), restricción, bloqueo con aprobación y revisión (0011) | implementado y probado en local (13-10-2026) |
 | PT | Terreno: rol FIELD, página `/terreno` de la central, avisos de terreno (0012) | implementado y probado en local (14-10-2026); falta Web Push (PT-4) |
 | PA | Áreas municipales: derivación por área, carácter de seguridad, rol Apoyo administrativo, agente `triage-v3` (0013) | implementado y probado en local (14-10-2026) |
+| PL | Ley 21.719 (rige el 01-12-2026): análisis en `docs/legal/`, plan en `docs/plan-ley-21719.md` (etapas 0–5 + pista legal) | etapas 0 y 1 implementadas y probadas en local (15-10-2026, migración 0014); siguen 2–5 y la pista legal |
 
 ## Comandos
 
@@ -52,16 +53,18 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   (migrate, seed), `admin/` (usuarios, turnos, contactos, panel y bitácora; migración 0003), `accounts/` (estado de cuenta
   del vecino, bloqueos, anulación de faltas y revisiones; migración 0011), `field/` (terreno: turno con unidad, estado,
   informe, posición, pánico, avisos y reloj de plazos; migración 0012), `areas/` (áreas del municipio, reglas por
-  categoría, modo compartido y alcance de cada cuenta; migración 0013). `scripts/simulate.ts` es el simulador.
+  categoría, modo compartido y alcance de cada cuenta; migración 0013), `legal/` (Ley 21.719: aviso al vecino, prueba del
+  consentimiento, regla de subencargados para el worker y «Privacidad» de la central; migración 0014). `scripts/simulate.ts` es el
+  simulador.
 - `apps/command/src`: `lib/` (api, session, store zustand, realtime, field-realtime, labels en español), `components/`
   (TopBar, AlertQueue, MapView, AlertDetail, TriagePanel, Dialogs, UnitsBar, Dashboard, ShiftControl, ContactsHint,
   FieldAlarmsBar, `admin/AdminShell`). Páginas: `/` central, `/terreno` (funcionario de terreno, en el teléfono), `/admin` panel, `/admin/usuarios`, `/admin/areas` (solo ADMIN), `/admin/turnos`,
-  `/admin/cuentas` (bloqueos por aprobar, revisiones, faltas), `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
+  `/admin/cuentas` (bloqueos por aprobar, revisiones, faltas), `/admin/privacidad` (contacto, subencargados e incidentes; 0014), `/admin/bitacora`, `/directorio`, `/cambiar-clave`. `scripts/ui-gate.mjs` es la
   compuerta en navegador.
 - `apps/api/src/platform/`: consola de plataforma (TOTP propio sin dependencias, tokens y sesiones propias,
   guard propio, regiones y comunas, municipios, equipo, bitácora). `apps/platform/src`: `lib/` (api, sesión en
   sessionStorage, labels), `components/` (Shell, ComunaMap, TenantDialogs). Páginas: `/` Chile, `/region/[cut]`,
-  `/municipio/[id]`, `/municipios`, `/usuarios`, `/bitacora`, `/login`, `/cambiar-clave`.
+  `/municipio/[id]`, `/municipios`, `/subencargados`, `/incidentes` (0014), `/usuarios`, `/bitacora`, `/login`, `/cambiar-clave`.
 - `infra/`: docker-compose (db, redis, minio, migrate, api, command, platform, caddy), Caddyfile, backup.sh.
 
 ## Reglas que no se rompen
@@ -181,6 +184,19 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
     después del commit. Rol `ASSISTANT` (apoyo administrativo): consulta, notas, panel y bitácora; nunca acciones
     sobre la alerta (`OPERATING_ROLES` en `@Roles`). Las reglas nuevas rigen para alertas nuevas; despachos, unidades y
     avisos de terreno siguen yendo a todo el municipio (`tenant:{id}`).
+20. **Ley 21.719** (migración 0014, `legal/`, `docs/plan-ley-21719.md`): **ningún dato real fuera de producción** (ni en local,
+    tests, `eval:triage`, capturas ni prompts). Lo que se le dice al vecino sobre sus datos sale de `buildLegalNotice` (shared) con
+    la configuración vigente (`GET /legal/notice`): nunca un proveedor escrito a mano; si cambia lo que el sistema hace, cambia
+    el texto y sube `CONSENT_VERSION`. Aceptar exige la versión vigente y el hash del aviso mostrado; cada aceptación o revocación
+    es una fila de `consent_record` (solo inserción) que apunta al texto guardado (`consent_notice`). El SOS nunca depende del
+    consentimiento vigente (basta `consent_at`). El contenido de una alerta solo va a la IA externa si el vecino no se opuso
+    (`citizen.external_ai`) y el municipio autorizó por escrito a ese proveedor (`tenant_subprocessor`, `AI_PROCESSOR_KEY`);
+    si no, el worker clasifica sin red y deja `ai_status = LOCAL` (no es falla). Los avisos push de cuenta y las advertencias van
+    neutros (`ACCOUNT_PUSH`, `alertPushText`): el detalle solo dentro de la app. Logs sin coordenadas ni contenido del vecino
+    (huella: largo y hash). El municipio fija su contacto de privacidad (`tenant_privacy`, ADMIN) y registra su reporte de cada
+    incidente; Guard-IA lleva el registro de incidentes y avisa (consola). La puesta en marcha exige contratos con referencia,
+    evaluación de impacto, contacto de privacidad y subencargados en uso autorizados. Respaldos: `backup.sh` cifra con `age` y
+    no respalda sin `BACKUP_AGE_RECIPIENT`; restaurar en `infra/RESTAURAR.md`.
 
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
@@ -231,8 +247,9 @@ contrato REST está en la sección 6 del doc de Fase 0 y en `apps/api/src/alerts
 
 - Base de datos: informe en `docs/revision-base-de-datos.md`. `0009_hardening.sql` aplicada en local (PK de
   texto corregidas, índices por municipio, privilegios, FK compuestas, RLS de `tenant` + `tenant_directory`,
-  `MaintenanceCron`). Falta `0014_scale.sql` (particionado de `alert_event` y `audit_log`, `uuidv7`), antes del
-  piloto; `0010` es la consola de plataforma, `0011` el bloqueo por uso indebido, `0012` terreno y `0013` áreas.
+  `MaintenanceCron`). Falta la migración de escala (particionado de `alert_event` y `audit_log`, `uuidv7`; toma el
+  siguiente número libre), antes del piloto; `0010` es la consola de plataforma, `0011` el bloqueo por uso indebido, `0012`
+  terreno, `0013` áreas y `0014` privacidad (Ley 21.719, etapa 1).
 - Áreas (0013): las alertas que ya estaban abiertas al definir o cambiar reglas no se mueven solas (se pasan a mano
   desde la ficha). Un incidente puede agrupar alertas de áreas distintas (la tarjeta muestra el área de la que lo
   representa). En el municipio demo, `camila.rojas` no tiene área (solo ve alertas sin área); `aseo@demo` es de Aseo y

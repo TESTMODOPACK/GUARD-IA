@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OPERATOR_ROLES, TENANT_STATUSES } from '../enums';
+import { MIN_ACCOUNT_AGE, OPERATOR_ROLES, TENANT_STATUSES } from '../enums';
 import { CitizenAccountSchema } from './account';
 import { AreaRefSchema } from './areas';
 import { PhoneSchema, UuidSchema } from './common';
@@ -20,8 +20,17 @@ export const RefreshSchema = z.object({
 });
 export type Refresh = z.infer<typeof RefreshSchema>;
 
+/**
+ * POST /v1/me/consent (0014). `noticeHash` es el del aviso que la app mostró (GET /legal/notice): la base guarda ese
+ * texto exacto como prueba. `externalAi`: si acepta el análisis con IA externa (puede cambiarlo en «Mis datos»).
+ */
 export const ConsentSchema = z.object({
   version: z.string().min(1).max(20),
+  noticeHash: z.string().regex(/^[0-9a-f]{64}$/, 'Aviso no válido'),
+  externalAi: z.boolean(),
+  ageConfirmed: z.literal(true, { error: `La app es para personas de ${MIN_ACCOUNT_AGE} años o más` }),
+  appVersion: z.string().max(40).optional(),
+  platform: z.enum(['ios', 'android', 'web']).optional(),
 });
 export type Consent = z.infer<typeof ConsentSchema>;
 
@@ -52,6 +61,8 @@ export const CitizenPublicSchema = z.object({
   trustScore: z.number().int(),
   consentVersion: z.string().nullable(),
   consentAt: z.iso.datetime().nullable(),
+  /** Acepta el análisis con IA externa (0014). Opcional: una sesión guardada antes no lo trae. */
+  externalAi: z.boolean().optional(),
   /**
    * Estado de la cuenta por uso indebido (0011). Opcional: una sesión guardada antes de 0011 no lo trae; la
    * app lo refresca con GET /me al abrir.

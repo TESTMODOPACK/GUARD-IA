@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ALERT_UPDATE_PUSH } from '@guardia/shared';
 import { loadCitizenAccount } from '../src/accounts/account-read';
 import { AccountsService } from '../src/accounts/accounts.service';
 import { CitizenAccountService } from '../src/accounts/citizen-account.service';
@@ -44,7 +45,8 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
   let supervisor: OperatorClaims;
   let administrator: OperatorClaims;
   const citizens: string[] = [];
-  const pushed: { kind: 'alert' | 'account'; title: string }[] = [];
+  // Push de alerta: su texto. Push de cuenta: siempre neutro (ACCOUNT_PUSH, 0014); se registra el nivel que llega por WS.
+  const pushed: { kind: 'alert' | 'account'; title?: string; level?: string }[] = [];
   const suffix = Date.now().toString(36);
 
   /** Como lo inserta POST /alerts: en contexto del vecino, sin prioridad (la RLS lo exige) y por la geocerca. */
@@ -88,8 +90,8 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
       notifyAlertStatus: async (_c: string, _t: string, _v: unknown, text: { title: string }) => {
         pushed.push({ kind: 'alert', title: text.title });
       },
-      notifyAccount: async (_c: string, _l: string, text: { title: string }) => {
-        pushed.push({ kind: 'account', title: text.title });
+      notifyAccount: async (_c: string, level: string) => {
+        pushed.push({ kind: 'account', level });
       },
     } as unknown as NotificationsService;
     ops = new OpsService(dbs, reads, new EventsService(), realtime, notifications, new IncidentsService(dbs), {
@@ -169,7 +171,8 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     const [b] = await admin<{ id: string; status: string; suggested_days: number; strikes: number; alert_id: string }[]>`
       SELECT id, status, suggested_days, strikes, alert_id FROM citizen_block WHERE citizen_id = ${citizens[0]}`;
     expect(b).toMatchObject({ status: 'PROPOSED', suggested_days: 30, strikes: 3, alert_id: third });
-    expect(pushed.at(-1)?.title).toBe('Tu cuenta está en revisión');
+    // La advertencia va neutra a la pantalla bloqueada; el detalle lo muestra la app (0014).
+    expect(pushed.at(-1)).toEqual({ kind: 'alert', title: ALERT_UPDATE_PUSH.title });
 
     const next = await sos();
     expect((await ops.citizenStanding(operator, next.id)).openBlock).toBe('PROPOSED');
@@ -184,7 +187,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     const overview = await accounts.decideBlock(supervisor, b.id, { approve: true, days: 30, note: 'Tres avisos falsos confirmados' });
     expect(overview.proposals).toHaveLength(0);
     expect(overview.activeBlocks[0]).toMatchObject({ id: b.id, days: 30, decidedBy: 'Cuentas SUPERVISOR' });
-    expect(pushed.at(-1)).toEqual({ kind: 'account', title: 'Tu cuenta fue bloqueada' });
+    expect(pushed.at(-1)).toEqual({ kind: 'account', level: 'BLOCKED' });
 
     await expect(sos()).rejects.toMatchObject({ code: 'GIA10' });
     const acc = await account();
@@ -215,7 +218,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     expect(pending.reviews).toHaveLength(1);
     expect(pending.reviews[0].targetSummary).toMatch(/^Bloqueo hasta el /);
     await accounts.resolveReview(supervisor, pending.reviews[0].id, { grant: true, response: 'Revisamos el caso y levantamos el bloqueo' });
-    expect(pushed.at(-1)).toEqual({ kind: 'account', title: 'Acogimos tu solicitud de revisión' });
+    expect(pushed.at(-1)).toMatchObject({ kind: 'account' });
 
     const resolved = await mine.detail(citizens[0]);
     expect(resolved.block).toBeNull();
@@ -231,7 +234,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     const list = await accounts.overview(supervisor);
     const strike = list.strikes.find((s) => !s.annulledAt)!;
     await accounts.annulStrike(supervisor, strike.id, { reason: 'Era otra persona con el teléfono' });
-    expect(pushed.at(-1)).toEqual({ kind: 'account', title: 'Anulamos una advertencia' });
+    expect(pushed.at(-1)).toMatchObject({ kind: 'account' });
     const [t1] = await admin<{ t: number }[]>`SELECT trust_score AS t FROM citizen WHERE id = ${citizens[0]}`;
     expect(t1.t).toBe(Math.min(100, t0.t + 25));
     expect((await account()).activeStrikes).toBe(2);
@@ -246,7 +249,7 @@ d('uso indebido: restricción, bloqueo y revisión', () => {
     await ops.reject(operator, second.id, { reason: 'TEST' });
     const [st] = await admin<{ note: string }[]>`SELECT note FROM citizen_strike WHERE alert_id = ${second.id}`;
     expect(st.note).toMatch(/^Segunda alerta de prueba en 90 días/);
-    expect(pushed.at(-1)?.title).toBe('Advertencia por aviso falso');
+    expect(pushed.at(-1)).toEqual({ kind: 'alert', title: ALERT_UPDATE_PUSH.title });
 
     // Un bloqueo ya cumplido hace 2 meses: la próxima propuesta es por 6 meses.
     await admin`

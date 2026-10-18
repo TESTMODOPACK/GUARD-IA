@@ -102,6 +102,19 @@ const EnvSchema = z.object({
   OPENAI_STT_MODEL: z.string().default('whisper-1'),
   OPENAI_CLASSIFY_MODEL: z.string().default('gpt-4o-mini'),
   AI_MAX_AUDIO_SECONDS: z.coerce.number().int().default(60),
+  /**
+   * Proveedor de IA en el catálogo de subencargados (subprocessor.key, 0014). Vacío = se deduce de OPENAI_BASE_URL
+   * (sin URL → openai; groq.com → groq). El worker solo le envía una alerta si su municipio lo autorizó por escrito.
+   */
+  AI_PROCESSOR_KEY: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9_-]{1,39}$/)
+    .optional(),
+
+  /** Contacto de Guard-IA para que el vecino ejerza sus derechos (Ley 21.719, art. 14 ter). Obligatorio en producción. */
+  PRIVACY_CONTACT_EMAIL: z.email().optional(),
+  /** Política de tratamiento completa: segunda capa del aviso que muestra la app. */
+  PRIVACY_POLICY_URL: z.url().optional(),
 
   EXPO_PUSH_URL: z.string().url().default('https://exp.host/--/api/v2/push/send'),
   EXPO_ACCESS_TOKEN: z.string().optional(),
@@ -147,6 +160,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
       problems.push('PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY deben ser distintas entre sí y de JWT_ACCESS_SECRET');
     }
     if (!env.PLATFORM_TOTP_REQUIRED) problems.push('PLATFORM_TOTP_REQUIRED=false es solo para desarrollo: la consola exige segundo factor');
+    if (!env.PRIVACY_CONTACT_EMAIL) {
+      problems.push('PRIVACY_CONTACT_EMAIL es obligatoria: el aviso al vecino debe decir a quién pedir sus datos (Ley 21.719)');
+    }
     if (problems.length) throw new Error(`Configuración inválida para producción:\n  - ${problems.join('\n  - ')}`);
   }
   if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {

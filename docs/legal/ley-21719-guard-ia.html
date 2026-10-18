@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Ley 21.719 y Guard-IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #dfe6ef; }
+  body { font-family: 'IBM Plex Sans', Arial, sans-serif; color: #0a1f38; counter-reset: pg; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; break-after: page; page-break-after: always;
+           padding: 50px 64px 60px; background: #f2f6fb; display: flex; flex-direction: column; gap: 16px; counter-increment: pg; }
+  .slide.dark { background: #071a30; color: #eef5fc; }
+  .slide.accent { background: linear-gradient(135deg, #0a5fb0 0%, #083f80 100%); color: #f2f6fb; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #0a6fc2; }
+  .dark .eyebrow, .accent .eyebrow { color: #7fd0ff; }
+  h1 { font-family: 'Manrope', Arial, sans-serif; font-size: 56px; font-weight: 800; line-height: 1.06; }
+  h2 { font-family: 'Manrope', Arial, sans-serif; font-size: 32px; font-weight: 800; line-height: 1.15; }
+  h3 { font-family: 'Manrope', Arial, sans-serif; font-size: 18px; font-weight: 800; line-height: 1.25; }
+  p, li { font-size: 15px; line-height: 1.45; }
+  ul { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .lead { font-size: 18px; line-height: 1.45; }
+  .muted { color: #46586f; } .dark .muted { color: #b9cbe2; } .accent .muted { color: #d6e8fb; }
+  .small { font-size: 13px; line-height: 1.4; }
+  .card { background: #fbfdff; border: 1px solid #d9e3ef; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .dark .card { background: #0c2342; border-color: #1d3a5f; }
+  .row { display: flex; gap: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .grow { flex: 1; min-height: 0; }
+  .art { display: inline-block; font-size: 11.5px; font-weight: 600; color: #0a5fb0; background: #e2eaf4; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+  .dark .art { color: #9fdcff; background: #13345c; }
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+  .ok { background: #d2f1f4; color: #04545c; }
+  .part { background: #fff0cc; color: #6e4300; }
+  .no { background: #ffdfe3; color: #8a1022; }
+  .ask { background: #e7defd; color: #452a91; }
+  .dark .ok { background: #0f4b54; color: #c8f6fb; } .dark .part { background: #5c4310; color: #ffe7b0; }
+  .dark .no { background: #5e1824; color: #ffd3d9; } .dark .ask { background: #3a2b6e; color: #e2d8ff; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #46586f; border-bottom: 2px solid #c9d6e6; padding: 7px 9px; }
+  td { border-bottom: 1px solid #dde6f1; padding: 7px 9px; vertical-align: top; font-size: 14px; line-height: 1.38; }
+  .dark th { color: #9fb6d3; border-bottom-color: #22406a; } .dark td { border-bottom-color: #1a3558; }
+  td b, li b, p b { font-weight: 600; }
+  .note { border-left: 5px solid #0a6fc2; background: #e6eef8; border-radius: 10px; padding: 11px 16px; font-size: 14.5px; line-height: 1.45; }
+  .dark .note { background: #0c2342; border-left-color: #3fb3f5; }
+  .warn { border-left-color: #e0a100; background: #fff6df; } .dark .warn { background: #2a2410; border-left-color: #ffc35a; }
+  .num { width: 30px; height: 30px; border-radius: 999px; background: #0a6fc2; color: #f2f6fb; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .dark .num { background: #3fb3f5; color: #071a30; }
+  .foot { position: absolute; left: 64px; right: 64px; bottom: 20px; display: flex; justify-content: space-between; font-size: 11.5px; color: #6b7c93; }
+  .dark .foot { color: #7f95b3; } .accent .foot { color: #cfe3f8; }
+  .foot .n::after { content: counter(pg); }
+  .box { border: 2px solid #0a6fc2; border-radius: 14px; padding: 12px 14px; background: #fbfdff; }
+  .dark .box { border-color: #3fb3f5; background: #0c2342; }
+  .pill { display: inline-block; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 4px 14px; background: #22c7dc; color: #071a30; }
+  .arrow { color: #0a6fc2; font-weight: 800; font-size: 22px; align-self: center; }
+  .dark .arrow { color: #3fb3f5; }
+</style>
+</head>
+<body>
+
+<!-- 1 · Portada -->
+<section class="slide dark" id="portada" style="justify-content:center; gap:22px; padding:64px 96px">
+  <p class="eyebrow">Documento de trabajo · 15 de octubre de 2026</p>
+  <h1>Ley 21.719 y Guard-IA</h1>
+  <p class="lead muted" style="max-width:960px">Qué exige la nueva ley de protección de datos personales y qué debemos implementar en la app del vecino, la central municipal, la consola de Guard-IA y la base de datos.</p>
+  <div class="row" style="gap:12px; flex-wrap:wrap">
+    <span class="pill">Rige desde el 1 de diciembre de 2026</span>
+    <span class="pill" style="background:#13345c; color:#cfe8ff">Texto revisado: versión BCN con modificación de la Ley 21.806 (05-02-2026)</span>
+  </div>
+  <p class="small muted" style="max-width:980px; margin-top:28px">Análisis técnico y normativo para orientar el diseño del sistema. No reemplaza la revisión de un abogado especialista. Los puntos marcados <span class="badge ask">A consultar</span> requieren opinión legal antes de decidir.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 2 · Resumen -->
+<section class="slide" id="resumen">
+  <p class="eyebrow">Resumen</p>
+  <h2>Seis ideas para llevarse</h2>
+  <div class="grid3 grow">
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">1</span><h3>El piloto ya opera bajo la nueva ley</h3></div><p class="muted">Rige el 1 de diciembre de 2026. Desde ahí la Agencia de Protección de Datos Personales fiscaliza y sanciona.</p><p><span class="art">Art. 1° transitorio</span></p></div>
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">2</span><h3>El municipio es responsable; Guard-IA, encargado</h3></div><p class="muted">El municipio trata los datos para sus funciones legales sin pedir consentimiento. Guard-IA solo puede tratarlos según el contrato de encargo.</p><p><span class="art">Arts. 20 y 15 bis</span></p></div>
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">3</span><h3>Hay datos sensibles</h3></div><p class="muted">Salud, violencia intrafamiliar o sexual, riesgo suicida. Se tratan por la excepción de proteger la vida, con el deber de informar después.</p><p><span class="art">Arts. 2 g, 16 c, 16 bis</span></p></div>
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">4</span><h3>IA, SMS y avisos push salen de Chile</h3></div><p class="muted">Es transferencia internacional: necesita garantías contractuales y debe informarse al vecino.</p><p><span class="art">Arts. 27, 28 y 14 ter h</span></p></div>
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">5</span><h3>Evaluación de impacto antes de operar</h3></div><p class="muted">Obligatoria por la escala, los datos sensibles y el puntaje de confianza. Omitirla es infracción gravísima.</p><p><span class="art">Arts. 15 ter y 34 quáter k</span></p></div>
+    <div class="card"><div class="row" style="gap:10px;align-items:center"><span class="num">6</span><h3>La base técnica está bien; hay que corregir y completar</h3></div><p class="muted">Corregir: el consentimiento nombra a OpenAI y hoy se usa Groq; textos y transcripciones sin plazo; respaldos sin cifrar que no borran. Completar: solicitudes de derechos, bloqueo, registro de accesos e incidentes.</p><p><span class="art">Arts. 3 c, 8 ter, 11, 14 ter, 14 sexies</span></p></div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 3 · Vigencia y sanciones -->
+<section class="slide dark" id="vigencia">
+  <p class="eyebrow">Contexto</p>
+  <h2>Vigencia, fiscalización y sanciones</h2>
+  <div class="grid3">
+    <div class="card"><p class="small muted">13 de diciembre de 2024</p><h3>Se publica la ley</h3><p class="muted small">Modifica la Ley 19.628 y crea la Agencia de Protección de Datos Personales.</p></div>
+    <div class="card"><p class="small muted">Antes de la vigencia</p><h3>Se instala la Agencia</h3><p class="muted small">Consejo designado seis meses antes; sus instrucciones obligan desde la vigencia.</p></div>
+    <div class="card"><p class="small muted">1 de diciembre de 2026</p><h3>Entra en vigencia</h3><p class="muted small">Toda operación de Guard-IA y de los municipios debe cumplir desde ese día.</p></div>
+  </div>
+  <div class="grid2 grow">
+    <div class="card">
+      <h3>Guard-IA (persona jurídica privada)</h3>
+      <ul class="muted">
+        <li>Leves: amonestación o hasta <b>5.000 UTM</b>. Graves: hasta <b>10.000 UTM</b>. Gravísimas: hasta <b>20.000 UTM</b>.</li>
+        <li>Reincidencia: hasta el triple; empresa no MYPE reincidente: hasta el 2 % o 4 % de sus ingresos anuales.</li>
+        <li>Primeros 12 meses: a una empresa de menor tamaño la Agencia puede aplicarle solo amonestación.</li>
+        <li>Si el encargado usa los datos para otro fin, pasa a ser responsable y responde solidariamente.</li>
+      </ul>
+      <p><span class="art">Arts. 34 a 35, 15 bis · 6° transitorio</span></p>
+    </div>
+    <div class="card">
+      <h3>Municipio (órgano público)</h3>
+      <ul class="muted">
+        <li>Multa al <b>jefe superior del servicio (alcalde)</b>: del 20 % al 50 % de su remuneración mensual.</li>
+        <li>Si persiste: el doble y suspensión de 5 días. Con datos sensibles: 50 % y suspensión de hasta 30 días.</li>
+        <li>Funcionarios: sumario; una infracción gravísima es falta grave a la probidad.</li>
+        <li>Indemnización civil por daño a los vecinos y registro público de sanciones por 5 años.</li>
+      </ul>
+      <p><span class="art">Arts. 44 a 47, 39</span></p>
+    </div>
+  </div>
+  <p class="note">En simple: para el municipio el riesgo es personal y visible: la multa la paga el alcalde y la sanción se publica.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 4 · Conceptos -->
+<section class="slide" id="conceptos">
+  <p class="eyebrow">Conceptos clave</p>
+  <h2>El vocabulario de la ley, aplicado a Guard-IA</h2>
+  <div class="grid4 grow">
+    <div class="card"><h3>Dato personal</h3><p class="muted small">Cualquier información de una persona identificada o identificable: teléfono, voz, ubicación, foto, relato.</p><p><span class="art">Art. 2 f</span></p></div>
+    <div class="card"><h3>Dato sensible</h3><p class="muted small">Salud, vida sexual, orientación sexual, biométricos, origen étnico, situación socioeconómica, creencias, entre otros.</p><p><span class="art">Art. 2 g</span></p></div>
+    <div class="card"><h3>Responsable</h3><p class="muted small">Decide fines y medios del tratamiento. En las alertas: el municipio.</p><p><span class="art">Art. 2 n</span></p></div>
+    <div class="card"><h3>Encargado o mandatario</h3><p class="muted small">Trata datos por cuenta del responsable y según sus instrucciones. Guard-IA para las alertas.</p><p><span class="art">Art. 2 x · 15 bis</span></p></div>
+    <div class="card"><h3>Tratamiento</h3><p class="muted small">Recolectar, guardar, transmitir, consultar o usar datos: todo lo que hace el sistema.</p><p><span class="art">Art. 2 o</span></p></div>
+    <div class="card"><h3>Anonimizar y seudonimizar</h3><p class="muted small">Anonimizar es irreversible: deja de ser dato personal. Seudonimizar es reversible con información guardada aparte: sigue siendo dato personal.</p><p><span class="art">Art. 2 k y l</span></p></div>
+    <div class="card"><h3>Elaboración de perfiles</h3><p class="muted small">Evaluar o predecir fiabilidad, comportamiento o ubicación. El puntaje de confianza del vecino lo es.</p><p><span class="art">Art. 2 w</span></p></div>
+    <div class="card"><h3>Geolocalización</h3><p class="muted small">Se trata con las bases generales, informando tipo de dato, finalidad, duración y si se comparte.</p><p><span class="art">Art. 16 sexies</span></p></div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 5 · Principios -->
+<section class="slide" id="principios">
+  <p class="eyebrow">Principios · Art. 3</p>
+  <h2>Ocho principios y cómo los aplicamos</h2>
+  <table>
+    <tr><th style="width:17%">Principio</th><th style="width:33%">Qué exige</th><th style="width:38%">En Guard-IA</th><th style="width:12%">Estado</th></tr>
+    <tr><td><b>Licitud y lealtad</b></td><td>Base legal que se pueda demostrar.</td><td>Una base por finalidad (ver «Licitud») y su registro.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Finalidad</b></td><td>Fines específicos; no reutilizar para otro fin.</td><td>Datos de alertas solo para atenderlas; nada de publicidad. Casos de prueba de la IA sintéticos.</td><td><span class="badge ok">Implementado</span></td></tr>
+    <tr><td><b>Proporcionalidad</b></td><td>Solo los datos necesarios y por el tiempo necesario.</td><td>Sin RUT; ubicación solo al alertar; audio y fotos 90 días. Falta plazo para las alertas.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Calidad</b></td><td>Datos exactos y actuales.</td><td>Falta que el vecino corrija su nombre y cambie su teléfono.</td><td><span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Responsabilidad</b></td><td>Poder demostrar el cumplimiento.</td><td>Bitácora inalterable. Faltan evaluación de impacto y registro de actividades.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Seguridad</b></td><td>Medidas acordes al riesgo y al tipo de dato.</td><td>Aislamiento por municipio y área, HTTPS, enlaces firmados. Faltan cifrado de respaldos y registro de accesos.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Transparencia</b></td><td>Política clara, gratuita y siempre disponible.</td><td>Falta la política de tratamiento formal publicada, con versión y fecha.</td><td><span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Confidencialidad</b></td><td>Secreto, aun después de terminar la relación.</td><td>Faltan compromisos de confidencialidad firmados por operadores y funcionarios.</td><td><span class="badge no">Falta</span></td></tr>
+  </table>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 6 · Quién es quién -->
+<section class="slide dark" id="roles">
+  <p class="eyebrow">Roles</p>
+  <h2>Quién es quién en el tratamiento de datos</h2>
+  <div class="row" style="align-items:stretch; gap:14px">
+    <div class="card" style="flex:1"><p class="small muted">Titular</p><h3>Vecino</h3><p class="small muted">Dueño de sus datos y de sus derechos.</p></div>
+    <span class="arrow">→</span>
+    <div class="box" style="flex:1.3"><p class="small muted">Responsable · art. 20</p><h3>Municipio</h3><p class="small muted">Trata los datos para sus funciones legales, sin consentimiento, con todos los demás deberes.</p></div>
+    <span class="arrow">↔</span>
+    <div class="box" style="flex:1.3"><p class="small muted">Encargado · art. 15 bis</p><h3>Guard-IA</h3><p class="small muted">Opera la plataforma por cuenta del municipio, solo según el contrato y sus instrucciones.</p></div>
+    <span class="arrow">→</span>
+    <div class="card" style="flex:1.2"><p class="small muted">Subencargados</p><h3>Servidor, IA, SMS, push, respaldo</h3><p class="small muted">Requieren autorización escrita del municipio.</p></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Instituciones: Carabineros, SAMU, Bomberos, PDI</h3><p class="small muted">Recibir datos de una derivación es comunicación entre órganos públicos: válida si es necesaria para sus funciones y para ese caso. Se registra cada derivación.</p><p><span class="art">Art. 22</span></p></div>
+    <div class="card"><h3>Agencia de Protección de Datos Personales</h3><p class="small muted">Fiscaliza, resuelve reclamos de los vecinos, dicta instrucciones y publica modelos de contrato y cláusulas.</p><p><span class="art">Arts. 30 y 30 bis</span></p></div>
+  </div>
+  <p class="note">El encargo <b>no es una cesión</b>: el municipio no necesita el consentimiento del vecino para que Guard-IA opere los datos, siempre que Guard-IA trate los datos solo por cuenta del municipio y según sus instrucciones. Si los usara para otro fin, pasaría a ser responsable y respondería solidariamente <span class="art">15 bis</span> <span class="art">22</span>.</p>
+  <p class="note warn"><b>Punto delicado:</b> la cuenta del vecino se crea antes de saber a qué municipio pertenece. Recomendación: Guard-IA es responsable de la cuenta (registro, teléfono, consentimiento, sesión) con su propia política, y encargado de cada municipio para las alertas. Hay que dejarlo por escrito. <span class="badge ask">A consultar</span></p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 7 · Bases de licitud -->
+<section class="slide" id="bases">
+  <p class="eyebrow">Licitud · Arts. 12, 13, 16 y 20</p>
+  <h2>Una base legal para cada finalidad</h2>
+  <table>
+    <tr><th style="width:20%">Finalidad</th><th style="width:22%">Datos</th><th style="width:28%">Base legal</th><th style="width:30%">Comentario</th></tr>
+    <tr><td><b>Atender un SOS</b></td><td>Ubicación, audio o texto, teléfono</td><td>Función legal del municipio <span class="art">20</span></td><td>No requiere consentimiento, pero sí informar <span class="art">14 ter</span></td></tr>
+    <tr><td><b>Salud o violencia en el SOS</b></td><td>Lo que el vecino relata</td><td>Salvaguardar la vida o integridad <span class="art">16 c</span> <span class="art">16 bis a</span></td><td>Terminada la emergencia, informar al titular qué se trató</td></tr>
+    <tr><td><b>Reporte urbano</b></td><td>Foto, ubicación, texto</td><td>Función legal del municipio <span class="art">20</span></td><td>Aseo, alumbrado, vialidad, áreas verdes</td></tr>
+    <tr><td><b>Cuenta de usuario</b></td><td>Teléfono, código SMS, sesión</td><td>Condiciones de uso <span class="art">13 c</span> o consentimiento <span class="art">12</span></td><td>Depende del rol de Guard-IA (ver «Roles»)</td></tr>
+    <tr><td><b>Avisos push</b></td><td>Token del dispositivo</td><td>Ejecución del servicio <span class="art">13 c</span></td><td>Textos sin datos sensibles</td></tr>
+    <tr><td><b>Análisis con IA externa</b></td><td>Audio, texto</td><td>Parte del encargo, con transferencia válida <span class="art">27</span></td><td>Garantías contractuales con el proveedor</td></tr>
+    <tr><td><b>Uso indebido</b></td><td>Rechazos, faltas, puntaje</td><td>Función legal o interés legítimo <span class="art">13 d</span></td><td>Es un perfil: informar la lógica y permitir revisión</td></tr>
+    <tr><td><b>Estadísticas y mejora</b></td><td>Alertas</td><td>Solo anonimizadas <span class="art">2 k</span> <span class="art">16 quinquies</span></td><td>Nunca datos reales en los casos de prueba</td></tr>
+    <tr><td><b>Funcionario de terreno</b></td><td>Su posición durante el despacho</td><td>Relación laboral <span class="art">13 b-c</span> <span class="art">16 sexies</span></td><td>Informarle; solo con despacho abierto</td></tr>
+  </table>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 8 · Registro: qué pedir -->
+<section class="slide" id="registro">
+  <p class="eyebrow">App del vecino · Registro</p>
+  <h2>Qué datos pedir para crear la cuenta</h2>
+  <div class="grid3 grow">
+    <div class="card" style="border-top:5px solid #0a6fc2">
+      <h3>Pedir</h3>
+      <ul class="muted">
+        <li><b>Teléfono móvil verificado por SMS:</b> para devolver la llamada y avisar el estado del caso. <span class="badge ok">Hoy</span></li>
+        <li><b>Declaración de edad</b> (14 años o más), no la fecha de nacimiento. <span class="badge no">Falta</span></li>
+        <li><b>Aceptación informada</b> de la política, con versión y fecha. <span class="badge part">Solo la última versión</span></li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:5px solid #22c7dc">
+      <h3>Opcional</h3>
+      <ul class="muted">
+        <li><b>Nombre</b> o cómo quiere que lo llamen: ayuda a la central. Hoy la app no lo pide (la central muestra «Sin nombre»); si se agrega, que sea opcional y editable.</li>
+        <li><b>Correo</b>, solo si el vecino quiere recibir ahí la respuesta de una solicitud de derechos: la ley pide responder al domicilio o correo que él fije <span class="art">11</span>.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:5px solid #c41f35">
+      <h3>No pedir</h3>
+      <ul class="muted">
+        <li>RUT <span class="badge ok">Hoy no se pide</span></li>
+        <li>Dirección del domicilio, fecha de nacimiento, sexo, contactos de la agenda, foto de perfil.</li>
+        <li>Ubicación permanente o en segundo plano.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note"><b>Menores</b> <span class="art">16 quáter</span>: bajo 14 años se necesita el consentimiento de padres o cuidadores; de 14 a 17 se tratan como adultos, salvo los datos sensibles de menores de 16, que también requieren a los padres. Un SOS de riesgo vital se ampara en la excepción de proteger la vida <span class="art">16 c</span>. Recomendación: cuenta desde los 14 años con declaración, y definir con abogado el caso de menores en riesgo. <span class="badge ask">A consultar</span></div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 9 · Datos de cada alerta -->
+<section class="slide dark" id="alerta">
+  <p class="eyebrow">App del vecino · Cada alerta</p>
+  <h2>Qué se recolecta y qué cuidar</h2>
+  <table>
+    <tr><th style="width:22%">Dato</th><th style="width:28%">Para qué</th><th style="width:50%">Cuidado</th></tr>
+    <tr><td><b>Ubicación GPS y precisión</b></td><td>Ubicar al vecino y saber qué municipio atiende</td><td>Se lee una vez, solo al alertar y con permiso «mientras se usa» <span class="badge ok">Hoy</span>. Informar tipo, finalidad y duración <span class="art">16 sexies</span>.</td></tr>
+    <tr><td><b>Audio</b> (SOS por voz y modo discreto)</td><td>Entender la emergencia</td><td>El modo discreto graba 15 s de ambiente apenas se abre y solo se anula en los primeros 3 s: puede captar a terceros; avisarlo. La voz no se usa para identificar; si se usara, sería dato biométrico <span class="art">16 ter</span>.</td></tr>
+    <tr><td><b>Foto</b> del reporte urbano</td><td>Mostrar el problema</td><td>La app ya quita los metadatos EXIF <span class="badge ok">Hoy</span>. Puede incluir rostros o patentes: solo para ese caso.</td></tr>
+    <tr><td><b>Texto y transcripción</b></td><td>Clasificar y atender</td><td>Puede contener salud o violencia: dato sensible, con acceso restringido.</td></tr>
+    <tr><td><b>Token del dispositivo</b></td><td>Avisar el estado del caso</td><td>Borrarlo al cerrar sesión o eliminar la cuenta; avisos sin detalles sensibles.</td></tr>
+    <tr><td><b>Historial, faltas y puntaje de confianza</b></td><td>Prevenir el uso indebido</td><td>Es elaboración de perfiles: informar la lógica, sus consecuencias y la vía de revisión <span class="art">8 bis</span> <span class="art">14 ter l</span>.</td></tr>
+  </table>
+  <p class="note">El principio de protección por defecto pide que, sin que el vecino haga nada, solo se traten los datos estrictamente necesarios <span class="art">14 quáter</span>.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 10 · Consentimiento e información -->
+<section class="slide" id="consentimiento">
+  <p class="eyebrow">Consentimiento e información · Arts. 12, 14 ter y 16 sexies</p>
+  <h2>Qué debe decir y guardar la app</h2>
+  <div class="grid2 grow">
+    <div class="card">
+      <h3>Lo que pide la ley</h3>
+      <ul class="muted">
+        <li>Consentimiento <b>libre, informado, específico</b> por finalidad, <b>previo</b> e <b>inequívoco</b>.</li>
+        <li>Revocable en cualquier momento, por un medio similar, gratuito y siempre disponible; la revocación no es retroactiva.</li>
+        <li>El responsable debe <b>probar</b> que lo obtuvo.</li>
+        <li>Aunque el municipio no necesite consentimiento, debe <b>informar</b>: finalidades, base legal, destinatarios, transferencias al extranjero, plazo de conservación, derechos, decisiones automatizadas y cómo reclamar a la Agencia.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Cómo debe quedar en la app</h3>
+      <ul class="muted">
+        <li>Aviso en capas: un resumen claro y la política completa, con versión y fecha.</li>
+        <li>Casillas separadas solo para lo opcional; lo necesario para el SOS se informa, no se condiciona.</li>
+        <li><b>Revocar no apaga el SOS:</b> el vecino siempre puede pedir ayuda.</li>
+        <li>Nuevo consentimiento al cambiar la versión. <span class="badge ok">Hoy</span></li>
+        <li>Guardar cada aceptación y revocación con versión, fecha, texto y canal. <span class="badge no">Falta</span></li>
+        <li>Política publicada en la web de Guard-IA y de cada municipio. <span class="badge no">Falta</span></li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Ojo con el art. 12: se presume que el consentimiento no es libre si se pide para algo que el servicio no necesita. Por eso no conviene amarrar el SOS a aceptar usos opcionales.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 10b · El consentimiento de hoy -->
+<section class="slide" id="consentimiento-hoy">
+  <p class="eyebrow">Hallazgo · Pantalla de consentimiento de la app</p>
+  <h2>Lo que dice hoy y lo que le falta</h2>
+  <div class="grid2 grow">
+    <div class="card" style="border-top:5px solid #22c7dc">
+      <h3>Lo que ya dice</h3>
+      <ul class="muted">
+        <li>Ubicación, audio y foto solo al pedir ayuda o reportar, y van a la central de su municipio.</li>
+        <li>El audio se transcribe y clasifica con un proveedor externo y se borra a los 90 días.</li>
+        <li>Las falsas alarmas bajan la confianza y las próximas alertas se revisan con más cuidado.</li>
+        <li>Puede pedir copia de sus datos o borrar su cuenta.</li>
+        <li>Una casilla: «Leí y acepto el uso de mis datos para atender mis alertas».</li>
+      </ul>
+      <p class="note warn small"><b>Corregir ya:</b> el texto nombra a OpenAI, pero la configuración actual usa Groq. Lo informado debe coincidir con lo que ocurre <span class="art">3 g</span> <span class="art">14 ter</span>.</p>
+    </div>
+    <div class="card" style="border-top:5px solid #c41f35">
+      <h3>Lo que falta informar</h3>
+      <ul class="muted">
+        <li>Quién es el responsable, la base legal y cómo contactar al delegado.</li>
+        <li>Que la IA, el SMS y los avisos están en EE.UU., y con qué garantías.</li>
+        <li>Que el texto y la transcripción se guardan (hoy, sin plazo).</li>
+        <li>Que la alerta puede pasar a otro municipio y que otros municipios ven el conteo de sus faltas.</li>
+        <li>Que la cuenta puede quedar restringida o bloqueada, y que la prioridad del SOS puede bajar sola.</li>
+        <li>Que el modo discreto graba el ambiente.</li>
+        <li>Un enlace a la política completa y cómo reclamar ante la Agencia.</li>
+      </ul>
+      <p class="small muted"><b>En el servidor:</b> acepta cualquier versión sin validarla, no guarda historial y no hay forma de revocar sin borrar la cuenta.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 11 · Derechos -->
+<section class="slide dark" id="derechos">
+  <p class="eyebrow">Derechos del vecino · Arts. 4 a 11</p>
+  <h2>Acceso, rectificación, supresión, oposición, portabilidad y bloqueo</h2>
+  <table>
+    <tr><th style="width:18%">Derecho</th><th style="width:30%">Hoy en Guard-IA</th><th style="width:40%">Qué falta</th><th style="width:12%">Estado</th></tr>
+    <tr><td><b>Acceso</b> <span class="art">5</span></td><td>«Mis datos» exporta sus datos y alertas.</td><td>Agregar municipio que atendió, prioridad, análisis de la IA, despachos, finalidades, destinatarios, plazos y la lógica del puntaje y los traspasos.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Rectificación</b> <span class="art">6</span></td><td>—</td><td>Editar el nombre; cambiar el teléfono con verificación.</td><td><span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Supresión</b> <span class="art">7</span></td><td>Elimina la cuenta: borra audio, fotos, textos y transcripciones; redondea la ubicación.</td><td>Quedan notas libres (de operadores, evidencia de faltas, decisiones de bloqueo) y copias en el respaldo: revisarlas o borrarlas.</td><td><span class="badge part">Parcial</span></td></tr>
+    <tr><td><b>Oposición</b> <span class="art">8</span></td><td>—</td><td>Formulario y respuesta fundada.</td><td><span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Portabilidad</b> <span class="art">9</span></td><td>Archivo JSON (en el teléfono se comparte como texto).</td><td>Guardarlo como archivo también en el teléfono.</td><td><span class="badge ok">Implementado</span></td></tr>
+    <tr><td><b>Bloqueo temporal</b> <span class="art">8 ter</span></td><td>—</td><td>Suspender el tratamiento mientras se resuelve; responder en 2 días hábiles.</td><td><span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Decisión automatizada</b> <span class="art">8 bis</span></td><td>«Pedir revisión» de faltas y bloqueos.</td><td>Explicar el puntaje, la cuenta restringida y el traspaso automático; revisión humana.</td><td><span class="badge part">Parcial</span></td></tr>
+  </table>
+  <p class="note"><b>Plazos</b> <span class="art">11</span>: acusar recibo y responder por escrito en <b>30 días corridos</b>, prorrogables una vez por 30, guardando prueba del envío. Si se deniega, fundarlo e informar que puede reclamar a la Agencia en 30 días hábiles. Ante el municipio, al jefe superior del servicio <span class="art">23</span>. <b>Hoy la exportación y la supresión no quedan en la bitácora:</b> no hay cómo probar que se respondió.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 12 · Central: qué datos ve -->
+<section class="slide" id="central">
+  <p class="eyebrow">Central municipal</p>
+  <h2>Qué datos del vecino puede recibir cada rol</h2>
+  <table>
+    <tr><th style="width:20%">Rol</th><th style="width:46%">Recibe</th><th style="width:34%">No debe recibir</th></tr>
+    <tr><td><b>Operador y supervisor</b><br><span class="small muted">de sus áreas</span></td><td>Teléfono completo para devolver el llamado, ubicación exacta, audio, foto, texto, transcripción, clasificación de la IA, puntaje de confianza, faltas vigentes en todo el país y estado de la cuenta.</td><td>Alertas de otras áreas <span class="badge ok">Hoy</span></td></tr>
+    <tr><td><b>Administrador municipal</b></td><td>Todo lo de su municipio, más la bitácora.</td><td>Datos de otros municipios <span class="badge ok">Hoy</span></td></tr>
+    <tr><td><b>Apoyo administrativo</b></td><td>Hoy, la ficha completa: teléfono, transcripción, audio y foto.</td><td>Teléfono y audio por defecto <span class="badge no">Falta</span></td></tr>
+    <tr><td><b>Funcionario de terreno</b></td><td>El caso de su unidad: categoría, resumen, lugar, instrucciones, ubicación y fotos.</td><td>Teléfono, nombre, transcripción y audio <span class="badge ok">Hoy</span></td></tr>
+    <tr><td><b>Consola Guard-IA</b></td><td>Solo cifras agregadas por municipio.</td><td>Alertas, vecinos y casos <span class="badge ok">Hoy</span></td></tr>
+    <tr><td><b>Carabineros, SAMU, Bomberos</b></td><td>Lo necesario para su intervención, por derivación registrada.</td><td>El resto del caso</td></tr>
+  </table>
+  <p class="note">La ley pide que por defecto se traten solo los datos estrictamente necesarios <span class="art">14 quáter</span>. <b>Hallazgo:</b> la pantalla recorta, pero la base de datos permite más. Un operador puede leer la fila completa del vecino y las faltas de otros municipios con sus notas; terreno, la fila completa de la alerta. Las reglas de la base también deben minimizar.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 13 · Cuidados en la central -->
+<section class="slide dark" id="cuidados">
+  <p class="eyebrow">Central municipal · Cuidados</p>
+  <h2>Secreto, acceso mínimo y trazabilidad</h2>
+  <div class="grid3 grow">
+    <div class="card"><h3>Deber de secreto</h3><p class="small muted">Los funcionarios guardan reserva aun después de dejar el cargo; vulnerarla es falta grave a la probidad.</p><p><span class="art">14 bis</span> <span class="art">46</span></p></div>
+    <div class="card"><h3>Nada fuera del sistema</h3><p class="small muted">Sin capturas ni reenvíos por WhatsApp. Las derivaciones van por canales formales y quedan registradas. <span class="badge ok">Hoy se registran</span></p></div>
+    <div class="card"><h3>Registro de accesos</h3><p class="small muted">Quién vio el teléfono, escuchó el audio o abrió la foto, y cuándo. Hoy la bitácora registra acciones, no lecturas. <span class="badge no">Falta</span></p></div>
+    <div class="card"><h3>Teléfono enmascarado</h3><p class="small muted">Visible solo al pulsar «Llamar», dejando registro. <span class="badge no">Falta</span></p></div>
+    <div class="card"><h3>Segundo factor y sesión</h3><p class="small muted">Para administradores y supervisores; hoy solo la consola Guard-IA lo exige. La sesión de la central dura 12 h sin cierre por inactividad. <span class="badge no">Falta</span></p></div>
+    <div class="card"><h3>Faltas de otros municipios</h3><p class="small muted">Hoy la central muestra el nombre del otro municipio y su conteo. Formalizarlo con un convenio entre municipios. <span class="badge ask">A consultar</span></p><p><span class="art">22</span></p></div>
+  </div>
+  <p class="note">Cuentas personales e intransferibles, sesiones que vencen y permisos por rol ya están implementados. Lo que falta es poder <b>demostrar</b> quién accedió a qué.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 14 · Datos sensibles -->
+<section class="slide" id="sensibles">
+  <p class="eyebrow">Datos sensibles · Arts. 16 y 16 bis</p>
+  <h2>Salud y violencia: la parte más delicada</h2>
+  <div class="grid2 grow">
+    <div class="card">
+      <h3>Dónde aparecen en Guard-IA</h3>
+      <ul class="muted">
+        <li>SOS de salud: dolor de pecho, persona inconsciente, convulsión, intoxicación, parto.</li>
+        <li>Violencia intrafamiliar, violencia sexual, amenazas.</li>
+        <li>Riesgo suicida.</li>
+        <li>Menores involucrados.</li>
+        <li>Indirectamente, en el audio y en la transcripción.</li>
+      </ul>
+      <h3 style="margin-top:8px">Medidas</h3>
+      <ul class="muted">
+        <li>Marcar las alertas sensibles por su categoría.</li>
+        <li>Acceso más restringido y conservación más corta.</li>
+        <li>Nunca en el texto de un aviso push.</li>
+        <li>Si hay una brecha, avisar también a cada vecino afectado <span class="art">14 sexies</span>.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Qué dice la ley</h3>
+      <ul class="muted">
+        <li><b>Base:</b> se pueden tratar sin consentimiento cuando es indispensable para salvaguardar la vida, la salud o la integridad <span class="art">16 c</span> <span class="art">16 bis a</span>.</li>
+        <li><b>Deber posterior:</b> cuando cese el impedimento, el responsable debe informar en detalle al titular qué datos trató y qué hizo con ellos. En Guard-IA: un «resumen de tu caso» en la app. <span class="badge no">Falta</span></li>
+        <li><b>Prohibición:</b> el art. 16 bis prohíbe tratar datos de salud recolectados en el ámbito «de seguridad», salvo que la ley lo autorice expresamente en casos calificados. Hay que definir cómo se encuadra el SOS de salud. <span class="badge ask">A consultar</span></li>
+        <li><b>Régimen especial:</b> el art. 24 a) regula aparte a los órganos competentes en prevención y seguridad pública. Ver si alcanza a la seguridad municipal. <span class="badge ask">A consultar</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 15 · IA y decisiones automatizadas -->
+<section class="slide dark" id="ia">
+  <p class="eyebrow">IA y decisiones automatizadas · Arts. 8 bis, 14 ter l y 15 ter a</p>
+  <h2>La IA sugiere; las personas deciden</h2>
+  <div class="grid3 grow">
+    <div class="card">
+      <h3>Lo que ya protege al vecino</h3>
+      <ul class="muted">
+        <li>La clasificación solo sugiere: el operador decide y corrige.</li>
+        <li>Un SOS nunca baja de prioridad media; ante riesgo vital, siempre alta.</li>
+        <li>Faltas y bloqueos los decide una persona, y el vecino puede pedir revisión.</li>
+        <li>Cada análisis guarda la versión del agente.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Automatismos que lo afectan</h3>
+      <ul class="muted">
+        <li>Con confianza bajo 25 o cuenta restringida, un SOS que la IA marca alto queda en media, salvo frase de riesgo vital. <b>Hoy el operador no puede cambiar la prioridad.</b></li>
+        <li>Con 2 faltas, la base restringe la cuenta sola.</li>
+        <li>El agente traspasa la alerta a otro municipio sin aprobación previa.</li>
+        <li>El agente deriva el reporte a un área.</li>
+      </ul>
+      <p class="small muted">Deben informarse la lógica y las consecuencias, y asegurar explicación, intervención humana y revisión.</p>
+    </div>
+    <div class="card">
+      <h3>Qué falta</h3>
+      <ul class="muted">
+        <li>Que el operador pueda cambiar la prioridad (intervención humana). <span class="badge no">Falta</span></li>
+        <li>Explicar en la política y en la app cómo funcionan el puntaje y los traspasos. <span class="badge no">Falta</span></li>
+        <li>A la IA ya no se envían teléfono, nombre ni coordenadas <span class="badge ok">Hoy</span>; sí el audio completo y el texto. Pactar sin retención ni entrenamiento. <span class="badge part">A formalizar</span></li>
+        <li>Incluir el agente en la evaluación de impacto.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 16 · Transferencias -->
+<section class="slide" id="transferencias">
+  <p class="eyebrow">Transferencias internacionales y subencargados · Arts. 15 bis, 27 y 28</p>
+  <h2>Cada proveedor, con contrato y garantías</h2>
+  <table>
+    <tr><th style="width:20%">Servicio</th><th style="width:23%">Datos</th><th style="width:13%">Dónde</th><th style="width:44%">Qué hacer</th></tr>
+    <tr><td><b>Proveedor de IA</b><br><span class="small muted">hoy Groq; la app dice OpenAI</span></td><td>Audio completo y texto de la alerta, sin teléfono ni nombre</td><td>EE.UU.</td><td>Un solo proveedor, el que se informa. Cláusulas con garantías equivalentes <span class="art">27 b</span>; sin retención ni entrenamiento; informar al vecino <span class="art">14 ter h</span>.</td></tr>
+    <tr><td><b>SMS de verificación</b><br><span class="small muted">Twilio</span></td><td>Teléfono y código</td><td>EE.UU.</td><td>Contrato y cláusulas; el mínimo de datos.</td></tr>
+    <tr><td><b>Avisos push</b><br><span class="small muted">Expo, vía Google o Apple</span></td><td>Token y texto del aviso</td><td>EE.UU.</td><td>Contrato. Hoy los avisos no traen la categoría <span class="badge ok">Hoy</span>, pero los de cuenta dicen «aviso falso» o «bloqueo» en la pantalla bloqueada: hacerlos neutros.</td></tr>
+    <tr><td><b>Servidor</b></td><td>Toda la base de datos</td><td>A definir</td><td>Elegir región en Chile o en un país adecuado; contrato de encargo; disco cifrado.</td></tr>
+    <tr><td><b>Respaldo externo</b></td><td>Copia de la base y archivos</td><td>A definir</td><td>Hoy va sin cifrar. Cifrar antes de enviar; contrato.</td></tr>
+    <tr><td><b>Mapas</b><br><span class="small muted">OpenStreetMap y Google Maps</span></td><td>Mapa: IP de los operadores. «Abrir en Google Maps»: coordenadas de la alerta</td><td>Europa, EE.UU.</td><td>Riesgo bajo; mencionarlo en la política de la central.</td></tr>
+  </table>
+  <p class="note">Como encargado, Guard-IA solo puede usar subencargados con <b>autorización específica y por escrito</b> del municipio, y sigue siendo responsable solidario. La Agencia publicará la lista de países adecuados y cláusulas modelo; mientras tanto, cláusulas contractuales con garantías equivalentes a la ley chilena.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 17 · Contratos -->
+<section class="slide dark" id="contratos">
+  <p class="eyebrow">Ámbito legal</p>
+  <h2>Contratos, consentimientos y documentos necesarios</h2>
+  <div class="grid3 grow">
+    <div class="card"><h3>1. Contrato de encargo de tratamiento</h3><p class="small muted">Objeto, duración, finalidad, tipos de datos, categorías de titulares, derechos y obligaciones, seguridad, reporte de incidentes y devolución o supresión al terminar. Municipio y Guard-IA.</p><p><span class="art">15 bis</span> <span class="badge part">La puesta en marcha ya exige firmarlo</span></p></div>
+    <div class="card"><h3>2. Anexo de subencargados y transferencias</h3><p class="small muted">Lista de proveedores, países, datos y garantías, autorizada por escrito por el municipio.</p><p><span class="art">15 bis</span> <span class="art">27</span></p></div>
+    <div class="card"><h3>3. Política de tratamiento</h3><p class="small muted">Publicada con versión y fecha, por Guard-IA y por cada municipio, con todo lo que exige la ley.</p><p><span class="art">14 ter a-l</span></p></div>
+    <div class="card"><h3>4. Términos de uso y aviso de privacidad</h3><p class="small muted">Cuenta, uso indebido, faltas y bloqueos; consentimientos de lo opcional; aviso de geolocalización.</p><p><span class="art">12</span> <span class="art">16 sexies</span></p></div>
+    <div class="card"><h3>5. Convenios entre órganos públicos</h3><p class="small muted">Con las instituciones y entre municipios, para traspasos y faltas compartidas. Se publican mensualmente en la web municipal.</p><p><span class="art">22</span></p></div>
+    <div class="card"><h3>6. Confidencialidad del personal</h3><p class="small muted">Compromiso firmado por operadores, supervisores y funcionarios de terreno; cláusula en contratos de Guard-IA.</p><p><span class="art">14 bis</span> <span class="art">46</span> <span class="art">49</span></p></div>
+    <div class="card"><h3>7. Evaluación de impacto</h3><p class="small muted">Antes de iniciar el tratamiento (ver «Evaluación de impacto»).</p><p><span class="art">15 ter</span></p></div>
+    <div class="card"><h3>8. Delegado de protección de datos</h3><p class="small muted">En Guard-IA, una persona idónea y autónoma. En el municipio, un funcionario de planta.</p><p><span class="art">50</span> <span class="art">5° transitorio</span></p></div>
+    <div class="card"><h3>9. Procedimientos escritos</h3><p class="small muted">Solicitudes de derechos con plazos, incidentes de seguridad y retención de datos.</p><p><span class="art">11</span> <span class="art">14 sexies</span></p></div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 18 · Evaluación de impacto -->
+<section class="slide" id="eipd">
+  <p class="eyebrow">Evaluación de impacto · Art. 15 ter</p>
+  <h2>Obligatoria antes de empezar a operar</h2>
+  <div class="grid2 grow">
+    <div class="card">
+      <h3>Por qué nos aplica</h3>
+      <ul class="muted">
+        <li>Tratamiento masivo o a gran escala: toda una comuna <span class="art">b</span>.</li>
+        <li>Datos sensibles sin consentimiento, por la excepción de riesgo vital <span class="art">d</span>.</li>
+        <li>Perfil automatizado: el puntaje de confianza y la cuenta restringida <span class="art">a</span>.</li>
+      </ul>
+      <p class="small muted">Omitirla es infracción gravísima <span class="art">34 quáter k</span>. La Agencia publicará orientaciones mínimas; si el riesgo resulta alto, se le puede consultar.</p>
+    </div>
+    <div class="card">
+      <h3>Índice propuesto para Guard-IA</h3>
+      <ul class="muted">
+        <li>Inventario de datos y titulares: vecinos, terceros grabados, funcionarios.</li>
+        <li>Flujos: app → servidor → IA → central → terreno → instituciones.</li>
+        <li>Necesidad y proporcionalidad de cada dato.</li>
+        <li>Riesgos: filtración de audio sensible, acceso indebido de un operador, error o sesgo de la IA, traspaso equivocado, suplantación de número, datos de menores.</li>
+        <li>Medidas, riesgo residual y responsable de cada una.</li>
+        <li>Revisión anual y ante cada cambio relevante.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 19 · Incidentes -->
+<section class="slide dark" id="incidentes">
+  <p class="eyebrow">Incidentes de seguridad · Arts. 14 sexies y 15 bis</p>
+  <h2>Qué hacer si se filtran o pierden datos</h2>
+  <div class="row" style="gap:10px; align-items:stretch">
+    <div class="card" style="flex:1"><span class="num">1</span><h3>Detectar</h3><p class="small muted">Alertas de acceso inusual y aviso interno.</p></div>
+    <span class="arrow">→</span>
+    <div class="card" style="flex:1"><span class="num">2</span><h3>Evaluar</h3><p class="small muted">Qué datos, cuántos vecinos y qué riesgo.</p></div>
+    <span class="arrow">→</span>
+    <div class="card" style="flex:1"><span class="num">3</span><h3>Reportar</h3><p class="small muted">Guard-IA al municipio; el municipio a la Agencia, sin dilaciones indebidas.</p></div>
+    <span class="arrow">→</span>
+    <div class="card" style="flex:1"><span class="num">4</span><h3>Avisar</h3><p class="small muted">Con datos sensibles o de niños, a cada vecino, en lenguaje claro.</p></div>
+    <span class="arrow">→</span>
+    <div class="card" style="flex:1"><span class="num">5</span><h3>Registrar</h3><p class="small muted">Naturaleza, efectos, categorías, número de afectados y medidas.</p></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Qué implementar</h3><ul class="muted"><li>Registro de incidentes en la consola, con plazos y estado.</li><li>Plantillas de aviso a la Agencia, al municipio y a los vecinos.</li><li>Contactos actualizados de cada municipio y del delegado.</li><li>Un simulacro antes del piloto.</li></ul></div>
+    <div class="card"><h3>Qué arriesga</h3><ul class="muted"><li>No registrar o no comunicar: infracción grave <span class="art">34 ter k</span>.</li><li>Omitir el aviso deliberadamente: infracción gravísima <span class="art">34 quáter f</span>.</li><li>La autodenuncia y las medidas oportunas atenúan la sanción <span class="art">36</span>.</li></ul></div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 20 · Seguridad -->
+<section class="slide" id="seguridad">
+  <p class="eyebrow">Seguridad · Arts. 14 quinquies y 14 quáter</p>
+  <h2>Medidas de seguridad: lo que hay y lo que falta</h2>
+  <div class="grid2 grow">
+    <div class="card" style="border-top:5px solid #22c7dc">
+      <h3>Implementado</h3>
+      <ul class="muted">
+        <li>Aislamiento por municipio y por área en la base de datos, no solo en la pantalla.</li>
+        <li>HTTPS en todos los servicios.</li>
+        <li>Audio y fotos con enlaces firmados que vencen.</li>
+        <li>Sesiones que vencen y renovación de un solo uso.</li>
+        <li>Bitácora que no se edita ni se borra.</li>
+        <li>Segundo factor en la consola Guard-IA.</li>
+        <li>Contraseñas y códigos SMS con hash y límite de intentos.</li>
+        <li>Fotos sin metadatos EXIF; la IA no recibe teléfono, nombre ni coordenadas.</li>
+        <li>Respaldo diario.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:5px solid #c41f35">
+      <h3>Falta</h3>
+      <ul class="muted">
+        <li>Cifrar los respaldos (hoy van en claro) y el disco <span class="art">14 quinquies a</span>.</li>
+        <li>Que el espejo de archivos borre lo purgado: hoy conserva para siempre lo que se eliminó.</li>
+        <li>Cifrar o seudonimizar el teléfono y la transcripción.</li>
+        <li>Registro de accesos a datos personales.</li>
+        <li>Segundo factor y cierre por inactividad en la central; bloqueo tras intentos fallidos.</li>
+        <li>Logs sin coordenadas ni respuestas de la IA.</li>
+        <li>Pruebas de restauración y prueba de intrusión periódicas <span class="art">14 quinquies c-d</span>.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Ante un incidente, es el responsable quien debe probar que sus medidas existían y funcionaban <span class="art">14 quinquies</span>. Documentarlas es parte de la medida.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 21 · Retención -->
+<section class="slide dark" id="retencion">
+  <p class="eyebrow">Conservación · Arts. 3 c, 7 y 22</p>
+  <h2>Cuánto tiempo guardar cada dato</h2>
+  <table>
+    <tr><th style="width:28%">Dato</th><th style="width:22%">Hoy</th><th style="width:50%">Propuesta, a validar con el municipio</th></tr>
+    <tr><td><b>Audio y fotos</b></td><td><span class="badge ok">90 días</span></td><td>Mantener 90 días.</td></tr>
+    <tr><td><b>Texto, transcripción, resumen y análisis de la IA</b></td><td><span class="badge no">Sin plazo</span></td><td>El mismo plazo que el audio: la transcripción repite lo que dijo el vecino.</td></tr>
+    <tr><td><b>Alerta con ubicación exacta y vínculo al vecino</b></td><td><span class="badge no">Sin plazo</span></td><td>Anonimizar a los [__] meses del cierre: sin vínculo y con la ubicación redondeada a ~100&nbsp;m.</td></tr>
+    <tr><td><b>Faltas y bloqueos</b></td><td><span class="badge part">Vencen, pero la fila queda</span></td><td>Anonimizar el historial al vencer, salvo reclamo en curso.</td></tr>
+    <tr><td><b>Respaldos</b></td><td><span class="badge no">Base 30 días; archivos sin borrar</span></td><td>Cifrados, y que el espejo de archivos borre lo purgado.</td></tr>
+    <tr><td><b>Pánico de terreno con posición; dispositivos</b></td><td><span class="badge part">Sin plazo</span></td><td>[__] meses; dispositivos sin uso, borrar.</td></tr>
+    <tr><td><b>Bitácora</b></td><td><span class="badge part">Sin plazo</span></td><td>[__] años, para control y reclamos.</td></tr>
+    <tr><td><b>Códigos SMS y sesiones</b></td><td><span class="badge ok">Purga automática</span></td><td>Mantener.</td></tr>
+  </table>
+  <p class="note">Conservar por más tiempo del necesario exige autorización legal o consentimiento <span class="art">3 c</span>. Un órgano público puede conservar más para atender reclamos, control o como garantía de sus decisiones <span class="art">22</span>. Los plazos entre corchetes los define el municipio.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 21b · Ajustes a lo que ya existe -->
+<section class="slide" id="ajustes">
+  <p class="eyebrow">Hallazgos en el código actual</p>
+  <h2>Ajustes a lo que ya está construido</h2>
+  <div class="grid3 grow">
+    <div class="card">
+      <h3>Consentimiento y app</h3>
+      <ul class="muted">
+        <li><span class="badge no">Corregir ya</span> Que el texto nombre al proveedor de IA que se usa de verdad, generado desde la configuración <span class="art">14 ter</span>.</li>
+        <li>El servidor valida la versión aceptada y la registra, sin rechazar nunca un SOS.</li>
+        <li>Historial de aceptaciones y revocación <span class="art">12</span>.</li>
+        <li><span class="badge no">Corregir ya</span> Avisos de cuenta neutros en la pantalla bloqueada: «Hay novedades en tu cuenta».</li>
+        <li>Modo discreto: avisar antes que graba 15 s de ambiente.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Conservación y supresión</h3>
+      <ul class="muted">
+        <li><span class="badge no">Corregir ya</span> Respaldos cifrados y espejo de archivos que borre lo purgado.</li>
+        <li>Texto, transcripción, resumen y análisis de la IA con el mismo plazo que el audio <span class="art">3 c</span>.</li>
+        <li>Que «Eliminar mi cuenta» limpie también notas libres, evidencia de faltas y avisos de terreno.</li>
+        <li>Exportación completa: municipio, prioridad, despachos y archivos <span class="art">5</span>.</li>
+        <li>Exportación y supresión en la bitácora.</li>
+        <li>Logs sin coordenadas ni respuestas de la IA.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Central y acceso</h3>
+      <ul class="muted">
+        <li>Faltas de otros municipios: solo el conteo, sin notas ni evidencia, también en la base (RLS).</li>
+        <li>Terreno y apoyo administrativo: las columnas mínimas en la base, no solo en la pantalla <span class="art">14 quáter</span>.</li>
+        <li>El operador puede corregir la prioridad que bajó el sistema <span class="art">8 bis</span>.</li>
+        <li>Sesión más corta, cierre por inactividad y bloqueo tras intentos fallidos.</li>
+        <li>Contrato de encargo del municipio con versión y referencia, no solo la fecha.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Ninguno de estos ajustes toca el camino crítico del SOS: el consentimiento vencido se registra y se pide de nuevo después, nunca bloquea una alerta.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 22 · Base de datos -->
+<section class="slide" id="base-datos">
+  <p class="eyebrow">Base de datos</p>
+  <h2>Tablas y columnas nuevas</h2>
+  <table>
+    <tr><th style="width:22%">Tabla</th><th style="width:30%">Para qué</th><th style="width:48%">Campos principales</th></tr>
+    <tr><td><b>consent_record</b><br><span class="small muted">solo inserción</span></td><td>Probar cada consentimiento y revocación <span class="art">12</span></td><td>citizen_id, purpose, version, text_hash, granted_at, revoked_at, channel, app_version</td></tr>
+    <tr><td><b>data_subject_request</b></td><td>Solicitudes de derechos con plazos <span class="art">11</span></td><td>tenant_id, citizen_id, kind, status, received_at, due_at, extended_until, answered_at, answer_ref, reply_to</td></tr>
+    <tr><td><b>processing_block</b></td><td>Bloqueo temporal <span class="art">8 ter</span></td><td>citizen_id, request_id, scope, requested_at, decided_at, lifted_at</td></tr>
+    <tr><td><b>data_access_log</b><br><span class="small muted">solo inserción</span></td><td>Quién vio qué y cuándo <span class="art">14 quinquies</span></td><td>tenant_id, actor_id, alert_id, field (teléfono, audio, foto, transcripción), at</td></tr>
+    <tr><td><b>security_incident</b></td><td>Registro de vulneraciones <span class="art">14 sexies</span></td><td>detected_at, nature, data_categories, affected_estimate, measures, reported_agency_at, notified_titulares_at</td></tr>
+    <tr><td><b>processing_activity</b></td><td>Registro de actividades <span class="art">49 c</span></td><td>purpose, legal_basis, data_categories, retention, recipients, transfers</td></tr>
+    <tr><td><b>subprocessor</b> y su autorización</td><td>Subencargados y transferencias <span class="art">15 bis</span> <span class="art">27</span></td><td>name, country, data, guarantee; por municipio: authorized_by, authorized_at</td></tr>
+  </table>
+  <p class="note"><b>Columnas:</b> citizen.age_declared_at; alert.sensitive (según su categoría); alert.anonymized_at; teléfono cifrado con un hash para búsqueda; tenant.dpo_contact y tenant.privacy_policy_version. Cada tabla nueva con sus GRANT mínimos y su RLS, como exige la regla 7 del proyecto.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 23 · Sistema -->
+<section class="slide dark" id="sistema">
+  <p class="eyebrow">Sistema</p>
+  <h2>Cambios en cada aplicación</h2>
+  <div class="grid3 grow">
+    <div class="card">
+      <h3>App del vecino</h3>
+      <ul class="muted">
+        <li>Aviso en capas y política versionada.</li>
+        <li>Declaración de edad.</li>
+        <li>«Mis datos»: corregir, oponerse, pedir bloqueo y descarga completa.</li>
+        <li>Resumen del caso tras la emergencia <span class="art">16 c</span>.</li>
+        <li>Explicación del puntaje y las faltas.</li>
+        <li>Aviso de que el modo discreto graba el ambiente.</li>
+        <li>Avisos de cuenta neutros en la pantalla bloqueada.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Central municipal</h3>
+      <ul class="muted">
+        <li>Teléfono enmascarado y registro de accesos.</li>
+        <li>Apoyo administrativo y terreno con lo mínimo, también en la base.</li>
+        <li>Bandeja de solicitudes de derechos con plazos y respuesta.</li>
+        <li>Alertas sensibles marcadas y con acceso restringido.</li>
+        <li>Segundo factor y cierre por inactividad.</li>
+        <li>Corregir la prioridad que bajó el sistema.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Consola Guard-IA y servidor</h3>
+      <ul class="muted">
+        <li>Registro de incidentes y avisos.</li>
+        <li>Registro de actividades y de subencargados autorizados por municipio.</li>
+        <li>Plazos por municipio, con purga y anonimización automáticas.</li>
+        <li>Respaldos y disco cifrados; espejo de archivos con borrado.</li>
+        <li>Un proveedor de IA sin retención, el mismo que informa la app.</li>
+        <li>Logs sin coordenadas ni contenido del vecino.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 24 · A consultar -->
+<section class="slide" id="consultar">
+  <p class="eyebrow">Para el abogado</p>
+  <h2>Puntos que requieren opinión legal</h2>
+  <div class="grid2 grow">
+    <div class="card"><div class="row" style="gap:10px"><span class="num">1</span><p><b>Rol de Guard-IA en la cuenta del vecino:</b> responsable propio, encargado de cada municipio o corresponsable.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">2</span><p><b>Datos de salud en el ámbito de seguridad</b> <span class="art">16 bis</span> y alcance del régimen especial de seguridad pública <span class="art">24 a</span>.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">3</span><p><b>Base legal municipal concreta</b> para el SOS y el reporte urbano, en la Ley Orgánica de Municipalidades y la normativa de seguridad municipal.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">4</span><p><b>Traspasos automáticos y faltas compartidas</b> entre municipios: comunicación entre órganos públicos y convenios <span class="art">22</span>.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">5</span><p><b>Grabación de audio ambiente</b> en modo discreto, que puede captar a terceros.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">6</span><p><b>Plazo de conservación de las alertas</b> como registro municipal y su anonimización.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">7</span><p><b>Uso por adolescentes y niños</b>, y si debe existir un SOS sin cuenta.</p></div></div>
+    <div class="card"><div class="row" style="gap:10px"><span class="num">8</span><p><b>Proveedor de IA:</b> país, cláusulas y si conviene uno con garantías equivalentes mientras la Agencia publica la lista de países adecuados.</p></div></div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 25 · Hoja de ruta -->
+<section class="slide dark" id="ruta">
+  <p class="eyebrow">Hoja de ruta</p>
+  <h2>Qué hacer y en qué orden</h2>
+  <p class="note warn"><b>Corregir ya, sin esperar:</b> el texto del consentimiento (nombra a OpenAI; la configuración usa Groq), los avisos de cuenta en la pantalla bloqueada, los respaldos sin cifrar y el espejo de archivos que no borra.</p>
+  <div class="grid3 grow">
+    <div class="card" style="border-top:5px solid #ffc35a">
+      <p class="small muted">Antes del piloto y del 1 de diciembre</p>
+      <h3>Lo indispensable</h3>
+      <ul class="muted">
+        <li>Evaluación de impacto.</li>
+        <li>Contrato de encargo, subencargados y transferencias.</li>
+        <li>Política de tratamiento y textos de la app.</li>
+        <li>Consentimiento con historial, revocación y declaración de edad.</li>
+        <li>Solicitudes de derechos y bloqueo, con plazos; supresión completa.</li>
+        <li>Registro de accesos y teléfono enmascarado.</li>
+        <li>Procedimiento y registro de incidentes.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:5px solid #3fb3f5">
+      <p class="small muted">Durante el piloto</p>
+      <h3>Endurecer</h3>
+      <ul class="muted">
+        <li>Cifrado del disco y del teléfono.</li>
+        <li>Segundo factor y cierre por inactividad en la central.</li>
+        <li>Plazos: purga de texto y transcripción, anonimización de alertas.</li>
+        <li>Faltas compartidas solo como conteo; columnas mínimas por rol.</li>
+        <li>Resumen del caso tras la emergencia.</li>
+        <li>Delegado de protección de datos en Guard-IA y en cada municipio.</li>
+        <li>Confidencialidad firmada por el personal.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:5px solid #22c7dc">
+      <p class="small muted">Después del piloto</p>
+      <h3>Demostrar</h3>
+      <ul class="muted">
+        <li>Modelo de prevención de infracciones certificable por la Agencia: atenúa sanciones <span class="art">49-51</span> <span class="art">36</span>.</li>
+        <li>Auditoría externa y prueba de intrusión.</li>
+        <li>Revisión anual de la evaluación de impacto.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+<!-- 26 · Cierre -->
+<section class="slide accent" id="cierre" style="justify-content:center; gap:20px; padding:64px 96px">
+  <p class="eyebrow">Cierre</p>
+  <h1>Un vecino que confía, avisa</h1>
+  <p class="lead muted" style="max-width:980px">La protección de datos no es un trámite aparte: es parte de que el SOS funcione. Guard-IA ya tiene la base técnica; con los contratos, la evaluación de impacto y las piezas que faltan, llega al 1 de diciembre cumpliendo y pudiendo demostrarlo.</p>
+  <p class="small muted" style="max-width:980px; margin-top:24px">Fuente: Ley 21.719, que regula la protección y el tratamiento de los datos personales y crea la Agencia de Protección de Datos Personales (Biblioteca del Congreso Nacional, versión con modificación de la Ley 21.806 del 05-02-2026). Este documento es un análisis técnico y normativo; no constituye asesoría legal.</p>
+  <div class="foot"><span>Guard-IA · Ley 21.719</span><span class="n"></span></div>
+</section>
+
+</body>
+</html>

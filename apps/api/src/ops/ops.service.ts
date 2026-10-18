@@ -4,6 +4,7 @@ import {
   canTransitionAlert,
   canTransitionDispatch,
   categoriesFor,
+  alertPushText,
   rejectNotice,
   STRIKE_WINDOW_DAYS,
   BLOCK_PROPOSAL_AT_STRIKES,
@@ -183,8 +184,8 @@ export class OpsService {
     this.realtime.alertUpdated(op.tenantId, detail);
     // Una unidad en camino se entera de que la central cerró el caso (cancela su despacho).
     this.realtime.fieldRefresh(detail.dispatches.map((d) => d.unitId));
-    const notice = rejectNotice(body.reason, strikes);
-    await this.notifyCitizen(detail, { title: notice.title, body: notice.body });
+    // La advertencia por aviso falso va neutra en la pantalla bloqueada; la app muestra el detalle (alertPushText).
+    await this.notifyCitizen(detail, alertPushText(rejectNotice(body.reason, strikes)));
     return detail;
   }
 

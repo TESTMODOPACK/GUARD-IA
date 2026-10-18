@@ -7,6 +7,7 @@ import {
   TENANT_STATUSES,
 } from '../enums';
 import { PhoneSchema, UuidSchema } from './common';
+import { SubprocessorAuthorizationSchema, TenantPrivacySchema } from './legal';
 
 /**
  * Consola de plataforma (migración 0010, docs/plan-plataforma.md fase P1): el equipo Guard-IA ve las
@@ -231,6 +232,15 @@ export const TenantDetailSchema = TenantListItemSchema.extend({
   statusReason: z.string().nullable(),
   contractSignedAt: z.iso.date().nullable(),
   dpaSignedAt: z.iso.date().nullable(),
+  /** 0014: versión y referencia de cada documento, y evaluación de impacto aprobada (art. 15 ter). */
+  contractRef: z.string().nullable(),
+  dpaRef: z.string().nullable(),
+  dpiaApprovedAt: z.iso.date().nullable(),
+  dpiaRef: z.string().nullable(),
+  /** Contacto de privacidad que fijó el administrador municipal (0014). */
+  privacy: TenantPrivacySchema.nullable(),
+  /** Subencargados que el municipio autorizó por escrito (0014). */
+  subprocessors: z.array(SubprocessorAuthorizationSchema),
   audioRetentionDays: z.number().int(),
   createdAt: z.iso.datetime(),
   sosMonth: z.number().int(),
@@ -274,6 +284,10 @@ export const UpdateTenantSchema = z
     audioRetentionDays: z.number().int().min(1).max(3650).optional(),
     contractSignedAt: z.iso.date().nullable().optional(),
     dpaSignedAt: z.iso.date().nullable().optional(),
+    contractRef: optionalText(200),
+    dpaRef: optionalText(200),
+    dpiaApprovedAt: z.iso.date().nullable().optional(),
+    dpiaRef: optionalText(200),
     ...profileInput,
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nada que cambiar');

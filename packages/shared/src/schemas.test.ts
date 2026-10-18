@@ -5,7 +5,8 @@ import {
   canTransitionAlert,
   canTransitionDispatch,
   ChangeTenantStatusSchema,
-  blockNotice,
+  alertPushText,
+  ACCOUNT_PUSH,
   CreateReviewSchema,
   DecideBlockSchema,
   hasCriticalPhrase,
@@ -141,8 +142,13 @@ describe('uso indebido: restricción, bloqueo y revisión', () => {
   it('una prueba repetida avisa como aviso falso; la primera no', () => {
     expect(rejectNotice('TEST', null).warning).toBe(false);
     expect(rejectNotice('TEST', 2)).toMatchObject({ warning: true, title: expect.stringContaining('restringida') });
-    expect(blockNotice(180, 'Municipalidad de Prueba').body).toContain('6 meses');
-    expect(blockNotice(null, 'Municipalidad de Prueba').body).toContain('hasta nuevo aviso');
+  });
+
+  it('la pantalla bloqueada no muestra advertencias ni datos de la cuenta', () => {
+    const warning = alertPushText(rejectNotice('FALSE_ALARM', 2));
+    expect(`${warning.title} ${warning.body}`).not.toMatch(/falso|restringid|bloque/i);
+    expect(alertPushText(rejectNotice('DUPLICATE', null)).title).toBe(rejectNotice('DUPLICATE', null).title);
+    expect(`${ACCOUNT_PUSH.title} ${ACCOUNT_PUSH.body}`).not.toMatch(/falso|restringid|bloque|revisi/i);
   });
 
   it('aprobar un bloqueo exige plazo válido y motivo; la revisión apunta a una sola cosa', () => {

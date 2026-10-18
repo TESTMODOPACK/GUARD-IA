@@ -64,6 +64,8 @@ d('consola de plataforma', () => {
       await admin`DELETE FROM refresh_token WHERE operator_id IN (SELECT id FROM operator WHERE tenant_id IN ${admin(ts)})`;
       await admin`DELETE FROM operator WHERE tenant_id IN ${admin(ts)}`;
       await admin`DELETE FROM tenant_test_phone WHERE tenant_id IN ${admin(ts)}`;
+      await admin`DELETE FROM tenant_privacy WHERE tenant_id IN ${admin(ts)}`;
+      await admin`DELETE FROM tenant_subprocessor WHERE tenant_id IN ${admin(ts)}`;
       await admin`DELETE FROM platform_audit_log WHERE tenant_id IN ${admin(ts)}`;
       await admin`DELETE FROM tenant WHERE id IN ${admin(ts)}`;
     }
@@ -282,7 +284,28 @@ d('consola de plataforma', () => {
     await admin`
       INSERT INTO shift (tenant_id, operator_id, planned_start, planned_end)
       VALUES (${tenantId}, ${ops[0].id}, date_trunc('day', now()) + interval '1 day 8 hours', date_trunc('day', now()) + interval '1 day 16 hours')`;
+    // Solo con fechas no basta (0014): cada documento con su referencia, la evaluación de impacto aprobada, el contacto
+    // de privacidad que fija el municipio y la autorización escrita de los subencargados en uso.
     await tenants.update(implClaims, tenantId, UpdateTenantSchema.parse({ contractSignedAt: '2026-10-01', dpaSignedAt: '2026-10-01' }), IP);
+    const partial = await tenants.detail(implClaims, tenantId);
+    expect(partial.readiness.items.filter((i) => !i.ok).map((i) => i.key)).toEqual(
+      expect.arrayContaining(['CONTRACT_SIGNED', 'DPA_SIGNED', 'DPIA_APPROVED', 'PRIVACY_CONTACT']),
+    );
+    await tenants.update(
+      implClaims,
+      tenantId,
+      UpdateTenantSchema.parse({
+        contractRef: 'Contrato N° 1, v1',
+        dpaRef: 'Contrato de encargo v1',
+        dpiaApprovedAt: '2026-10-02',
+        dpiaRef: 'Evaluación de impacto v1, decreto 10',
+      }),
+      IP,
+    );
+    await admin`INSERT INTO tenant_privacy (tenant_id, contact_email) VALUES (${tenantId}, 'privacidad@prueba.cl')`;
+    await admin`
+      INSERT INTO tenant_subprocessor (tenant_id, subprocessor_id, authorized_at, authorized_by, document_ref)
+      SELECT ${tenantId}, s.id, current_date, 'Alcalde de prueba', 'Anexo 2' FROM subprocessor s WHERE s.in_use`;
     // Prueba de extremo a extremo: el SOS del teléfono de prueba, despachado y resuelto.
     const [open] = await admin<{ id: string }[]>`SELECT id FROM alert WHERE tenant_id = ${tenantId} AND citizen_id = ${testCitizen} LIMIT 1`;
     await admin`INSERT INTO dispatch (alert_id, tenant_id, unit_id, operator_id, status, closed_at) VALUES (${open.id}, ${tenantId}, ${unit.id}, ${ops[0].id}, 'CLOSED', now())`;

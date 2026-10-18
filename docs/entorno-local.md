@@ -19,6 +19,13 @@ pnpm migrate && pnpm seed
 En `.env` de desarrollo: `AI_PROVIDER=mock` (sin clave de OpenAI), `SMS_PROVIDER=console` y
 `OTP_DEBUG_ENDPOINT=true` (el código OTP aparece en la consola de la API).
 
+**Ningún dato real fuera de producción** (Ley 21.719; `docs/plan-ley-21719.md`, paso 0.5). En local, en los tests, en
+la evaluación del agente (`eval:triage`) y en las capturas solo van datos del seed o inventados. Nunca copiar un
+respaldo, una exportación, un audio ni el texto de una alerta real a este equipo, a un caso de prueba ni a un
+prompt. Si hace falta reproducir un caso real, se reescribe con datos inventados. Usar alertas reales para mejorar el
+agente requiere que el contrato de encargo lo permita y datos anonimizados; si no, Guard-IA pasa a ser responsable de
+esos datos (art. 15 bis).
+
 ## Cada día
 
 ```bash

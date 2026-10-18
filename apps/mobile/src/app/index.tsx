@@ -88,12 +88,12 @@ export default function Home() {
         <Pressable
           onPress={() => router.push('/discreet')}
           role="button"
-          accessibilityLabel="Modo discreto: pantalla negra que graba 15 segundos y envía el SOS sin que se note"
+          accessibilityLabel="Modo discreto: pantalla negra que graba 15 segundos de sonido ambiente y envía el SOS sin que se note"
           style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}
         >
           <View style={[styles.tileChip, { backgroundColor: 'rgba(8,63,128,0.55)' }]} />
           <Text style={styles.tileTitle}>Discreto</Text>
-          <Text style={styles.tileSub}>Pantalla negra, sin sonido</Text>
+          <Text style={styles.tileSub}>Pantalla negra; graba 15 s de ambiente</Text>
         </Pressable>
         <Pressable
           onPress={() => (restricted ? router.push('/account') : router.push('/report'))}

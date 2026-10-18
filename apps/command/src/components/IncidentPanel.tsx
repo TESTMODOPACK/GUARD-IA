@@ -32,6 +32,10 @@ export function Transcript({ detail }: { detail: AlertDetail }) {
         <p className="mt-2 text-sm text-medium">
           Sin transcripción: la IA está en modo de prueba (no hay servicio de voz configurado). Escucha el audio.
         </p>
+      ) : detail.aiStatus === 'LOCAL' ? (
+        <p className="mt-2 text-sm text-medium">
+          Sin transcripción: esta alerta no se envía a la IA externa (ver «Análisis de IA»). Escucha el audio.
+        </p>
       ) : detail.aiStatus === 'FAILED' ? (
         <p className="mt-2 text-sm text-medium">No se pudo transcribir. Escucha el audio.</p>
       ) : (

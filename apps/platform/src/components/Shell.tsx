@@ -16,6 +16,8 @@ export const canManage = (s: Session | null) => !!s && MANAGERS.includes(s.user.
 const SECTIONS: { href: string; label: string; roles: PlatformRole[] }[] = [
   { href: '/', label: 'Chile', roles: [] },
   { href: '/municipios', label: 'Municipios', roles: [] },
+  { href: '/subencargados', label: 'Subencargados', roles: [] },
+  { href: '/incidentes', label: 'Incidentes', roles: [] },
   { href: '/bitacora', label: 'Bitácora', roles: [] },
   { href: '/usuarios', label: 'Equipo', roles: ['SUPERADMIN'] },
 ];

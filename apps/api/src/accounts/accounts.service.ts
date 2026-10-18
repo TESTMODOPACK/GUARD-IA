@@ -3,10 +3,6 @@ import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   BLOCK_PROPOSAL_AT_STRIKES,
   RESTRICT_AT_STRIKES,
-  STRIKE_ANNULLED_NOTICE,
-  UNBLOCK_NOTICE,
-  blockNotice,
-  reviewNotice,
   type AccountLevel,
   type AccountsOverview,
   type AnnulStrike,
@@ -21,7 +17,7 @@ import { AuditService } from '../auth/audit.service';
 import type { OperatorClaims } from '../auth/auth.guard';
 import { AppError } from '../common/app-error';
 import { DbService, type Tx } from '../db/db.service';
-import { citizen, citizenBlock, citizenReview, citizenStrike, tenant } from '../db/schema';
+import { citizen, citizenBlock, citizenReview, citizenStrike } from '../db/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { citizenLabel, iso } from './account-read';
 
@@ -200,7 +196,7 @@ export class AccountsService {
     if (body.approve && body.days === null && op.role !== 'ADMIN') {
       throw new AppError('FORBIDDEN', 'Solo el administrador municipal puede bloquear sin plazo');
     }
-    let done: { citizenId: string; days: number | null; tenantName: string; level: AccountLevel } | null = null;
+    let done: { citizenId: string; level: AccountLevel } | null = null;
     try {
       done = await this.dbs.asOperator(op.tenantId, op.sub, async (tx) => {
         const [b] = await tx
@@ -239,15 +235,14 @@ export class AccountsService {
           targetId: id,
           payload: { citizenId: b.citizenId, days, note: body.note },
         });
-        const [t] = await tx.select({ name: tenant.name }).from(tenant).where(eq(tenant.id, op.tenantId)).limit(1);
-        return { citizenId: b.citizenId, days, tenantName: t?.name ?? 'Tu municipalidad', level: await levelOf(tx, b.citizenId) };
+        return { citizenId: b.citizenId, level: await levelOf(tx, b.citizenId) };
       });
     } catch (e) {
       if (pgCode(e) === '23514') throw new AppError('FORBIDDEN', 'Quien propone el bloqueo no lo decide');
       throw e;
     }
     if (body.approve && done) {
-      await this.notifications.notifyAccount(done.citizenId, done.level, blockNotice(done.days, done.tenantName));
+      await this.notifications.notifyAccount(done.citizenId, done.level);
     }
     return this.overview(op);
   }
@@ -257,7 +252,7 @@ export class AccountsService {
       const citizenId = await this.liftInTx(tx, op, id, body.reason);
       return { citizenId, level: await levelOf(tx, citizenId) };
     });
-    await this.notifications.notifyAccount(r.citizenId, r.level, UNBLOCK_NOTICE);
+    await this.notifications.notifyAccount(r.citizenId, r.level);
     return this.overview(op);
   }
 
@@ -266,7 +261,7 @@ export class AccountsService {
       const citizenId = await this.annulInTx(tx, op, id, body.reason);
       return { citizenId, level: await levelOf(tx, citizenId) };
     });
-    await this.notifications.notifyAccount(r.citizenId, r.level, STRIKE_ANNULLED_NOTICE);
+    await this.notifications.notifyAccount(r.citizenId, r.level);
     return this.overview(op);
   }
 
@@ -316,7 +311,7 @@ export class AccountsService {
       });
       return { citizenId: rv.citizenId, level: await levelOf(tx, rv.citizenId) };
     });
-    await this.notifications.notifyAccount(r.citizenId, r.level, reviewNotice(body.grant, body.response));
+    await this.notifications.notifyAccount(r.citizenId, r.level);
     return this.overview(op);
   }
 

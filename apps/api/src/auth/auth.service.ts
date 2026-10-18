@@ -2,21 +2,24 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { hash as argonHash, verify as argonVerify } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomInt } from 'node:crypto';
-import type {
-  AccessClaims,
-  CitizenAccount,
-  CitizenPublic,
-  DeviceUpsert,
-  OperatorPublic,
-  TenantStatus,
-  TokenPair,
+import {
+  CONSENT_VERSION,
+  type AccessClaims,
+  type CitizenAccount,
+  type CitizenPublic,
+  type Consent,
+  type DeviceUpsert,
+  type OperatorPublic,
+  type TenantStatus,
+  type TokenPair,
 } from '@guardia/shared';
 import { loadCitizenAccount } from '../accounts/account-read';
 import { loadOperatorScope, type OperatorScope } from '../areas/area-scope';
 import { AppError } from '../common/app-error';
 import { ENV, type Env } from '../config/env';
 import { DbService, type Tx } from '../db/db.service';
-import { citizen, device, operator, otpCode, tenant } from '../db/schema';
+import { citizen, consentRecord, device, operator, otpCode, tenant } from '../db/schema';
+import { LegalService } from '../legal/legal.service';
 import { RateLimitService } from '../infra/rate-limit.service';
 import { AuditService } from './audit.service';
 import { SMS_PROVIDER, type SmsProvider } from './sms/sms.provider';
@@ -39,6 +42,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly rate: RateLimitService,
     private readonly audit: AuditService,
+    private readonly legal: LegalService,
   ) {}
 
   // ---------------------------------------------------------------- ciudadano
@@ -101,10 +105,57 @@ export class AuthService {
     });
   }
 
-  async acceptConsent(citizenId: string, version: string): Promise<void> {
-    await this.dbs.asCitizen(citizenId, (tx) =>
-      tx.update(citizen).set({ consentVersion: version, consentAt: new Date() }).where(eq(citizen.id, citizenId)),
-    );
+  /**
+   * Consentimiento con prueba (0014, Ley 21.719 art. 12): solo la versión vigente y el aviso exacto que la app mostró
+   * (por su hash). Queda una fila por finalidad en consent_record (solo inserción) apuntando al texto guardado;
+   * citizen.consent_version es la caché que lee la app. Nunca toca el SOS: una cuenta con un consentimiento anterior
+   * igual puede pedir ayuda (alerts.service exige solo consent_at) y la app le pide aceptar el nuevo.
+   */
+  async acceptConsent(citizenId: string, body: Consent): Promise<void> {
+    if (body.version !== CONSENT_VERSION) {
+      throw new AppError('CONFLICT', 'Hay una versión nueva del aviso: revísala antes de aceptar', { version: CONSENT_VERSION });
+    }
+    const notice = await this.legal.notice();
+    if (body.noticeHash !== notice.hash) {
+      throw new AppError('CONFLICT', 'El aviso cambió mientras lo leías: revísalo de nuevo', { version: CONSENT_VERSION });
+    }
+    const noticeId = await this.legal.persistNotice(notice);
+    const meta = { noticeId, appVersion: body.appVersion ?? null, platform: body.platform ?? null };
+    await this.dbs.asCitizen(citizenId, async (tx) => {
+      await tx.insert(consentRecord).values({ citizenId, purpose: 'SERVICE', action: 'GRANTED', ...meta });
+      // La IA externa solo se registra si hoy hay una: con la IA sin red no hay nada que aceptar.
+      if (notice.externalAi) {
+        await tx
+          .insert(consentRecord)
+          .values({ citizenId, purpose: 'EXTERNAL_AI', action: body.externalAi ? 'GRANTED' : 'REVOKED', ...meta });
+      }
+      await tx
+        .update(citizen)
+        .set({
+          consentVersion: CONSENT_VERSION,
+          consentAt: new Date(),
+          externalAi: body.externalAi,
+          ageDeclaredAt: sql`coalesce(${citizen.ageDeclaredAt}, now())`,
+        })
+        .where(eq(citizen.id, citizenId));
+    });
+  }
+
+  /**
+   * Oponerse (o volver a aceptar) el análisis con IA externa desde «Mis datos» (0014). Desde la próxima alerta el
+   * worker la clasifica sin red (ai_status LOCAL); la central la atiende igual.
+   */
+  async setExternalAi(citizenId: string, enabled: boolean): Promise<CitizenPublic> {
+    const notice = await this.legal.notice();
+    const noticeId = await this.legal.persistNotice(notice);
+    return this.dbs.asCitizen(citizenId, async (tx) => {
+      await tx
+        .insert(consentRecord)
+        .values({ citizenId, noticeId, purpose: 'EXTERNAL_AI', action: enabled ? 'GRANTED' : 'REVOKED' });
+      const [c] = await tx.update(citizen).set({ externalAi: enabled }).where(eq(citizen.id, citizenId)).returning();
+      if (!c) throw new AppError('NOT_FOUND', 'Cuenta no encontrada');
+      return toCitizenPublic(c, await loadCitizenAccount(tx, c.id));
+    });
   }
 
   /**
@@ -239,6 +290,7 @@ function toCitizenPublic(c: typeof citizen.$inferSelect, account: CitizenAccount
     trustScore: c.trustScore,
     consentVersion: c.consentVersion,
     consentAt: c.consentAt ? c.consentAt.toISOString() : null,
+    externalAi: c.externalAi,
     account,
   };
 }

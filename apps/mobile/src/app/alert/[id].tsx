@@ -114,6 +114,13 @@ export default function AlertStatus() {
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
 
+      {alert.tenantPrivacyEmail ? (
+        <Text style={styles.privacy}>
+          Tus datos de este caso los trata {alert.tenantName ?? 'tu municipalidad'}. Para pedirlos, corregirlos o borrarlos:{' '}
+          {alert.tenantPrivacyEmail}
+        </Text>
+      ) : null}
+
       {unrouted ? (
         <Pressable onPress={() => Linking.openURL('tel:133')} role="button" style={styles.call}>
           <Text style={styles.callText}>Llamar al 133 · Carabineros</Text>
@@ -143,6 +150,7 @@ export default function AlertStatus() {
 }
 
 const styles = StyleSheet.create({
+  privacy: { color: color.inkMuted, fontFamily: font.bodyRegular, fontSize: 12, lineHeight: 18 },
   card: { gap: 6, padding: 18, borderRadius: 22 },
   toneSos: { backgroundColor: '#3a1220' },
   toneOk: { backgroundColor: '#07304a' },

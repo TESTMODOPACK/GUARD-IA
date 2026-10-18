@@ -1,4 +1,7 @@
 import type {
+  RecordIncidentReport,
+  TenantPrivacyOverview,
+  UpdateTenantPrivacy,
   AccountsOverview,
   DecideBlock,
   ResolveReview,
@@ -245,6 +248,14 @@ export const api = {
     request<ActivityPage<CaseActivity>>(`/ops/admin/activity?source=cases&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   systemActivity: (cursor?: string) =>
     request<ActivityPage<SystemActivity>>(`/ops/admin/activity?source=system&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+
+  // Privacidad del municipio (Ley 21.719, 0014): contacto, subencargados autorizados e incidentes.
+  privacy: {
+    overview: () => request<TenantPrivacyOverview>('/ops/privacy'),
+    update: (body: UpdateTenantPrivacy) => request<TenantPrivacyOverview>('/ops/privacy', { method: 'PUT', body: json(body) }),
+    report: (incidentId: string, body: RecordIncidentReport) =>
+      request<TenantPrivacyOverview>(`/ops/privacy/incidents/${incidentId}/report`, { method: 'POST', body: json(body) }),
+  },
 
   // Áreas del municipio (0013): las define el administrador; los nombres los ve cualquier rol de la central.
   areas: {

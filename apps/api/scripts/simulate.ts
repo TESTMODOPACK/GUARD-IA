@@ -150,7 +150,13 @@ async function main() {
   });
   const cz = verify.accessToken;
   log('vecino OTP', t() - t0, `citizen ${verify.citizen.id} trust=${verify.citizen.trustScore}`);
-  await api('/me/consent', { method: 'POST', token: cz, body: JSON.stringify({ version: '2026-10-v1' }) });
+  // El aviso vigente (0014): se acepta el texto exacto que entrega la API, por su hash.
+  const notice = await api<{ version: string; hash: string }>('/legal/notice');
+  await api('/me/consent', {
+    method: 'POST',
+    token: cz,
+    body: JSON.stringify({ version: notice.version, noticeHash: notice.hash, externalAi: true, ageConfirmed: true, platform: 'android' }),
+  });
   await api('/me/devices', {
     method: 'PUT',
     token: cz,
@@ -208,7 +214,7 @@ async function main() {
   const ai = await waitFor<{ id: string; aiStatus: string; category: string | null; priority: string | null; aiSummary: string | null; transcription: string | null }>(
     ops,
     'alert.updated',
-    (a) => a.id === created.alertId && ['DONE', 'FAILED', 'SKIPPED'].includes(a.aiStatus),
+    (a) => a.id === created.alertId && ['DONE', 'FAILED', 'SKIPPED', 'LOCAL'].includes(a.aiStatus),
     90_000,
   );
   log('IA alert.updated', t() - t0, `${ai.aiStatus} ${ai.category ?? '-'} ${ai.priority ?? '-'} · "${ai.aiSummary ?? ''}"`);

@@ -15,6 +15,7 @@ import { RedisModule } from './infra/redis.module';
 import { AiOutboxCron } from './jobs/ai-outbox.cron';
 import { MaintenanceCron } from './jobs/maintenance.cron';
 import { RetentionCron } from './jobs/retention.cron';
+import { LegalModule } from './legal/legal.module';
 import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OpsModule } from './ops/ops.module';
@@ -70,6 +71,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     InfraModule,
     RedisModule,
     DbModule,
+    LegalModule,
     MediaModule,
     AuthModule,
     NotificationsModule,

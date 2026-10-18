@@ -197,7 +197,8 @@ export class AlertsService {
 
       if (row.aiStatus === 'QUEUED') await this.enqueue(row.id);
     } else {
-      this.logger.warn(`alerta ${row.id} fuera de cobertura (${row.lat}, ${row.lng})`);
+      // Sin coordenadas: el log no es lugar para la ubicación del vecino (Ley 21.719, art. 3 c).
+      this.logger.warn(`alerta ${row.id} fuera de cobertura`);
     }
 
     return this.toResponse(row, tenantInfo);

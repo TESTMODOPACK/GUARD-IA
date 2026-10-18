@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import type { AccountLevel, CitizenAlert } from '@guardia/shared';
+import { ACCOUNT_PUSH, type AccountLevel, type CitizenAlert } from '@guardia/shared';
 import { ENV, type Env } from '../config/env';
 import { DbService } from '../db/db.service';
 import { device } from '../db/schema';
@@ -84,9 +84,12 @@ export class NotificationsService {
 
   /**
    * Aviso sobre la cuenta, no sobre una alerta (bloqueo, desbloqueo, falta anulada, revisión; 0011). Con la app
-   * abierta llega por WS y la app relee su estado; si no, por push. Un fallo de push no rompe la decisión.
+   * abierta llega por WS y la app relee su estado; si no, por push. El push es siempre neutro (ACCOUNT_PUSH): en la
+   * pantalla bloqueada nadie debe leer «bloqueo» ni «aviso falso» (Ley 21.719, art. 14 bis); el detalle está en
+   * «Estado de tu cuenta». Un fallo de push no rompe la decisión.
    */
-  async notifyAccount(citizenId: string, level: AccountLevel, text: { title: string; body: string }) {
+  async notifyAccount(citizenId: string, level: AccountLevel) {
+    const text = ACCOUNT_PUSH;
     this.realtime.citizenAccountUpdated(citizenId, { level });
     const tokens = await this.dbs.asSystem((tx) =>
       tx.select({ token: device.expoPushToken }).from(device).where(eq(device.citizenId, citizenId)),

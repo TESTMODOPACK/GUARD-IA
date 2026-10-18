@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import type { CitizenExport } from '@guardia/shared';
+import { ActivityIndicator, Linking, Platform, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import type { CitizenExport, ConsentHistoryItem, LegalNotice } from '@guardia/shared';
 import { api, errorMessage } from '@/lib/api';
 import { FINAL } from '@/lib/labels';
 import { formatPhone } from '@/lib/phone';
-import { clearSession } from '@/lib/session';
+import { clearSession, updateCitizen } from '@/lib/session';
 import { ErrorText, Field, Kicker, Lead, LinkButton, PrimaryButton, Screen, Title } from '@/components/ui';
 import { color, font, radius, TOUCH } from '@/theme';
 
@@ -30,8 +30,10 @@ async function deliver(data: CitizenExport): Promise<void> {
   await Share.share({ title: 'Mis datos en Guard-IA', message: text });
 }
 
+const PURPOSE: Record<ConsentHistoryItem['purpose'], string> = { SERVICE: 'el uso de tus datos', EXTERNAL_AI: 'el análisis con IA externa' };
+
 /**
- * Mis datos (Ley 21.719): acceso (GET /me/export) y supresión (DELETE /me). La supresión anonimiza:
+ * Mis datos (Ley 21.719): acceso (GET /me/export), oposición al análisis con IA externa (0014) y supresión (DELETE /me). La supresión anonimiza:
  * los casos quedan en el registro municipal sin datos personales. Al terminar se cierra la sesión.
  */
 export default function Privacy() {
@@ -41,13 +43,34 @@ export default function Privacy() {
   const [confirming, setConfirming] = useState(false);
   const [word, setWord] = useState('');
   const [erasing, setErasing] = useState(false);
+  const [notice, setNotice] = useState<LegalNotice | null>(null);
+  const [savingAi, setSavingAi] = useState(false);
 
   useEffect(() => {
     api
       .exportData()
       .then(setData)
       .catch((e) => setError(errorMessage(e)));
+    api
+      .legalNotice()
+      .then(setNotice)
+      .catch(() => setNotice(null));
   }, []);
+
+  async function toggleExternalAi(enabled: boolean) {
+    setSavingAi(true);
+    setError(null);
+    try {
+      const me = await api.setExternalAi(enabled);
+      await updateCitizen(me);
+      // El historial cambió: se relee lo que se muestra.
+      setData(await api.exportData());
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSavingAi(false);
+    }
+  }
 
   const openCases = data?.alerts.filter((a) => !FINAL.includes(a.status)).length ?? 0;
   const confirmed = word.trim().toUpperCase() === CONFIRM_WORD;
@@ -98,6 +121,61 @@ export default function Privacy() {
           <Row label="Consentimiento" value={`${data.citizen.consentVersion ?? '—'} · ${day(data.citizen.consentAt)}`} />
           <Row label="Alertas y reportes" value={String(data.alerts.length)} />
           <Row label="Teléfonos con avisos" value={String(data.devices.length)} />
+        </View>
+      ) : null}
+
+      {data ? (
+        <View style={styles.card}>
+          <Text style={styles.linkTitle} role="heading">
+            Análisis con IA externa
+          </Text>
+          {notice?.externalAi ? (
+            <>
+              <Text style={styles.note}>
+                El audio y el texto de tus alertas se analizan con {notice.externalAi.name} ({notice.externalAi.country}), sin tu
+                teléfono, tu nombre ni tu ubicación. Si lo desactivas, la central igual atiende tus alertas, sin ese análisis.
+              </Text>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>{data.citizen.externalAi === false ? 'Desactivado' : 'Activado'}</Text>
+                <Switch
+                  value={data.citizen.externalAi !== false}
+                  onValueChange={(v) => void toggleExternalAi(v)}
+                  disabled={savingAi}
+                  accessibilityLabel="Analizar mis alertas con IA externa"
+                />
+              </View>
+            </>
+          ) : (
+            <Text style={styles.note}>Tus alertas se clasifican sin enviar su contenido a otros proveedores.</Text>
+          )}
+        </View>
+      ) : null}
+
+      {data?.consents.length ? (
+        <View style={styles.card}>
+          <Text style={styles.linkTitle} role="heading">
+            Historial de consentimientos
+          </Text>
+          {data.consents
+            .slice()
+            .reverse()
+            .map((c, i) => (
+              <Text key={i} style={styles.note}>
+                {day(c.createdAt)} · {c.action === 'GRANTED' ? 'Aceptaste' : 'Rechazaste'} {PURPOSE[c.purpose]} · aviso {c.version}
+              </Text>
+            ))}
+        </View>
+      ) : null}
+
+      {notice?.contactEmail || notice?.policyUrl ? (
+        <View style={styles.card}>
+          <Text style={styles.note}>
+            {notice.contactEmail ? `Contacto de Guard-IA para tus datos: ${notice.contactEmail}. ` : ''}
+            Cada caso muestra también el contacto de la municipalidad que lo atiende.
+          </Text>
+          {notice.policyUrl ? (
+            <LinkButton label="Leer la política de tratamiento" onPress={() => void Linking.openURL(notice.policyUrl!)} />
+          ) : null}
         </View>
       ) : null}
 

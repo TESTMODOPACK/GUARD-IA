@@ -59,7 +59,11 @@ export const ALERT_STATUSES = [
 ] as const;
 export type AlertStatus = (typeof ALERT_STATUSES)[number];
 
-export const AI_STATUSES = ['QUEUED', 'PROCESSING', 'DONE', 'FAILED', 'SKIPPED'] as const;
+/**
+ * LOCAL (0014): clasificada sin IA externa porque el vecino se opuso o el municipio no autorizó al proveedor
+ * (Ley 21.719); la clasifica el clasificador sin red con las reglas fijas. No es una falla.
+ */
+export const AI_STATUSES = ['QUEUED', 'PROCESSING', 'DONE', 'FAILED', 'SKIPPED', 'LOCAL'] as const;
 export type AiStatus = (typeof AI_STATUSES)[number];
 
 export const DISPATCH_STATUSES = ['ASSIGNED', 'EN_ROUTE', 'ON_SITE', 'CLOSED', 'CANCELLED'] as const;
@@ -215,6 +219,13 @@ export const AUDIT_KINDS = [
   'AREA_RULES_UPDATED',
   'AREA_MODE_CHANGED',
   'ALERT_AREA_CHANGED',
+  /** Migración 0014: Ley 21.719 (contacto de privacidad, subencargados, incidentes de seguridad). */
+  'PRIVACY_CONTACT_UPDATED',
+  'SUBPROCESSOR_AUTHORIZED',
+  'SUBPROCESSOR_REVOKED',
+  'INCIDENT_NOTIFIED',
+  'INCIDENT_AGENCY_REPORTED',
+  'INCIDENT_SUBJECTS_NOTIFIED',
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
@@ -334,6 +345,14 @@ export const PLATFORM_ACTIONS = [
   'TENANT_ADMIN_RESET',
   'TEST_PHONE_ADDED',
   'TEST_PHONE_REMOVED',
+  /** Migración 0014: subencargados e incidentes de seguridad. */
+  'SUBPROCESSOR_CREATED',
+  'SUBPROCESSOR_UPDATED',
+  'SUBPROCESSOR_AUTHORIZED',
+  'SUBPROCESSOR_REVOKED',
+  'INCIDENT_OPENED',
+  'INCIDENT_UPDATED',
+  'INCIDENT_TENANT_NOTIFIED',
 ] as const;
 export type PlatformAction = (typeof PLATFORM_ACTIONS)[number];
 
@@ -349,6 +368,36 @@ export const READINESS_KEYS = [
   'SHIFTS_FIRST_WEEK',
   'CONTRACT_SIGNED',
   'DPA_SIGNED',
+  /** Migración 0014: evaluación de impacto, contacto de privacidad y subencargados en uso autorizados. */
+  'DPIA_APPROVED',
+  'PRIVACY_CONTACT',
+  'SUBPROCESSORS',
   'E2E_TEST',
 ] as const;
 export type ReadinessKey = (typeof READINESS_KEYS)[number];
+
+// ------------------------------------------------------------------ Ley 21.719 (migración 0014)
+
+/** Edad mínima para crear una cuenta (art. 16 quáter; política provisional a validar con asesoría legal). */
+export const MIN_ACCOUNT_AGE = 14;
+
+/**
+ * Finalidades que el vecino acepta o revoca (consent_record). SERVICE: atender sus alertas; sin ella no hay cuenta.
+ * EXTERNAL_AI: analizar audio y texto con el proveedor de IA externo; si la revoca, sus alertas se clasifican sin red.
+ */
+export const CONSENT_PURPOSES = ['SERVICE', 'EXTERNAL_AI'] as const;
+export type ConsentPurpose = (typeof CONSENT_PURPOSES)[number];
+
+export const CONSENT_ACTIONS = ['GRANTED', 'REVOKED'] as const;
+export type ConsentAction = (typeof CONSENT_ACTIONS)[number];
+
+/** Qué servicio presta un subencargado (tipo subprocessor_service). */
+export const SUBPROCESSOR_SERVICES = ['AI', 'SMS', 'PUSH', 'HOSTING', 'STORAGE', 'BACKUP', 'MAPS', 'OTHER'] as const;
+export type SubprocessorService = (typeof SUBPROCESSOR_SERVICES)[number];
+
+/** Naturaleza de una vulneración de seguridad (art. 14 sexies; tipo incident_nature). */
+export const INCIDENT_NATURES = ['DESTRUCTION', 'LEAK', 'LOSS', 'ALTERATION', 'UNAUTHORIZED_ACCESS'] as const;
+export type IncidentNature = (typeof INCIDENT_NATURES)[number];
+
+export const SECURITY_INCIDENT_STATUSES = ['OPEN', 'CLOSED'] as const;
+export type SecurityIncidentStatus = (typeof SECURITY_INCIDENT_STATUSES)[number];

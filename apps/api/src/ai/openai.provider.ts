@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import OpenAI, { toFile } from 'openai';
 import { AI_CLASSIFICATION_JSON_SCHEMA, AiClassificationSchema, type AiClassification } from '@guardia/shared';
@@ -23,6 +24,14 @@ const EXT_BY_MIME: Record<string, string> = {
   'audio/ogg': 'ogg',
   'audio/3gpp': '3gp',
 };
+
+/**
+ * Huella de una respuesta para el log: largo y hash corto, nunca el contenido (repite lo que dijo el vecino;
+ * Ley 21.719, art. 3 c). Dos fallas con la misma huella son la misma respuesta.
+ */
+function fingerprint(content: string): string {
+  return `${content.length} caracteres, sha256 ${createHash('sha256').update(content).digest('hex').slice(0, 12)}`;
+}
 
 /** Whisper para STT y GPT con JSON schema estricto para clasificar (sección 8). */
 export class OpenAiProvider implements AiProvider {
@@ -99,12 +108,13 @@ export class OpenAiProvider implements AiProvider {
     try {
       json = JSON.parse(content);
     } catch {
-      this.logger.error(`Clasificación que no es JSON: ${content.slice(0, 300)}`);
+      this.logger.error(`Clasificación que no es JSON (${fingerprint(content)})`);
       throw new Error('La clasificación no es JSON');
     }
     const parsed = AiClassificationSchema.safeParse(json);
     if (!parsed.success) {
-      this.logger.error(`Clasificación fuera de schema: ${content.slice(0, 300)}`);
+      const paths = parsed.error.issues.map((i) => i.path.join('.') || '(raíz)').slice(0, 5).join(', ');
+      this.logger.error(`Clasificación fuera de schema en ${paths} (${fingerprint(content)})`);
       throw new Error('La clasificación no cumple el schema');
     }
     return parsed.data;

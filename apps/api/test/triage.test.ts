@@ -9,6 +9,7 @@ import type { Job } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TRIAGE_VERSION } from '@guardia/shared';
 import { AiProcessor } from '../src/ai/ai.processor';
+import { LegalService } from '../src/legal/legal.service';
 import type { ProcessAlertJob } from '../src/ai/ai.queue';
 import { MockAiProvider } from '../src/ai/mock.provider';
 import { AlertReadService } from '../src/alerts/alert-read.service';
@@ -73,7 +74,7 @@ d('agente de clasificación', () => {
     const events = new EventsService();
     ops = new OpsService(dbs, reads, events, realtime, notifications, incidents, alertsSvc);
     const transfers = { maybeAutoTransfer: async () => false } as unknown as TransferService;
-    worker = new AiProcessor(env, new MockAiProvider(), dbs, {} as MediaService, events, reads, realtime, metrics, incidents, transfers);
+    worker = new AiProcessor(env, new MockAiProvider(), dbs, {} as MediaService, events, reads, realtime, metrics, incidents, transfers, new LegalService(env, dbs));
 
     for (const [i, x] of [60, 62].entries()) {
       const [t] = await admin<{ id: string }[]>`

@@ -13,6 +13,7 @@ import { TransferService } from '../geo/transfer.service';
 import { IncidentsService } from '../incidents/incidents.service';
 import { MediaService } from '../media/media.service';
 import { MetricsService } from '../infra/metrics.service';
+import { LegalService, type LocalReason } from '../legal/legal.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AI_PROVIDER, type AiProvider } from './ai.provider';
 import { ALERTS_QUEUE, type ProcessAlertJob } from './ai.queue';
@@ -34,6 +35,12 @@ export function capPriority(
 /** Clasificador sin red para cuando la IA no responde (más las reglas fijas de shared). */
 const FALLBACK = new MockAiProvider();
 
+/** Lo que ve la central cuando una alerta se clasificó sin IA externa (0014; no es una falla). */
+const LOCAL_REASON_TEXT: Record<LocalReason, string> = {
+  CITIZEN: 'Sin IA externa: el vecino se opuso al análisis; se clasificó con las reglas fijas',
+  TENANT: 'Sin IA externa: el municipio aún no autoriza al proveedor de IA; se clasificó con las reglas fijas',
+};
+
 /**
  * Worker del pipeline IA (sección 8). Corre en el mismo proceso que la API en el MVP;
  * separar a otro contenedor es cambiar el módulo raíz, no el código.
@@ -53,6 +60,7 @@ export class AiProcessor extends WorkerHost {
     private readonly metrics: MetricsService,
     private readonly incidents: IncidentsService,
     private readonly transfers: TransferService,
+    private readonly legal: LegalService,
   ) {
     super();
   }
@@ -76,7 +84,7 @@ export class AiProcessor extends WorkerHost {
         ? await tx.select({ timezone: tenant.timezone }).from(tenant).where(eq(tenant.id, row.tenantId)).limit(1)
         : [];
       const [c] = await tx
-        .select({ trust: citizen.trustScore })
+        .select({ trust: citizen.trustScore, externalAi: citizen.externalAi })
         .from(citizen)
         .where(eq(citizen.id, row.citizenId))
         .limit(1);
@@ -85,13 +93,18 @@ export class AiProcessor extends WorkerHost {
         audio: audio ?? null,
         timezone: t?.timezone ?? 'America/Santiago',
         trustScore: c?.trust ?? 100,
+        externalAi: c?.externalAi ?? true,
       };
     });
     if (!ctx) {
       this.logger.debug(`job ${job.id}: alerta ${alertId} no requiere IA`);
       return;
     }
-    const { row, audio, timezone, trustScore } = ctx;
+    const { row, audio, timezone, trustScore, externalAi } = ctx;
+    // Ley 21.719 (0014): el audio y el texto solo salen a la IA externa si el vecino no se opuso y el municipio de la
+    // alerta autorizó al proveedor por escrito (art. 15 bis). Si no, todo se hace sin red y queda LOCAL.
+    const local = this.ai.name === 'mock' ? null : await this.legal.localReason(row.tenantId, externalAi);
+    const provider: AiProvider = local ? FALLBACK : this.ai;
 
     // Sin nada que analizar: reporte urbano con categoría elegida → SKIPPED.
     if (!audio && !row.userText?.trim()) {
@@ -120,7 +133,7 @@ export class AiProcessor extends WorkerHost {
 
     let transcription: string | null = row.transcription;
     let durationS: number | undefined;
-    if (audio && !transcription) {
+    if (audio && !transcription && !local) {
       const buf = await this.mediaSvc.download(audio.storageKey);
       const r = await this.ai.transcribe({ audio: buf, mime: audio.mime });
       // La base acepta hasta 5000 caracteres (0009); un audio largo no debe hacer fallar el guardado.
@@ -143,7 +156,7 @@ export class AiProcessor extends WorkerHost {
       timeStyle: 'short',
     }).format(row.createdAt);
 
-    const result = await this.ai.classify({
+    const result = await provider.classify({
       type: row.type,
       transcription,
       userText: row.userText,
@@ -153,8 +166,8 @@ export class AiProcessor extends WorkerHost {
     // Agente de clasificación: salida del modelo → normalizada → reglas fijas (frases críticas que
     // solo suben la urgencia). Igual para la IA real y para el clasificador sin red.
     const triage = buildTriage(row.type, result, [transcription, row.userText].filter(Boolean).join('. '), {
-      provider: this.ai.name,
-      model: this.ai.model,
+      provider: provider.name,
+      model: provider.model,
     });
 
     const priority = capPriority(triage.priority, {
@@ -180,12 +193,12 @@ export class AiProcessor extends WorkerHost {
           ...(kept ? {} : { category: triage.category, subcategory: triage.subcategory }),
           priority,
           suggestedAgency: triage.agencies[0].agency,
-          aiStatus: 'DONE',
+          aiStatus: local ? 'LOCAL' : 'DONE',
           aiConfidence: triage.confidence,
           aiSummary: triage.summary,
           aiFlags: triage.flags,
           aiTriage: triage,
-          aiError: null,
+          aiError: local ? LOCAL_REASON_TEXT[local] : null,
         })
         .where(eq(alert.id, alertId));
       if (audio && durationS !== undefined) {
@@ -197,8 +210,9 @@ export class AiProcessor extends WorkerHost {
         actorType: 'AI',
         kind: 'AI_PROCESSED',
         payload: {
-          provider: this.ai.name,
-          model: this.ai.model,
+          provider: provider.name,
+          model: provider.model,
+          ...(local ? { local } : {}),
           version: triage.version,
           category: triage.category,
           subcategory: triage.subcategory,
@@ -220,7 +234,10 @@ export class AiProcessor extends WorkerHost {
       return { kept, before: await refreshAlertArea(tx, alertId, 'AI', triage.flags.security_relevant) };
     });
     if (keptByOperator) this.logger.debug(`alerta ${alertId}: se mantiene la clasificación del operador`);
-    this.metrics.aiProcessing.observe({ provider: this.ai.name, outcome: 'done' }, (Date.now() - started) / 1000);
+    this.metrics.aiProcessing.observe(
+      { provider: provider.name, outcome: local ? 'local' : 'done' },
+      (Date.now() - started) / 1000,
+    );
     // Redirección por georreferencia: si el hecho ocurre en otra comuna de Guard-IA, el agente la
     // traspasa (con las condiciones de AUTO_TRANSFER) y el traspaso emite a ambas centrales.
     const moved = await this.transfers.maybeAutoTransfer(alertId, triage).catch((e: Error) => {

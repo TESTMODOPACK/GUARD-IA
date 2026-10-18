@@ -1,4 +1,12 @@
 import type {
+  AuthorizeSubprocessor,
+  CreateIncident,
+  CreateSubprocessor,
+  SecurityIncident,
+  Subprocessor,
+  SubprocessorAuthorization,
+  UpdateIncident,
+  UpdateSubprocessor,
   ApiError,
   ChangeTenantStatus,
   ComunaMap,
@@ -149,6 +157,23 @@ export const api = {
     request<TestPhone>(`/platform/tenants/${id}/test-phones`, { method: 'POST', body: json(body) }),
   removeTestPhone: (id: string, phoneId: string) =>
     request<null>(`/platform/tenants/${id}/test-phones/${phoneId}`, { method: 'DELETE' }),
+
+  // Ley 21.719 (0014): subencargados y su autorización por municipio, e incidentes de seguridad.
+  subprocessors: () => request<Subprocessor[]>('/platform/subprocessors'),
+  createSubprocessor: (body: CreateSubprocessor) =>
+    request<Subprocessor[]>('/platform/subprocessors', { method: 'POST', body: json(body) }),
+  updateSubprocessor: (id: string, body: UpdateSubprocessor) =>
+    request<Subprocessor[]>(`/platform/subprocessors/${id}`, { method: 'PATCH', body: json(body) }),
+  authorizeSubprocessor: (tenantId: string, body: AuthorizeSubprocessor) =>
+    request<SubprocessorAuthorization[]>(`/platform/tenants/${tenantId}/subprocessors`, { method: 'POST', body: json(body) }),
+  revokeSubprocessor: (tenantId: string, authorizationId: string) =>
+    request<SubprocessorAuthorization[]>(`/platform/tenants/${tenantId}/subprocessors/${authorizationId}`, { method: 'DELETE' }),
+  incidents: () => request<SecurityIncident[]>('/platform/incidents'),
+  createIncident: (body: CreateIncident) => request<SecurityIncident>('/platform/incidents', { method: 'POST', body: json(body) }),
+  updateIncident: (id: string, body: UpdateIncident) =>
+    request<SecurityIncident>(`/platform/incidents/${id}`, { method: 'PATCH', body: json(body) }),
+  notifyIncidentTenant: (id: string, tenantId: string) =>
+    request<SecurityIncident>(`/platform/incidents/${id}/tenants`, { method: 'POST', body: json({ tenantId }) }),
 
   audit: (params: { tenantId?: string; cursor?: string; limit?: number }) => {
     const q = new URLSearchParams();

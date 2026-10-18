@@ -210,6 +210,8 @@ export const CitizenAlertSchema = z.object({
   category: z.enum(ALERT_CATEGORIES).nullable(),
   status: z.enum(ALERT_STATUSES),
   tenantName: z.string().nullable(),
+  /** Contacto de privacidad del municipio que atiende el caso (0014; art. 14 ter): a quién pedir sus derechos. */
+  tenantPrivacyEmail: z.string().nullable(),
   /** Comuna donde está el vecino (sirve aunque su municipio no use Guard-IA). */
   comunaName: z.string().nullable(),
   /** Si la central la cerró sin despacho: por qué (la app explica cada motivo). */

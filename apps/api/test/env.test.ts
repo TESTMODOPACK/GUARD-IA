@@ -7,6 +7,7 @@ const base = {
   JWT_ACCESS_SECRET: 'x'.repeat(40),
 };
 const PLATFORM = { PLATFORM_JWT_SECRET: 'y'.repeat(40), PLATFORM_ENCRYPTION_KEY: 'z'.repeat(40) };
+const PRIVACY = { PRIVACY_CONTACT_EMAIL: 'privacidad@guardia.cl' };
 
 describe('validateEnv', () => {
   it('degrada a mock sin OPENAI_API_KEY', () => {
@@ -27,7 +28,7 @@ describe('validateEnv', () => {
   });
 
   it('rechaza producción con MinIO interno sin dirección pública', () => {
-    const prod = { ...base, ...PLATFORM, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    const prod = { ...base, ...PLATFORM, ...PRIVACY, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
     expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000' })).toThrow(/S3_PUBLIC_ENDPOINT/);
     expect(() => validateEnv({ ...prod, S3_ENDPOINT: 'http://minio:9000', S3_PUBLIC_ENDPOINT: 'https://media.example.cl' })).not.toThrow();
     // S3 de un proveedor (sin endpoint propio): la URL firmada ya es pública.
@@ -35,7 +36,7 @@ describe('validateEnv', () => {
   });
 
   it('en producción exige los secretos de la consola de plataforma, distintos entre sí y del de la API', () => {
-    const prod = { ...base, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    const prod = { ...base, ...PRIVACY, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
     expect(() => validateEnv(prod)).toThrow(/PLATFORM_JWT_SECRET/);
     expect(() => validateEnv({ ...prod, ...PLATFORM, PLATFORM_JWT_SECRET: base.JWT_ACCESS_SECRET })).toThrow(/distintas/);
     expect(() => validateEnv({ ...prod, ...PLATFORM })).not.toThrow();
@@ -44,10 +45,17 @@ describe('validateEnv', () => {
   });
 
   it('el segundo factor de la consola solo se apaga en desarrollo', () => {
-    const prod = { ...base, ...PLATFORM, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    const prod = { ...base, ...PLATFORM, ...PRIVACY, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
     expect(validateEnv(base).PLATFORM_TOTP_REQUIRED).toBe(true);
     expect(validateEnv({ ...base, PLATFORM_TOTP_REQUIRED: 'false' }).PLATFORM_TOTP_REQUIRED).toBe(false);
     expect(() => validateEnv({ ...prod, PLATFORM_TOTP_REQUIRED: 'false' })).toThrow(/PLATFORM_TOTP_REQUIRED/);
+  });
+
+  it('en producción exige el contacto de privacidad que se muestra al vecino (Ley 21.719)', () => {
+    const prod = { ...base, ...PLATFORM, NODE_ENV: 'production', STORAGE_DRIVER: 's3', SMS_PROVIDER: 'twilio', LOCAL_STORAGE_SECRET: 'p'.repeat(32) };
+    expect(() => validateEnv(prod)).toThrow(/PRIVACY_CONTACT_EMAIL/);
+    expect(() => validateEnv({ ...prod, ...PRIVACY })).not.toThrow();
+    expect(validateEnv(base).PRIVACY_CONTACT_EMAIL).toBeUndefined();
   });
 
   it('trata `VAR=` vacía (env_file) como no definida', () => {

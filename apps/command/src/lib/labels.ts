@@ -21,6 +21,8 @@ import type {
   TenantStatus,
   UnitKind,
   UnitStatus,
+  IncidentNature,
+  SubprocessorService,
 } from '@guardia/shared';
 
 /** Vocabulario del operador. Una sola palabra por concepto, igual en botones, toasts y línea de tiempo. */
@@ -60,6 +62,7 @@ export const AI_STATUS: Record<AiStatus, string> = {
   DONE: 'IA lista',
   FAILED: 'IA no disponible',
   SKIPPED: 'Sin análisis de IA',
+  LOCAL: 'Sin IA externa',
 };
 
 /** Se usa en la frase "SOS por {source}". */
@@ -330,6 +333,33 @@ export const AUDIT_KIND: Record<AuditKind, string> = {
   AREA_RULES_UPDATED: 'Cambió qué reportes atiende cada área',
   AREA_MODE_CHANGED: 'Cambió el modo de las áreas',
   ALERT_AREA_CHANGED: 'Pasó una alerta a otra área',
+  PRIVACY_CONTACT_UPDATED: 'Cambió el contacto de privacidad',
+  SUBPROCESSOR_AUTHORIZED: 'Registró la autorización de un subencargado',
+  SUBPROCESSOR_REVOKED: 'Revocó la autorización de un subencargado',
+  INCIDENT_NOTIFIED: 'Avisó un incidente de seguridad',
+  INCIDENT_AGENCY_REPORTED: 'Registró el reporte de un incidente a la Agencia',
+  INCIDENT_SUBJECTS_NOTIFIED: 'Registró el aviso de un incidente a los vecinos',
+};
+
+/** Ley 21.719 (0014): qué servicio presta cada subencargado. */
+export const SUBPROCESSOR_SERVICE: Record<SubprocessorService, string> = {
+  AI: 'Inteligencia artificial',
+  SMS: 'Mensajes SMS',
+  PUSH: 'Avisos al teléfono',
+  HOSTING: 'Servidor',
+  STORAGE: 'Archivos',
+  BACKUP: 'Respaldo',
+  MAPS: 'Mapas',
+  OTHER: 'Otro',
+};
+
+/** Naturaleza de un incidente de seguridad (art. 14 sexies). */
+export const INCIDENT_NATURE: Record<IncidentNature, string> = {
+  DESTRUCTION: 'Destrucción de datos',
+  LEAK: 'Filtración',
+  LOSS: 'Pérdida de datos',
+  ALTERATION: 'Alteración de datos',
+  UNAUTHORIZED_ACCESS: 'Acceso no autorizado',
 };
 
 /** Cómo llegó una alerta a su área (0013). Se usa en "Área: Aseo y ornato, {source}". */

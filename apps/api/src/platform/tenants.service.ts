@@ -21,6 +21,7 @@ import { TokenService } from '../auth/token.service';
 import { AppError } from '../common/app-error';
 import { DbService, type Tx } from '../db/db.service';
 import { comuna, operator, provincia, region, tenant, tenantTestPhone } from '../db/schema';
+import { authorizationsOf, privacyOf } from '../legal/compliance.queries';
 import { maskPhone, PlatformAuditService } from './platform-audit.service';
 import type { PlatformClaims } from './platform-tokens.service';
 import { TENANT_MANAGERS } from './platform.guard';
@@ -59,6 +60,11 @@ const PROFILE_FIELDS = [
   'billingContactEmail',
   'contractSignedAt',
   'dpaSignedAt',
+  // 0014: referencia de cada documento y evaluación de impacto aprobada.
+  'contractRef',
+  'dpaRef',
+  'dpiaApprovedAt',
+  'dpiaRef',
 ] as const;
 
 const STATUS_ORDER: Record<TenantStatus, number> = { ONBOARDING: 0, ACTIVE: 1, SUSPENDED: 2, TERMINATED: 3 };
@@ -179,6 +185,12 @@ export class PlatformTenantsService {
       billingContactEmail: t.billingContactEmail,
       contractSignedAt: t.contractSignedAt,
       dpaSignedAt: t.dpaSignedAt,
+      contractRef: t.contractRef,
+      dpaRef: t.dpaRef,
+      dpiaApprovedAt: t.dpiaApprovedAt,
+      dpiaRef: t.dpiaRef,
+      privacy: await privacyOf(tx, id),
+      subprocessors: await authorizationsOf(tx, id),
       audioRetentionDays: t.audioRetentionDays,
       createdAt: t.createdAt.toISOString(),
       alertsMonth: act?.alerts ?? 0,
