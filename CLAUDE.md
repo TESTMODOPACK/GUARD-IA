@@ -21,6 +21,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | PT | Terreno: rol FIELD, página `/terreno` de la central, avisos de terreno (0012) | implementado y probado en local (14-10-2026); falta Web Push (PT-4) |
 | PA | Áreas municipales: derivación por área, carácter de seguridad, rol Apoyo administrativo, agente `triage-v3` (0013) | implementado y probado en local (14-10-2026) |
 | PL | Ley 21.719 (rige el 01-12-2026): análisis en `docs/legal/`, plan en `docs/plan-ley-21719.md` (etapas 0–5 + pista legal) | etapas 0 y 1 implementadas y probadas en local (15-10-2026, migración 0014); siguen 2–5 y la pista legal |
+| PN | SOS para negocios: botón de pánico discreto para comercios con video de sus cámaras como evidencia (`docs/plan-sos-negocios.md`) | idea analizada (15-10-2026), sin iniciar; después del piloto, partiendo por la opinión legal (Ley 21.659) y la etapa N0 sin cámaras |
 
 ## Comandos
 
