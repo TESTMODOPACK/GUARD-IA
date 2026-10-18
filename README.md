@@ -20,14 +20,15 @@ apps/api            Guard-IA Core: REST + Socket.io + worker IA (mismo proceso)
 apps/command        Guard-IA Command: central de monitoreo (Next.js 16, react-leaflet, Tailwind 4)
 apps/platform       Guard-IA Plataforma: consola del equipo Guard-IA (regiones, comunas, municipios), dominio propio
 packages/shared     enums, schemas zod y eventos WS compartidos por API, central y app
-infra/              docker-compose.yml, Caddyfile, backup.sh, .env.production.example
+infra/              Caddyfile, backup.sh, HOSTINGER.md (despliegue), RESTAURAR.md
+docker-compose.yml  producción (con .dockerignore y .env.production.example, en la raíz)
 docs/               arquitectura y decisiones
 ```
 
 ## Desarrollo local
 
 Requisitos: Node 22, pnpm 10, PostgreSQL 16 con PostGIS, Redis. En Windows, ver `docs/entorno-local.md`
-(Postgres y Redis en WSL). (O `docker compose -f infra/docker-compose.yml up db redis minio`.)
+(Postgres y Redis en WSL). (O Docker con el `docker-compose.yml` de la raíz, que exige las variables de `.env.production.example`.)
 
 ```bash
 cp .env.example .env            # editar JWT_* y, si corresponde, OPENAI_API_KEY
@@ -141,7 +142,7 @@ pnpm --filter @guardia/api test:db     # aislamiento RLS y ruteo por geocerca (r
 
 ## Variables de entorno
 
-Ver `.env.example` (desarrollo) e `infra/.env.production.example` (VPS). La app valida todas al arrancar
+Ver `.env.example` (desarrollo) y `.env.production.example` (VPS). La app valida todas al arrancar
 (`apps/api/src/config/env.ts`) y se niega a correr en producción con `STORAGE_DRIVER=local`,
 `OTP_DEBUG_ENDPOINT=true`, `SMS_PROVIDER=console` o MinIO interno sin `S3_PUBLIC_ENDPOINT`. Una variable
 vacía (`VAR=`) cuenta como no definida.
@@ -152,9 +153,14 @@ sin firma vigente no se lee nada).
 
 ## Despliegue (Fase 4, ya preparado)
 
+Paso a paso para un VPS de Hostinger (clave de despliegue, SSH o Docker Manager, datos iniciales y respaldo):
+`infra/HOSTINGER.md`.
+
 ```bash
-cd infra && cp .env.production.example .env   # completar (4 dominios: API, central, consola y media)
+cp .env.production.example .env               # en la raíz; completar (4 dominios: API, central, consola y media)
 docker compose up -d --build                  # db, redis, minio, migrate, api, command, platform, caddy
-docker compose run --rm api node dist/cli/platform-user.js --email persona@ejemplo.cl --name "Nombre"   # primer superadministrador
-docker compose run --rm api node dist/cli/seed.js --name "Municipalidad de X" --slug x --geojson /ruta/limite.geojson
+docker compose run --rm migrate node dist/cli/platform-user.js --email persona@ejemplo.cl --name "Nombre" --role SUPERADMIN
 ```
+
+Las herramientas que usan al dueño de la base (`platform-user`, `load-comunas`) corren en el servicio `migrate`. Los
+municipios se crean desde la consola de plataforma; `seed.js` crea el municipio de demostración y no va en producción.

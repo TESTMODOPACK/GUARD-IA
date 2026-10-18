@@ -1,0 +1,226 @@
+# Guard-IA · producción en un VPS con Docker Compose (sección 10 del documento de Fase 0).
+# Va en la raíz del repositorio: el Docker Manager de Hostinger lo busca aquí y construye las imágenes desde el
+# código clonado. Guía paso a paso: infra/HOSTINGER.md.
+#   cp .env.production.example .env      (en la raíz; completar; nunca subir .env al repo)
+#   docker compose up -d --build
+#
+# Variables: se leen del .env de la raíz (o de las que se cargan en el panel de Hostinger). Cada servicio recibe
+# solo las suyas: la API no ve la clave del dueño de la base ni las del respaldo. Una variable vacía cuenta como no
+# definida (validateEnv). Si se agrega una variable en apps/api/src/config/env.ts, se agrega también aquí.
+# Datos en volúmenes con nombre: sobreviven a un redespliegue o a volver a clonar el repositorio.
+
+name: guardia
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guardia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d guardia"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?define S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?define S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # Crea el bucket privado una vez y termina. backup.sh y RESTAURAR.md lo reutilizan para correr mc.
+  # Las claves se expanden dentro del contenedor ($$): no quedan escritas en su línea de comandos.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $$S3_ACCESS_KEY $$S3_SECRET_KEY &&
+        mc mb --ignore-existing local/$$S3_BUCKET &&
+        mc anonymous set none local/$$S3_BUCKET
+      "
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-guardia-media}
+
+  # Aplica migraciones con el dueño y fija la contraseña de guardia_app. Termina al completar.
+  # También corre las herramientas que necesitan el dueño de la base (primer superadministrador, comunas):
+  #   docker compose run --rm migrate node dist/cli/platform-user.js --email ... --name "..."
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: guardia-api:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://guardia_app:${APP_DB_PASSWORD:?define APP_DB_PASSWORD}@db:5432/guardia
+      DATABASE_ADMIN_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/guardia
+    command: ["node", "dist/cli/migrate.js"]
+
+  api:
+    image: guardia-api:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?define PUBLIC_API_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS:?define CORS_ORIGINS}
+      # Base (rol guardia_app, sujeto a RLS) y Redis, por la red interna.
+      DATABASE_URL: postgres://guardia_app:${APP_DB_PASSWORD}@db:5432/guardia
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      REDIS_URL: redis://redis:6379
+      # Sesiones de vecinos y operadores.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?define JWT_ACCESS_SECRET}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-}
+      JWT_OPERATOR_ACCESS_TTL_SECONDS: ${JWT_OPERATOR_ACCESS_TTL_SECONDS:-}
+      JWT_OPERATOR_REFRESH_TTL_SECONDS: ${JWT_OPERATOR_REFRESH_TTL_SECONDS:-}
+      # Consola de plataforma: secretos propios y segundo factor obligatorio (validateEnv rechaza false).
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:?define PLATFORM_JWT_SECRET}
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:?define PLATFORM_ENCRYPTION_KEY}
+      PLATFORM_ACCESS_TTL_SECONDS: ${PLATFORM_ACCESS_TTL_SECONDS:-}
+      PLATFORM_SESSION_IDLE_SECONDS: ${PLATFORM_SESSION_IDLE_SECONDS:-}
+      PLATFORM_SESSION_MAX_SECONDS: ${PLATFORM_SESSION_MAX_SECONDS:-}
+      PLATFORM_TOTP_ISSUER: ${PLATFORM_TOTP_ISSUER:-}
+      PLATFORM_TOTP_REQUIRED: "true"
+      # OTP por SMS.
+      SMS_PROVIDER: ${SMS_PROVIDER:-twilio}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      OTP_DEBUG_ENDPOINT: "false"
+      # Archivos: la API sube por la red interna, pero firma las URLs con el host público que sirve Caddy.
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: https://${MEDIA_DOMAIN:?define MEDIA_DOMAIN}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-guardia-media}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_FORCE_PATH_STYLE: "true"
+      LOCAL_STORAGE_SECRET: ${LOCAL_STORAGE_SECRET:?define LOCAL_STORAGE_SECRET}
+      SIGNED_URL_TTL_SECONDS: ${SIGNED_URL_TTL_SECONDS:-300}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-}
+      # IA (sin OPENAI_API_KEY: clasificación sin red; el SOS funciona igual).
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-}
+      OPENAI_STT_MODEL: ${OPENAI_STT_MODEL:-}
+      OPENAI_CLASSIFY_MODEL: ${OPENAI_CLASSIFY_MODEL:-}
+      AI_MAX_AUDIO_SECONDS: ${AI_MAX_AUDIO_SECONDS:-}
+      AI_PROCESSOR_KEY: ${AI_PROCESSOR_KEY:-}
+      # Ley 21.719: contacto de Guard-IA para los vecinos y política de tratamiento.
+      PRIVACY_CONTACT_EMAIL: ${PRIVACY_CONTACT_EMAIL:?define PRIVACY_CONTACT_EMAIL}
+      PRIVACY_POLICY_URL: ${PRIVACY_POLICY_URL:-}
+      # Push al vecino (Expo).
+      EXPO_PUSH_URL: ${EXPO_PUSH_URL:-}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      # Límites por persona e IP (vacío = valores por defecto de la API).
+      RATE_OTP_PER_HOUR: ${RATE_OTP_PER_HOUR:-}
+      RATE_OTP_PER_IP_PER_HOUR: ${RATE_OTP_PER_IP_PER_HOUR:-}
+      RATE_OTP_VERIFY_PER_5MIN: ${RATE_OTP_VERIFY_PER_5MIN:-}
+      RATE_LOGIN_PER_MINUTE: ${RATE_LOGIN_PER_MINUTE:-}
+      RATE_SOS_PER_10MIN: ${RATE_SOS_PER_10MIN:-}
+      RATE_CIVIC_PER_DAY: ${RATE_CIVIC_PER_DAY:-}
+      # Operación.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    expose:
+      - "3000"
+
+  command:
+    build:
+      context: .
+      dockerfile: apps/command/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+    image: guardia-command:local
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3001"
+
+  # Consola de plataforma (equipo Guard-IA): imagen y dominio propios, separada de la central. Si cae,
+  # el SOS y la central siguen.
+  platform:
+    build:
+      context: .
+      dockerfile: apps/platform/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+    image: guardia-platform:local
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3002"
+
+  # Única puerta de entrada (80/443): TLS automático con Let's Encrypt para los cuatro dominios.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - command
+      - platform
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?define API_DOMAIN}
+      CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:?define CENTRAL_DOMAIN}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?define PLATFORM_DOMAIN}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddydata:
+  caddyconfig:

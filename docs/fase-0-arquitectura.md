@@ -194,7 +194,7 @@ SOS 3/10 min, reportes 10/día.
 
 ## 10. Infraestructura
 
-VPS con Docker Compose (`infra/docker-compose.yml`): `db` (postgis), `redis`, `minio` + `minio-init`,
+VPS con Docker Compose (`docker-compose.yml` en la raíz desde el 18-10-2026, antes en `infra/`; guía `infra/HOSTINGER.md`): `db` (postgis), `redis`, `minio` + `minio-init`,
 `migrate`, `api`, `caddy`. Backups con `infra/backup.sh`. CI en `.github/workflows/ci.yml`.
 
 ## 11. Seguridad y Ley 21.719

@@ -25,7 +25,7 @@ producción) quedan fuera hasta decidir el piloto.
 | Central | `pnpm --filter @guardia/command dev` en `:3001` | |
 | App | Expo (Metro) + Expo Go en el teléfono | Push real requiere *development build* (ver riesgos) |
 
-Alternativa al WSL: Docker Desktop con `infra/docker-compose.yml` (más pesado con 7,7 GB de RAM).
+Alternativa al WSL: Docker Desktop con el `docker-compose.yml` de la raíz (más pesado con 7,7 GB de RAM).
 
 ## Etapas
 

@@ -15,7 +15,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 | 1 | `apps/api` (NestJS 11, PostGIS/RLS, BullMQ, IA), infra, simulador | entregada y revisada |
 | 2 | `apps/command` (central Next.js 16) | cerrada: revisada, simulador y `ui-gate.mjs` verdes contra base real (12-10-2026) |
 | 3 | `apps/mobile` (Expo SDK 57, Expo Router) | implementada (3a–3f), probada en web contra la API real; falta Android real y push (development build) |
-| 4 | Despliegue en VPS y piloto | preparada en `infra/`, sin ejecutar |
+| 4 | Despliegue en VPS y piloto | preparada (`docker-compose.yml` en la raíz, guía `infra/HOSTINGER.md`), sin ejecutar |
 | P1 | Consola de plataforma (`apps/platform`, migración 0010) | implementada y probada en local (13-10-2026) |
 | PU | Uso indebido: faltas (0008), restricción, bloqueo con aprobación y revisión (0011) | implementado y probado en local (13-10-2026) |
 | PT | Terreno: rol FIELD, página `/terreno` de la central, avisos de terreno (0012) | implementado y probado en local (14-10-2026); falta Web Push (PT-4) |
@@ -28,7 +28,7 @@ de datos, contratos, fases). Si una decisión está ahí, no la cambies sin deci
 ```bash
 pnpm install && pnpm build          # compila packages/shared, apps/api y apps/command
 cp .env.example .env                # editar JWT_ACCESS_SECRET (32+), OPENAI_API_KEY opcional
-pnpm migrate && pnpm seed           # requiere Postgres 16 + PostGIS y Redis (o docker compose -f infra/docker-compose.yml up db redis)
+pnpm migrate && pnpm seed           # requiere Postgres 16 + PostGIS y Redis (o Docker con el docker-compose.yml de la raíz)
 pnpm --filter @guardia/api dev      # API en :3000
 pnpm --filter @guardia/command dev  # central en :3001
 pnpm --filter @guardia/platform dev # consola de plataforma en :3002 (requiere PLATFORM_JWT_SECRET y PLATFORM_ENCRYPTION_KEY)
@@ -66,7 +66,10 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
   guard propio, regiones y comunas, municipios, equipo, bitácora). `apps/platform/src`: `lib/` (api, sesión en
   sessionStorage, labels), `components/` (Shell, ComunaMap, TenantDialogs). Páginas: `/` Chile, `/region/[cut]`,
   `/municipio/[id]`, `/municipios`, `/subencargados`, `/incidentes` (0014), `/usuarios`, `/bitacora`, `/login`, `/cambiar-clave`.
-- `infra/`: docker-compose (db, redis, minio, migrate, api, command, platform, caddy), Caddyfile, backup.sh.
+- `docker-compose.yml` en la raíz (db, redis, minio, migrate, api, command, platform, caddy; el Docker Manager de Hostinger
+  lo busca ahí), con `.dockerignore` y `.env.production.example`. Cada contenedor recibe solo sus variables (lista
+  explícita: si se agrega una en `config/env.ts`, se agrega también ahí) y los datos van en volúmenes con nombre. `infra/`:
+  Caddyfile, backup.sh, `HOSTINGER.md` (despliegue paso a paso) y `RESTAURAR.md`.
 
 ## Reglas que no se rompen
 
@@ -218,7 +221,7 @@ Marca: colores del logo en `apps/mobile/src/theme.ts` (`brand`, `color`) y `apps
 - Municipio piloto: seed con "Municipio Demo" (rectángulo del Gran Santiago); cargar el real con
   `pnpm seed --geojson limite.geojson --name "..." --slug ...`.
 - Audio ambiente de 15 s: un clip (Fase 3); encadenado post-piloto.
-- VPS y dominios: `infra/.env.production.example`.
+- VPS y dominios: `.env.production.example` y `infra/HOSTINGER.md` (VPS de Hostinger).
 - Repositorio: GitHub privado `TESTMODOPACK/GUARD-IA` (`origin`, rama `main`, desde el 18-10-2026). El VPS lo clona
   con una clave de despliegue de solo lectura; los secretos viven solo en el `.env` del servidor.
 

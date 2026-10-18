@@ -17,6 +17,9 @@ La media (audio y fotos) se copia en espejo a `BACKUP_S3_BUCKET`.
 Desde el equipo que tiene la clave privada. El dump se descifra en ese equipo y viaja por SSH directo a
 `pg_restore`, así que en el VPS nunca queda en claro.
 
+Los comandos `docker compose` van en la raíz del repositorio clonado en el VPS (donde están `docker-compose.yml` y
+`.env`; en estos ejemplos, `/opt/guard-ia`).
+
 ```bash
 # 1. En el VPS: base vacía y el rol de la aplicación (pg_dump no incluye roles).
 docker compose up -d db
@@ -24,13 +27,15 @@ docker compose exec -T db psql -U postgres -c "CREATE ROLE guardia_app LOGIN NOI
 
 # 2. En el equipo con la clave: descifrar y restaurar en un paso.
 age -d -i clave.txt guardia-AAAAMMDD-HHMM.dump.age \
-  | ssh vps 'cd /opt/guard-ia/infra && docker compose exec -T db pg_restore -U postgres -d guardia --no-owner --exit-on-error'
+  | ssh vps 'cd /opt/guard-ia && docker compose exec -T db pg_restore -U postgres -d guardia --no-owner --exit-on-error'
 
 # 3. En el VPS: migraciones posteriores al respaldo y contraseña del rol (migrate las detecta por schema_migrations).
 docker compose run --rm migrate
 
-# 4. Media: del respaldo al bucket local.
-docker compose run --rm --entrypoint sh minio-init -c '
+# 4. Media: del respaldo al bucket local (las variables BACKUP_S3_* se leen del .env y se pasan al contenedor).
+set -a; . ./.env; set +a
+docker compose run --rm -e BACKUP_S3_URL -e BACKUP_S3_ACCESS_KEY -e BACKUP_S3_SECRET_KEY -e BACKUP_S3_BUCKET \
+  --entrypoint sh minio-init -c '
   mc alias set local http://minio:9000 "$S3_ACCESS_KEY" "$S3_SECRET_KEY" >/dev/null &&
   mc alias set backup "$BACKUP_S3_URL" "$BACKUP_S3_ACCESS_KEY" "$BACKUP_S3_SECRET_KEY" >/dev/null &&
   mc mirror --overwrite "backup/$BACKUP_S3_BUCKET" "local/$S3_BUCKET"'

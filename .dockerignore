@@ -1,0 +1,27 @@
+# Contexto de construcción de las imágenes (raíz del repo, ver docker-compose.yml). Entra solo el código:
+# nunca secretos, datos ni dependencias instaladas en otro sistema operativo.
+.git
+.claude
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+**/.expo
+**/*.log
+*.lnk
+
+# Secretos y datos locales.
+.env
+.env.*
+**/.env
+**/.env.*
+apps/api/.storage
+infra/data
+data
+backups
+
+# No forman parte de las imágenes.
+apps/mobile
+docs

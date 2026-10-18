@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Backup diario: pg_dump cifrado + copia externa de la base y espejo del bucket de media (sección 10).
-# Programar con cron en el VPS:  15 3 * * * /opt/guard-ia/infra/backup.sh >> /var/log/guardia-backup.log 2>&1
+# Programar con cron en el VPS (ruta del repositorio clonado; ver infra/HOSTINGER.md):
+#   15 3 * * * /opt/guard-ia/infra/backup.sh >> /var/log/guardia-backup.log 2>&1
+# Corre desde la raíz del repositorio, donde están docker-compose.yml y .env.
 #
 # Ley 21.719 (art. 14 quinquies): el dump sale cifrado con age y nunca se escribe en claro. En el VPS solo vive
 # la clave PÚBLICA (BACKUP_AGE_RECIPIENT); la privada se guarda fuera del servidor y solo se usa para restaurar
 # (procedimiento en infra/RESTAURAR.md). Sin clave pública el script no respalda: un respaldo en claro es peor que
 # ninguno. Requiere `age` en el VPS (apt install age).
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
 
 if [[ -z "${BACKUP_AGE_RECIPIENT:-}" ]]; then
@@ -17,7 +19,7 @@ fi
 command -v age >/dev/null || { echo "[$(date -Is)] backup NO realizado: falta age (apt install age)" >&2; exit 1; }
 
 STAMP=$(date +%Y%m%d-%H%M)
-DEST=${BACKUP_DIR:-./data/backups}
+DEST=${BACKUP_DIR:-/var/backups/guardia}
 mkdir -p "$DEST"
 DEST=$(cd "$DEST" && pwd)
 FILE="guardia-$STAMP.dump.age"
