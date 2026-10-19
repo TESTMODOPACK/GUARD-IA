@@ -206,7 +206,9 @@ Antes de dar algo por terminado: `pnpm typecheck`, los tests de arriba y el simu
 ## Decisiones tomadas (resumen; detalle en README y docs)
 
 NestJS 11 CommonJS (no 12, es ESM-only). Drizzle sobre postgres-js. `lat/lng` como columnas +
-`location` generada. Push Expo por HTTP sin SDK. Storage `local` solo en desarrollo/CI. IA `mock` si
+`location` generada. Push Expo por HTTP sin SDK. Storage `local` solo en desarrollo/CI. En el VPS, MinIO con la imagen del fork
+comunitario `pgsty/minio` (las oficiales `minio/minio` y `minio/mc` ya no se publican desde 10-2026), con versión y
+huella fijas en `docker-compose.yml`; la misma imagen corre `mc` para el bucket y el respaldo. IA `mock` si
 no hay `OPENAI_API_KEY`. Email de operador único global. Una sola central con filtro por tipo y por área (no una
 app separada para Obras/Aseo); desde 0013 (14-10-2026) cada cuenta ve solo las alertas de sus áreas, lo que
 reemplaza la decisión anterior de "dashboard único para todos" (la excepción del municipio, modo compartido, la

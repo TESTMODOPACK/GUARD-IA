@@ -39,8 +39,11 @@ services:
       timeout: 3s
       retries: 10
 
+  # MinIO dejó de publicar sus imágenes (minio/minio y minio/mc ya no existen en Docker Hub, 10-2026). Se usa el
+  # fork comunitario de Pigsty (Ruohang Feng, github.com/pgsty/minio): mismo binario, mismo punto de entrada, trae mc.
+  # Versión y huella fijas: cambiarla es una decisión (revisar sus notas de versión antes).
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -54,10 +57,11 @@ services:
       timeout: 5s
       retries: 10
 
-  # Crea el bucket privado una vez y termina. backup.sh y RESTAURAR.md lo reutilizan para correr mc.
-  # Las claves se expanden dentro del contenedor ($$): no quedan escritas en su línea de comandos.
+  # Crea el bucket privado una vez y termina. backup.sh y RESTAURAR.md lo reutilizan para correr mc. Usa la misma
+  # imagen que el servidor (trae mc y sh). Las claves se expanden dentro del contenedor ($$): no quedan escritas en
+  # su línea de comandos.
   minio-init:
-    image: minio/mc:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     depends_on:
       minio:
         condition: service_healthy
@@ -75,11 +79,10 @@ services:
   # Aplica migraciones con el dueño y fija la contraseña de guardia_app. Termina al completar.
   # También corre las herramientas que necesitan el dueño de la base (primer superadministrador, comunas):
   #   docker compose run --rm migrate node dist/cli/platform-user.js --email ... --name "..."
+  # Usa la imagen que construye el servicio api (nunca se busca en un registro).
   migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
     image: guardia-api:local
+    pull_policy: never
     depends_on:
       db:
         condition: service_healthy
@@ -89,8 +92,14 @@ services:
       DATABASE_ADMIN_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/guardia
     command: ["node", "dist/cli/migrate.js"]
 
+  # Las imágenes propias (api, command, platform) se construyen siempre aquí: pull_policy build evita que Docker las
+  # busque en Docker Hub con el mismo nombre.
   api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     image: guardia-api:local
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       migrate:
@@ -175,6 +184,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
     image: guardia-command:local
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       - api
@@ -190,6 +200,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
     image: guardia-platform:local
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       - api
