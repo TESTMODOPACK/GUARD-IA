@@ -14,7 +14,11 @@ Los secretos viven solo en el `.env` del servidor, nunca en GitHub. El repositor
 
 ## 0. Antes de empezar
 
-- **VPS**: Ubuntu 24.04. Si no trae Docker, el instalador lo instala.
+- **VPS**: Ubuntu **24.04 LTS**, con la plantilla «Ubuntu 24.04 with Docker». Para cambiarlo: hPanel → VPS →
+  Sistema operativo → Aplicación → Docker → Cambiar SO. Esto borra el VPS.
+  - No usar versiones intermedias (25.04, 25.10…): pierden los parches de seguridad a los 9 meses. Además, el
+    repositorio del antivirus Monarx que instala Hostinger no las soporta. El instalador avisa y pide confirmar.
+  - Si el VPS no trae Docker, el instalador lo instala.
   - **4 GB de RAM como mínimo**, 8 GB recomendado.
   - Con menos de 6 GB y sin memoria de intercambio, el instalador agrega 4 GB de swap.
 - **Cuatro dominios** con registro **A** apuntando a la IP del VPS **antes** de instalar. Con un dominio principal,
