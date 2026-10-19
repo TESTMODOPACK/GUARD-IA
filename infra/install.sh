@@ -255,6 +255,22 @@ if ((!dns_ok)); then
 fi
 
 # --- 3. Contenedores --------------------------------------------------------------------------------------------
+# Caddy debe ser la única entrada: si otro servidor (un nginx de la plantilla, un proyecto del Docker Manager) tiene
+# el 80 o el 443, Caddy no arranca y no hay certificados. Si el Caddy de Guard-IA ya corre, los puertos son suyos.
+say "Puertos 80 y 443"
+if [[ -z "$(docker compose ps -q caddy 2>/dev/null || true)" ]]; then
+  busy=$(ss -Htlnp 2>/dev/null | awk '$4 ~ /:(80|443)$/' || true)
+  if [[ -n "$busy" ]]; then
+    echo "$busy" >&2
+    others=$(docker ps --filter publish=80 --format '{{.Names}} ({{.Image}})' 2>/dev/null; docker ps --filter publish=443 --format '{{.Names}} ({{.Image}})' 2>/dev/null)
+    if [[ -n "$others" ]]; then warn "Contenedores que los ocupan: $(echo "$others" | sort -u | tr '\n' ' ')"; fi
+    die "Los puertos 80/443 ya están en uso (arriba). Detén ese servicio: si es un contenedor, bórralo en el Docker Manager o con 'docker rm -f NOMBRE'; si es nginx del sistema, 'systemctl disable --now nginx'. Luego vuelve a correr el instalador."
+  fi
+  echo "  Libres para Caddy."
+else
+  echo "  Los usa el Caddy de Guard-IA."
+fi
+
 say "Contenedores (la primera vez tarda varios minutos: construye la API, la central y la consola)"
 if ! docker compose up -d --build; then
   docker compose logs --tail 40 migrate >&2 || true
