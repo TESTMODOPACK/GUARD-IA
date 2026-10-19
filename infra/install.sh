@@ -154,11 +154,24 @@ ask TWILIO_ACCOUNT_SID "Twilio Account SID (AC…; Enter si aún no tienes cuent
 ask TWILIO_AUTH_TOKEN "Twilio Auth Token" secret
 ask TWILIO_FROM "Número de Twilio que envía los SMS (formato +56…)"
 
-ask OPENAI_API_KEY "Clave del proveedor de IA (Enter = sin IA externa; el SOS funciona igual)" secret
+ask OPENAI_API_KEY "Clave del proveedor de IA: OpenAI (sk-…) o Groq (gsk_…). Enter = sin IA externa; el SOS funciona igual" secret
 if is_set OPENAI_API_KEY; then
-  ask OPENAI_BASE_URL "URL del proveedor compatible con OpenAI (Enter = OpenAI; Groq: https://api.groq.com/openai/v1)"
-  if is_set OPENAI_BASE_URL; then
-    warn "Proveedor distinto de OpenAI: revisa OPENAI_CLASSIFY_MODEL y OPENAI_STT_MODEL en .env."
+  # Una clave gsk_ es de Groq: la URL se fija sola.
+  if [[ $(get_env OPENAI_API_KEY) == gsk_* ]] && ! is_set OPENAI_BASE_URL; then
+    set_env OPENAI_BASE_URL https://api.groq.com/openai/v1
+  fi
+  ask OPENAI_BASE_URL "URL del proveedor compatible con OpenAI (Enter = OpenAI)"
+  if [[ $(get_env OPENAI_BASE_URL) == *api.groq.com* ]]; then
+    # Los modelos de OpenAI no existen en Groq: se usan los de .env.example, salvo que ya se hayan elegido otros.
+    stt=$(get_env OPENAI_STT_MODEL)
+    if [[ -z "$stt" || "$stt" == whisper-1 ]]; then set_env OPENAI_STT_MODEL whisper-large-v3-turbo; fi
+    model=$(get_env OPENAI_CLASSIFY_MODEL)
+    if [[ -z "$model" || "$model" == gpt-4o-mini ]]; then set_env OPENAI_CLASSIFY_MODEL openai/gpt-oss-20b; fi
+    # gpt-oss razona: sin esto la respuesta JSON llega cortada.
+    if ! is_set OPENAI_REASONING_EFFORT; then set_env OPENAI_REASONING_EFFORT low; fi
+    echo "  IA: Groq ($(get_env OPENAI_CLASSIFY_MODEL) y $(get_env OPENAI_STT_MODEL))."
+  elif is_set OPENAI_BASE_URL; then
+    warn "Proveedor distinto de OpenAI y Groq: revisa OPENAI_CLASSIFY_MODEL y OPENAI_STT_MODEL en .env."
   fi
 fi
 
