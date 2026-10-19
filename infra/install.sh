@@ -240,8 +240,15 @@ fi
 say "DNS"
 ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 dns_ok=1
+# Se pregunta al DNS público (lo que ve Let's Encrypt): el del VPS puede guardar un "no existe" de antes de crear
+# los registros. Si no hay salida a internet por HTTPS, se usa el del sistema.
+public_ip_of() {
+  curl -fsS -m 5 -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$1&type=A" 2>/dev/null |
+    grep -o '"data":"[0-9.]*"' | head -1 | cut -d'"' -f4 || true
+}
 for d in "$API" "$CENTRAL" "$PLATFORM" "$MEDIA"; do
-  got=$(getent ahostsv4 "$d" | awk 'NR == 1 {print $1}' || true)
+  got=$(public_ip_of "$d")
+  if [[ -z "$got" ]]; then got=$(getent ahostsv4 "$d" | awk 'NR == 1 {print $1}' || true); fi
   if [[ -n "$got" && "$got" == "$ip" ]]; then
     echo "  $d → $got"
   else
@@ -264,7 +271,7 @@ if [[ -z "$(docker compose ps -q caddy 2>/dev/null || true)" ]]; then
     echo "$busy" >&2
     others=$(docker ps --filter publish=80 --format '{{.Names}} ({{.Image}})' 2>/dev/null; docker ps --filter publish=443 --format '{{.Names}} ({{.Image}})' 2>/dev/null)
     if [[ -n "$others" ]]; then warn "Contenedores que los ocupan: $(echo "$others" | sort -u | tr '\n' ' ')"; fi
-    die "Los puertos 80/443 ya están en uso (arriba). Detén ese servicio: si es un contenedor, bórralo en el Docker Manager o con 'docker rm -f NOMBRE'; si es nginx del sistema, 'systemctl disable --now nginx'. Luego vuelve a correr el instalador."
+    die "Los puertos 80/443 ya están en uso (arriba). Si es OTRA APLICACIÓN que usas, NO la borres: Guard-IA y esa aplicación deben compartir una sola entrada o ir en servidores distintos (ver infra/HOSTINGER.md). Si es un resto que no usas (un proyecto a medias del Docker Manager), elimínalo y vuelve a correr el instalador."
   fi
   echo "  Libres para Caddy."
 else
