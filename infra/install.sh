@@ -31,7 +31,7 @@ if [[ -z "$self" || ! -f "$(dirname "$self")/../docker-compose.yml" ]]; then
     exit 1
   fi
   if ! command -v git >/dev/null; then
-    apt-get update -qq
+    apt-get update -qq || true # un repositorio de terceros roto no impide instalar desde los de Ubuntu
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git
   fi
   # Permisos normales para el código: las imágenes corren con un usuario sin privilegios que debe poder leerlo.
@@ -193,6 +193,20 @@ fi
 # --- 2. Sistema -------------------------------------------------------------------------------------------------
 [[ $EUID -eq 0 ]] || die "Para instalar, corre el script como root (sudo bash infra/install.sh)."
 
+# Producción solo en versiones LTS: las intermedias pierden las actualizaciones de seguridad a los 9 meses.
+os=$(. /etc/os-release 2>/dev/null && echo "${ID:-?} ${VERSION_ID:-?}" || echo "? ?")
+case "$os" in
+  "ubuntu 22.04" | "ubuntu 24.04" | "ubuntu 26.04") echo "  Sistema: Ubuntu ${os#ubuntu } LTS." ;;
+  *)
+    warn "Este servidor tiene '$os'. Para producción se recomienda Ubuntu 24.04 o 26.04 LTS: una versión intermedia deja de recibir parches de seguridad a los 9 meses (en hPanel: Sistema operativo → Ubuntu 24.04 with Docker)."
+    confirm "¿Continuar igual? (s/N)" || exit 1
+    ;;
+esac
+
+# Un repositorio de terceros roto (p. ej. el del agente Monarx en una versión de Ubuntu que no soporta) hace fallar
+# apt-get update aunque los de Ubuntu respondan: se avisa y se instala con los que sí respondieron.
+apt_update() { apt-get update -qq || warn "apt-get update terminó con errores (arriba); se sigue con los repositorios que respondieron."; }
+
 say "Docker y herramientas"
 need=()
 command -v git >/dev/null || need+=(git)
@@ -202,7 +216,7 @@ command -v curl >/dev/null || need+=(curl)
 command -v docker >/dev/null || need+=(docker.io docker-compose-v2)
 if ((${#need[@]})); then
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
+  apt_update
   apt-get install -y -qq "${need[@]}"
 fi
 systemctl enable --now docker >/dev/null 2>&1 || true
@@ -288,6 +302,7 @@ else
   [[ -n "$answer" ]] || answer=$(prompt "¿Descargar de SUBDERE (262 MB) y cargar las 345 comunas ahora? (S/n)")
   if [[ "$answer" != [nN]* ]]; then
     export DEBIAN_FRONTEND=noninteractive
+    apt_update
     apt-get install -y -qq gdal-bin libarchive-tools
     dpa=/var/lib/guardia-dpa
     mkdir -p "$dpa"
